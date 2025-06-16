@@ -337,234 +337,243 @@ def check_system_readiness():
     # Return True so installation can continue with warnings
     return True
 
+
 def setup_all_accounts():
     """
     Helper function to setup accounts for all companies
     Called from migration hooks - doesn't require parameters
-    
+
     Returns:
         dict: Setup results
     """
     from payroll_indonesia.payroll_indonesia.utils import get_default_config, debug_log
-    
+
     try:
         debug_log("Starting account setup from migration hook", "Migration")
-        
+
         # Get configuration
         config = get_default_config()
-        
+
         # Run the main setup function
         results = setup_accounts(config)
-        
+
         # Log results
         debug_log(
             f"Account setup completed with: {len(results['created'])} created, "
-            f"{len(results['skipped'])} skipped, {len(results['errors'])} errors", 
-            "Migration"
+            f"{len(results['skipped'])} skipped, {len(results['errors'])} errors",
+            "Migration",
         )
-        
+
         return results
     except Exception as e:
         debug_log(f"Error in setup_all_accounts: {str(e)}", "Migration Error", trace=True)
         frappe.log_error(
-            f"Error in setup_all_accounts: {str(e)}\n\n"
-            f"Traceback: {frappe.get_traceback()}",
-            "Migration Error"
+            f"Error in setup_all_accounts: {str(e)}\n\n" f"Traceback: {frappe.get_traceback()}",
+            "Migration Error",
         )
-        
+
         # Return minimal result to avoid breaking the migration
-        return {
-            "success": False,
-            "created": [],
-            "skipped": [],
-            "errors": [str(e)]
-        }
+        return {"success": False, "created": [], "skipped": [], "errors": [str(e)]}
+
 
 def setup_company_accounts(doc, method=None):
     """
     Set up required accounts when a new company is created
-    
+
     Args:
         doc: Company document
         method: Hook method (unused)
     """
     from payroll_indonesia.payroll_indonesia.utils import debug_log, get_default_config
-    
+
     try:
         debug_log(f"Setting up accounts for new company: {doc.name}", "Company Setup")
-        
+
         # Get config
         config = get_default_config()
-        
+
         # Set up accounts for this company
         results = setup_accounts(config, specific_company=doc.name)
-        
+
         if results.get("errors"):
             debug_log(
                 f"Errors during account setup for company {doc.name}: {', '.join(results['errors'])}",
-                "Company Setup Error"
+                "Company Setup Error",
             )
         else:
-            debug_log(
-                f"Successfully set up accounts for company {doc.name}",
-                "Company Setup"
-            )
-            
+            debug_log(f"Successfully set up accounts for company {doc.name}", "Company Setup")
+
         return results
     except Exception as e:
         debug_log(
             f"Error setting up accounts for company {doc.name}: {str(e)}",
             "Company Setup Error",
-            trace=True
+            trace=True,
         )
         frappe.log_error(
             f"Error setting up accounts for company {doc.name}: {str(e)}\n\n"
             f"Traceback: {frappe.get_traceback()}",
-            "Company Setup Error"
+            "Company Setup Error",
         )
+
 
 def setup_accounts(config=None, specific_company=None):
     """
     Set up GL accounts required for Indonesian payroll from configuration
-    
+
     This is the single source of truth for account creation during installation
-    
+
     Args:
         config: Configuration dictionary with account settings
                If None, will be fetched using get_default_config()
         specific_company: Specific company to set up accounts for (optional)
-        
+
     Returns:
         dict: Setup results
     """
-    from payroll_indonesia.payroll_indonesia.utils import debug_log, create_account, get_default_config, find_parent_account
-    
+    from payroll_indonesia.payroll_indonesia.utils import (
+        debug_log,
+        create_account,
+        get_default_config,
+        find_parent_account,
+    )
+
     # Get config if not provided
     if config is None:
         config = get_default_config()
-    
+
     debug_log("Starting account setup from fixtures/setup.py", "Account Setup")
-    
-    results = {
-        "success": True,
-        "created": [],
-        "skipped": [],
-        "errors": []
-    }
-    
+
+    results = {"success": True, "created": [], "skipped": [], "errors": []}
+
     # Get companies to process
     if specific_company:
         # Get specific company
         companies = frappe.get_all(
-            "Company", 
-            filters={"name": specific_company},
-            fields=["name", "abbr"]
+            "Company", filters={"name": specific_company}, fields=["name", "abbr"]
         )
         debug_log(f"Setting up accounts for specific company: {specific_company}", "Account Setup")
     else:
         # Get all active companies
         companies = frappe.get_all("Company", fields=["name", "abbr"])
         debug_log(f"Setting up accounts for all companies: {len(companies)} found", "Account Setup")
-    
+
     if not companies:
         debug_log("No companies found for account setup", "Account Setup")
         results["success"] = False
         results["errors"].append("No companies found")
         return results
-    
+
     # Setup accounts for each company
     for company in companies:
         try:
             debug_log(f"Setting up accounts for company: {company.name}", "Account Setup")
-            
+
             # Create BPJS liability accounts
             liability_parent = _create_bpjs_liability_parent(company.name)
             if not liability_parent:
-                debug_log(f"Failed to create liability parent account for {company.name}", "Account Setup")
+                debug_log(
+                    f"Failed to create liability parent account for {company.name}", "Account Setup"
+                )
                 results["errors"].append(f"Failed to create liability parent for {company.name}")
                 continue
-                
+
             # Create expense accounts
             expense_parent = _create_bpjs_expense_parent(company.name)
             if not expense_parent:
-                debug_log(f"Failed to create expense parent account for {company.name}", "Account Setup")
+                debug_log(
+                    f"Failed to create expense parent account for {company.name}", "Account Setup"
+                )
                 results["errors"].append(f"Failed to create expense parent for {company.name}")
                 continue
-            
+
             # Create BPJS liability accounts
             _create_bpjs_liability_accounts(company.name, liability_parent, results)
-            
+
             # Create BPJS expense accounts
             _create_bpjs_expense_accounts(company.name, expense_parent, results)
-            
+
             # Create payroll expense accounts from defaults.json
             _create_expense_accounts_from_config(company.name, config, results)
-            
+
             # Create payroll payable accounts from defaults.json
             _create_payable_accounts_from_config(company.name, config, results)
-            
+
             debug_log(f"Completed account setup for company: {company.name}", "Account Setup")
-            
+
         except Exception as e:
             results["success"] = False
             results["errors"].append(f"Error setting up accounts for {company.name}: {str(e)}")
-            debug_log(f"Error setting up accounts for {company.name}: {str(e)}", "Account Setup", trace=True)
-            
-    debug_log(f"Account setup completed with: {len(results['created'])} created, {len(results['skipped'])} skipped, {len(results['errors'])} errors", "Account Setup")
+            debug_log(
+                f"Error setting up accounts for {company.name}: {str(e)}",
+                "Account Setup",
+                trace=True,
+            )
+
+    debug_log(
+        f"Account setup completed with: {len(results['created'])} created, {len(results['skipped'])} skipped, {len(results['errors'])} errors",
+        "Account Setup",
+    )
     return results
 
 
 def _create_expense_accounts_from_config(company, config, results):
     """
     Create expense accounts from configuration
-    
+
     Args:
         company: Company name
         config: Configuration dictionary
         results: Results dictionary to update
     """
-    from payroll_indonesia.payroll_indonesia.utils import create_account, debug_log, find_parent_account
-    
+    from payroll_indonesia.payroll_indonesia.utils import (
+        create_account,
+        debug_log,
+        find_parent_account,
+    )
+
     # Get expense accounts from config
     expense_accounts = config.get("gl_accounts", {}).get("expense_accounts", {})
     if not expense_accounts:
         debug_log("No expense accounts found in configuration", "Account Setup")
         return
-    
+
     # Find expense parent account
     parent = find_parent_account(company, "Expense Account", "Expense")
     if not parent:
         debug_log(f"Could not find suitable expense parent account for {company}", "Account Setup")
         results["errors"].append(f"Failed to find expense parent account for {company}")
         return
-    
+
     # Create each expense account
     for key, account_data in expense_accounts.items():
         try:
             account_name = account_data.get("account_name", "")
             account_type = account_data.get("account_type", "Expense Account")
             root_type = account_data.get("root_type", "Expense")
-            
+
             if not account_name:
                 continue
-                
+
             debug_log(f"Creating expense account {account_name} for {company}", "Account Setup")
-            
+
             account = create_account(
                 company=company,
                 account_name=account_name,
                 account_type=account_type,
                 parent=parent,
                 root_type=root_type,
-                is_group=0
+                is_group=0,
             )
-            
+
             if account:
                 results["created"].append(account)
                 debug_log(f"Created expense account: {account}", "Account Setup")
             else:
                 results["skipped"].append(account_name)
-                debug_log(f"Account {account_name} already exists or creation failed", "Account Setup")
+                debug_log(
+                    f"Account {account_name} already exists or creation failed", "Account Setup"
+                )
         except Exception as e:
             results["errors"].append(f"Error creating {account_name}: {str(e)}")
             debug_log(f"Error creating {account_name}: {str(e)}", "Account Setup", trace=True)
@@ -573,93 +582,108 @@ def _create_expense_accounts_from_config(company, config, results):
 def _create_payable_accounts_from_config(company, config, results):
     """
     Create payable accounts from configuration
-    
+
     Args:
         company: Company name
         config: Configuration dictionary
         results: Results dictionary to update
     """
-    from payroll_indonesia.payroll_indonesia.utils import create_account, debug_log, find_parent_account
-    
+    from payroll_indonesia.payroll_indonesia.utils import (
+        create_account,
+        debug_log,
+        find_parent_account,
+    )
+
     # Get payable accounts from config
     payable_accounts = config.get("gl_accounts", {}).get("payable_accounts", {})
     if not payable_accounts:
         debug_log("No payable accounts found in configuration", "Account Setup")
         return
-    
+
     # Find liability parent account
     parent = find_parent_account(company, "Tax", "Liability")
     if not parent:
         # Try with Payable type if Tax type doesn't find anything
         parent = find_parent_account(company, "Payable", "Liability")
-        
+
     if not parent:
-        debug_log(f"Could not find suitable liability parent account for {company}", "Account Setup")
+        debug_log(
+            f"Could not find suitable liability parent account for {company}", "Account Setup"
+        )
         results["errors"].append(f"Failed to find liability parent account for {company}")
         return
-    
+
     # Create each payable account
     for key, account_data in payable_accounts.items():
         try:
             account_name = account_data.get("account_name", "")
             account_type = account_data.get("account_type", "Payable")
             root_type = account_data.get("root_type", "Liability")
-            
+
             if not account_name:
                 continue
-                
+
             debug_log(f"Creating payable account {account_name} for {company}", "Account Setup")
-            
+
             account = create_account(
                 company=company,
                 account_name=account_name,
                 account_type=account_type,
                 parent=parent,
                 root_type=root_type,
-                is_group=0
+                is_group=0,
             )
-            
+
             if account:
                 results["created"].append(account)
                 debug_log(f"Created payable account: {account}", "Account Setup")
             else:
                 results["skipped"].append(account_name)
-                debug_log(f"Account {account_name} already exists or creation failed", "Account Setup")
+                debug_log(
+                    f"Account {account_name} already exists or creation failed", "Account Setup"
+                )
         except Exception as e:
             results["errors"].append(f"Error creating {account_name}: {str(e)}")
             debug_log(f"Error creating {account_name}: {str(e)}", "Account Setup", trace=True)
 
+
 def _create_bpjs_liability_parent(company):
     """Create or get BPJS liability parent account"""
     from payroll_indonesia.payroll_indonesia.utils import create_parent_liability_account, debug_log
-    
+
     debug_log(f"Creating BPJS liability parent account for company: {company}", "Account Setup")
     parent = create_parent_liability_account(company)
     if parent:
         debug_log(f"BPJS liability parent account: {parent}", "Account Setup")
     else:
-        debug_log(f"Failed to create BPJS liability parent account for company: {company}", "Account Setup")
-    
+        debug_log(
+            f"Failed to create BPJS liability parent account for company: {company}",
+            "Account Setup",
+        )
+
     return parent
+
 
 def _create_bpjs_expense_parent(company):
     """Create or get BPJS expense parent account"""
     from payroll_indonesia.payroll_indonesia.utils import create_parent_expense_account, debug_log
-    
+
     debug_log(f"Creating BPJS expense parent account for company: {company}", "Account Setup")
     parent = create_parent_expense_account(company)
     if parent:
         debug_log(f"BPJS expense parent account: {parent}", "Account Setup")
     else:
-        debug_log(f"Failed to create BPJS expense parent account for company: {company}", "Account Setup")
-    
+        debug_log(
+            f"Failed to create BPJS expense parent account for company: {company}", "Account Setup"
+        )
+
     return parent
 
 
 def _create_bpjs_liability_accounts(company, parent, results):
     """Create BPJS liability accounts"""
     from payroll_indonesia.payroll_indonesia.utils import create_account, debug_log
-    
+
     # Accounts to create
     accounts = [
         ("BPJS Kesehatan Payable", "Payable"),
@@ -668,7 +692,7 @@ def _create_bpjs_liability_accounts(company, parent, results):
         ("BPJS JKK Payable", "Payable"),
         ("BPJS JKM Payable", "Payable"),
     ]
-    
+
     for account_name, account_type in accounts:
         try:
             debug_log(f"Creating {account_name} for {company}", "Account Setup")
@@ -677,15 +701,17 @@ def _create_bpjs_liability_accounts(company, parent, results):
                 account_name=account_name,
                 account_type=account_type,
                 parent=parent,
-                root_type="Liability"
+                root_type="Liability",
             )
-            
+
             if account:
                 results["created"].append(account)
                 debug_log(f"Created account: {account}", "Account Setup")
             else:
                 results["skipped"].append(account_name)
-                debug_log(f"Account {account_name} already exists or creation failed", "Account Setup")
+                debug_log(
+                    f"Account {account_name} already exists or creation failed", "Account Setup"
+                )
         except Exception as e:
             results["errors"].append(f"Error creating {account_name}: {str(e)}")
             debug_log(f"Error creating {account_name}: {str(e)}", "Account Setup", trace=True)
@@ -694,7 +720,7 @@ def _create_bpjs_liability_accounts(company, parent, results):
 def _create_bpjs_expense_accounts(company, parent, results):
     """Create BPJS expense accounts"""
     from payroll_indonesia.payroll_indonesia.utils import create_account, debug_log
-    
+
     # Accounts to create
     accounts = [
         ("BPJS Kesehatan Expense", "Expense Account"),
@@ -703,7 +729,7 @@ def _create_bpjs_expense_accounts(company, parent, results):
         ("BPJS JKK Expense", "Expense Account"),
         ("BPJS JKM Expense", "Expense Account"),
     ]
-    
+
     for account_name, account_type in accounts:
         try:
             debug_log(f"Creating {account_name} for {company}", "Account Setup")
@@ -712,18 +738,21 @@ def _create_bpjs_expense_accounts(company, parent, results):
                 account_name=account_name,
                 account_type=account_type,
                 parent=parent,
-                root_type="Expense"
+                root_type="Expense",
             )
-            
+
             if account:
                 results["created"].append(account)
                 debug_log(f"Created account: {account}", "Account Setup")
             else:
                 results["skipped"].append(account_name)
-                debug_log(f"Account {account_name} already exists or creation failed", "Account Setup")
+                debug_log(
+                    f"Account {account_name} already exists or creation failed", "Account Setup"
+                )
         except Exception as e:
             results["errors"].append(f"Error creating {account_name}: {str(e)}")
             debug_log(f"Error creating {account_name}: {str(e)}", "Account Setup", trace=True)
+
 
 def create_supplier_group():
     """

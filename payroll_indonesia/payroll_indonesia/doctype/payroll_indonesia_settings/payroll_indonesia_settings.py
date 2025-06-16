@@ -60,7 +60,7 @@ class PayrollIndonesiaSettings(Document):
     def validate_parent_account_fields(self) -> None:
         """
         Validate parent account candidate fields.
-        
+
         Ensures the format of parent account fields is correct and validates group accounts.
         """
         # Validate liability account candidates
@@ -71,14 +71,14 @@ class PayrollIndonesiaSettings(Document):
                 if not account_list:
                     frappe.msgprint(
                         _("Default liability parent accounts field is not properly formatted"),
-                        indicator="orange"
+                        indicator="orange",
                     )
             except Exception:
                 frappe.msgprint(
                     _("Default liability parent accounts field is not properly formatted"),
-                    indicator="orange"
+                    indicator="orange",
                 )
-                
+
         # Validate expense account candidates
         if hasattr(self, "default_expense_parents") and self.default_expense_parents:
             try:
@@ -87,12 +87,12 @@ class PayrollIndonesiaSettings(Document):
                 if not account_list:
                     frappe.msgprint(
                         _("Default expense parent accounts field is not properly formatted"),
-                        indicator="orange"
+                        indicator="orange",
                     )
             except Exception:
                 frappe.msgprint(
                     _("Default expense parent accounts field is not properly formatted"),
-                    indicator="orange"
+                    indicator="orange",
                 )
 
     def update_timestamp(self) -> None:
@@ -819,32 +819,32 @@ class PayrollIndonesiaSettings(Document):
     def get_parent_account_candidates_liability(self) -> List[str]:
         """
         Get list of valid parent account candidates for liability accounts.
-        
+
         This function returns a list of account names that can be used as
         parent accounts for liability type accounts. It validates that only
         group accounts are included in the returned list.
-        
+
         Returns:
             List[str]: List of valid liability parent account names
         """
         # Default fallback candidates if none defined
         default_candidates = ["Duties and Taxes", "Current Liabilities", "Accounts Payable"]
-        
+
         # If no field defined, return defaults
         if not hasattr(self, "default_liability_parents") or not self.default_liability_parents:
             return default_candidates
-        
+
         # Parse the field value (expected format is one account name per line)
         candidates = []
         for line in self.default_liability_parents.split("\n"):
             account_name = line.strip()
             if account_name:
                 candidates.append(account_name)
-        
+
         # If no valid candidates found, return defaults
         if not candidates:
             return default_candidates
-            
+
         # Validate that each account exists and is a group account
         valid_candidates = []
         for account_name in candidates:
@@ -854,59 +854,55 @@ class PayrollIndonesiaSettings(Document):
                 # Try with company suffix
                 abbr = frappe.get_cached_value("Company", company, "abbr") or ""
                 account_with_suffix = f"{account_name} - {abbr}" if abbr else account_name
-                
+
                 # Check if account exists with suffix
                 if frappe.db.exists("Account", account_with_suffix):
                     is_group = cint(frappe.db.get_value("Account", account_with_suffix, "is_group"))
                     if is_group:
                         if account_name not in valid_candidates:
                             valid_candidates.append(account_name)
-                
+
                 # Also check without suffix
-                filters = {
-                    "account_name": account_name,
-                    "company": company,
-                    "is_group": 1
-                }
+                filters = {"account_name": account_name, "company": company, "is_group": 1}
                 if frappe.db.exists("Account", filters):
                     if account_name not in valid_candidates:
                         valid_candidates.append(account_name)
-        
+
         # If no valid group accounts found, return defaults
         if not valid_candidates:
             return default_candidates
-            
+
         return valid_candidates
 
     def get_parent_account_candidates_expense(self) -> List[str]:
         """
         Get list of valid parent account candidates for expense accounts.
-        
+
         This function returns a list of account names that can be used as
         parent accounts for expense type accounts. It validates that only
         group accounts are included in the returned list.
-        
+
         Returns:
             List[str]: List of valid expense parent account names
         """
         # Default fallback candidates if none defined
         default_candidates = ["Direct Expenses", "Indirect Expenses", "Expenses"]
-        
+
         # If no field defined, return defaults
         if not hasattr(self, "default_expense_parents") or not self.default_expense_parents:
             return default_candidates
-        
+
         # Parse the field value (expected format is one account name per line)
         candidates = []
         for line in self.default_expense_parents.split("\n"):
             account_name = line.strip()
             if account_name:
                 candidates.append(account_name)
-        
+
         # If no valid candidates found, return defaults
         if not candidates:
             return default_candidates
-            
+
         # Validate that each account exists and is a group account
         valid_candidates = []
         for account_name in candidates:
@@ -916,28 +912,24 @@ class PayrollIndonesiaSettings(Document):
                 # Try with company suffix
                 abbr = frappe.get_cached_value("Company", company, "abbr") or ""
                 account_with_suffix = f"{account_name} - {abbr}" if abbr else account_name
-                
+
                 # Check if account exists with suffix
                 if frappe.db.exists("Account", account_with_suffix):
                     is_group = cint(frappe.db.get_value("Account", account_with_suffix, "is_group"))
                     if is_group:
                         if account_name not in valid_candidates:
                             valid_candidates.append(account_name)
-                
+
                 # Also check without suffix
-                filters = {
-                    "account_name": account_name,
-                    "company": company,
-                    "is_group": 1
-                }
+                filters = {"account_name": account_name, "company": company, "is_group": 1}
                 if frappe.db.exists("Account", filters):
                     if account_name not in valid_candidates:
                         valid_candidates.append(account_name)
-        
+
         # If no valid group accounts found, return defaults
         if not valid_candidates:
             return default_candidates
-            
+
         return valid_candidates
 
     def on_update(self) -> None:

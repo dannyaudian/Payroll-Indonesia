@@ -79,13 +79,13 @@ def debug_log(message: str, context: str = "GL Setup", max_length: int = 500, tr
 
     # Always truncate for safety
     message = str(message)[:max_length]
-    
+
     # Format with context
     log_message = f"[{timestamp}] [{context}] {message}"
-    
+
     # Log at appropriate level
     logger.info(log_message)
-    
+
     if trace:
         logger.info(f"[{timestamp}] [{context}] [TRACE] {frappe.get_traceback()[:max_length]}")
 
@@ -121,7 +121,7 @@ def get_settings():
 def get_default_config(section: Optional[str] = None) -> Dict[str, Any]:
     """
     Returns configuration values from defaults.json with caching.
-    
+
     This function is the single source of truth for default configurations
     across the entire Payroll Indonesia module.
 
@@ -138,56 +138,92 @@ def get_default_config(section: Optional[str] = None) -> Dict[str, Any]:
         # Check if cache is still valid
         if cache_expiry.get(cache_key, 0) > frappe.utils.now_datetime().timestamp():
             return config_cache[cache_key]
-    
+
     # Get defaults from JSON file first
     defaults_from_file = _load_defaults_json()
-    
+
     # Get settings document for overrides
     settings = get_settings()
-    
+
     # Build config dictionary from both sources with settings taking precedence
     config = {
         "bpjs_kesehatan": {
-            "employee_contribution": getattr(settings, "kesehatan_employee_percent", 
-                                           defaults_from_file.get("kesehatan_employee_percent", 1.0)),
-            "employer_contribution": getattr(settings, "kesehatan_employer_percent", 
-                                           defaults_from_file.get("kesehatan_employer_percent", 4.0)),
-            "max_salary": getattr(settings, "kesehatan_max_salary", 
-                                defaults_from_file.get("kesehatan_max_salary", 12000000.0)),
+            "employee_contribution": getattr(
+                settings,
+                "kesehatan_employee_percent",
+                defaults_from_file.get("kesehatan_employee_percent", 1.0),
+            ),
+            "employer_contribution": getattr(
+                settings,
+                "kesehatan_employer_percent",
+                defaults_from_file.get("kesehatan_employer_percent", 4.0),
+            ),
+            "max_salary": getattr(
+                settings,
+                "kesehatan_max_salary",
+                defaults_from_file.get("kesehatan_max_salary", 12000000.0),
+            ),
         },
         "bpjs_ketenagakerjaan": {
             "jht": {
-                "employee_contribution": getattr(settings, "jht_employee_percent", 
-                                               defaults_from_file.get("jht_employee_percent", 2.0)),
-                "employer_contribution": getattr(settings, "jht_employer_percent", 
-                                               defaults_from_file.get("jht_employer_percent", 3.7)),
+                "employee_contribution": getattr(
+                    settings,
+                    "jht_employee_percent",
+                    defaults_from_file.get("jht_employee_percent", 2.0),
+                ),
+                "employer_contribution": getattr(
+                    settings,
+                    "jht_employer_percent",
+                    defaults_from_file.get("jht_employer_percent", 3.7),
+                ),
             },
             "jkk": {
-                "employer_contribution": getattr(settings, "jkk_percent", 
-                                               defaults_from_file.get("jkk_percent", 0.24)),
+                "employer_contribution": getattr(
+                    settings, "jkk_percent", defaults_from_file.get("jkk_percent", 0.24)
+                ),
             },
             "jkm": {
-                "employer_contribution": getattr(settings, "jkm_percent", 
-                                               defaults_from_file.get("jkm_percent", 0.3)),
+                "employer_contribution": getattr(
+                    settings, "jkm_percent", defaults_from_file.get("jkm_percent", 0.3)
+                ),
             },
             "jp": {
-                "employee_contribution": getattr(settings, "jp_employee_percent", 
-                                               defaults_from_file.get("jp_employee_percent", 1.0)),
-                "employer_contribution": getattr(settings, "jp_employer_percent", 
-                                               defaults_from_file.get("jp_employer_percent", 2.0)),
-                "max_salary": getattr(settings, "jp_max_salary", 
-                                    defaults_from_file.get("jp_max_salary", 9077600.0)),
+                "employee_contribution": getattr(
+                    settings,
+                    "jp_employee_percent",
+                    defaults_from_file.get("jp_employee_percent", 1.0),
+                ),
+                "employer_contribution": getattr(
+                    settings,
+                    "jp_employer_percent",
+                    defaults_from_file.get("jp_employer_percent", 2.0),
+                ),
+                "max_salary": getattr(
+                    settings, "jp_max_salary", defaults_from_file.get("jp_max_salary", 9077600.0)
+                ),
             },
         },
-        "ptkp_values": settings.get_ptkp_values_dict() if hasattr(settings, "get_ptkp_values_dict") 
-                       else defaults_from_file.get("ptkp", {}),
-        "ptkp_to_ter_mapping": settings.get_ptkp_ter_mapping_dict() if hasattr(settings, "get_ptkp_ter_mapping_dict") 
-                              else defaults_from_file.get("ptkp_to_ter_mapping", {}),
-        "tax_brackets": settings.get_tax_brackets_list() if hasattr(settings, "get_tax_brackets_list") 
-                       else defaults_from_file.get("tax_brackets", []),
-        "tipe_karyawan": settings.get_tipe_karyawan_list() if hasattr(settings, "get_tipe_karyawan_list") 
-                        else defaults_from_file.get("tipe_karyawan", []),
-        "gl_accounts": defaults_from_file.get("gl_accounts", {})
+        "ptkp_values": (
+            settings.get_ptkp_values_dict()
+            if hasattr(settings, "get_ptkp_values_dict")
+            else defaults_from_file.get("ptkp", {})
+        ),
+        "ptkp_to_ter_mapping": (
+            settings.get_ptkp_ter_mapping_dict()
+            if hasattr(settings, "get_ptkp_ter_mapping_dict")
+            else defaults_from_file.get("ptkp_to_ter_mapping", {})
+        ),
+        "tax_brackets": (
+            settings.get_tax_brackets_list()
+            if hasattr(settings, "get_tax_brackets_list")
+            else defaults_from_file.get("tax_brackets", [])
+        ),
+        "tipe_karyawan": (
+            settings.get_tipe_karyawan_list()
+            if hasattr(settings, "get_tipe_karyawan_list")
+            else defaults_from_file.get("tipe_karyawan", [])
+        ),
+        "gl_accounts": defaults_from_file.get("gl_accounts", {}),
     }
 
     # Add account settings with fallbacks
@@ -197,13 +233,13 @@ def get_default_config(section: Optional[str] = None) -> Dict[str, Any]:
     config["bpjs_expense_parent_account"] = getattr(
         settings, "bpjs_expense_parent_account", "Expenses"
     )
-    
+
     # Add parent account candidates
     config["parent_account_candidates"] = {
         "Liability": _get_parent_account_candidates_liability(settings),
         "Expense": _get_parent_account_candidates_expense(settings),
         "Income": ["Income", "Direct Income", "Indirect Income"],
-        "Asset": ["Current Assets", "Fixed Assets"]
+        "Asset": ["Current Assets", "Fixed Assets"],
     }
 
     # Cache the result
@@ -220,17 +256,20 @@ def get_default_config(section: Optional[str] = None) -> Dict[str, Any]:
 def _get_parent_account_candidates_liability(settings) -> List[str]:
     """
     Get list of parent account candidates for liability accounts
-    
+
     Args:
         settings: Payroll Indonesia Settings document
-        
+
     Returns:
         List[str]: List of account names
     """
-    if hasattr(settings, "parent_account_candidates_liability") and settings.parent_account_candidates_liability:
+    if (
+        hasattr(settings, "parent_account_candidates_liability")
+        and settings.parent_account_candidates_liability
+    ):
         candidates = settings.parent_account_candidates_liability.split("\n")
         return [candidate.strip() for candidate in candidates if candidate.strip()]
-    
+
     # Default candidates
     return ["Duties and Taxes", "Current Liabilities", "Accounts Payable"]
 
@@ -238,17 +277,20 @@ def _get_parent_account_candidates_liability(settings) -> List[str]:
 def _get_parent_account_candidates_expense(settings) -> List[str]:
     """
     Get list of parent account candidates for expense accounts
-    
+
     Args:
         settings: Payroll Indonesia Settings document
-        
+
     Returns:
         List[str]: List of account names
     """
-    if hasattr(settings, "parent_account_candidates_expense") and settings.parent_account_candidates_expense:
+    if (
+        hasattr(settings, "parent_account_candidates_expense")
+        and settings.parent_account_candidates_expense
+    ):
         candidates = settings.parent_account_candidates_expense.split("\n")
         return [candidate.strip() for candidate in candidates if candidate.strip()]
-    
+
     # Default candidates
     return ["Direct Expenses", "Indirect Expenses", "Expenses"]
 
@@ -306,7 +348,7 @@ def create_default_settings():
 def _load_defaults_json() -> Dict[str, Any]:
     """
     Load defaults from the config/defaults.json file
-    
+
     Returns:
         dict: Default configuration values
     """
@@ -333,88 +375,89 @@ def find_parent_account(
     """
     Find appropriate parent account based on account type and root type.
     This is the centralized function for all parent account lookups.
-    
+
     Args:
         company: Company name
         account_type: Type of account (Payable, Expense, Asset, etc.)
         root_type: Root type (Liability, Expense, Asset, Income)
                   If None, determined from account_type
-                  
+
     Returns:
         str: Parent account name if found, None otherwise
     """
     # Determine root_type if not provided
     if not root_type:
         root_type = _get_root_type_from_account_type(account_type)
-    
+
     # Create cache key
     cache_key = f"parent_account:{company}:{account_type}:{root_type}"
-    
+
     # Check cache first
     if cache_key in parent_account_cache:
         # Check if cache is still valid
         if cache_expiry.get(cache_key, 0) > now_datetime().timestamp():
             return parent_account_cache[cache_key]
-    
+
     debug_log(
         f"Finding parent account for {account_type} (root_type: {root_type}) in company {company}",
-        "Account Lookup"
+        "Account Lookup",
     )
-    
+
     # Get company abbreviation for formatting account names
     abbr = frappe.get_cached_value("Company", company, "abbr")
     if not abbr:
         debug_log(f"Company {company} does not have an abbreviation", "Account Lookup Error")
         return None
-    
+
     # Get candidate parent accounts from settings
     candidates = _get_parent_account_candidates(root_type)
-    
+
     # Search for parent account from candidate list
     parent_account = _find_parent_from_candidates(company, candidates, abbr)
-    
+
     # If no parent account found from candidates, try fallback
     if not parent_account:
         # Fallback: Get any group account with the correct root_type
         parent_account = _find_fallback_parent_account(company, root_type)
-        
+
         if parent_account:
             debug_log(
                 f"Using fallback parent account for {account_type}: {parent_account}",
-                "Account Lookup"
+                "Account Lookup",
             )
         else:
             # Ultimate fallback: Use company's default root accounts
             parent_account = _find_company_root_account(company, root_type)
-            
+
             if parent_account:
                 debug_log(
                     f"Using company root account for {account_type}: {parent_account}",
-                    "Account Lookup"
+                    "Account Lookup",
                 )
             else:
                 debug_log(
                     f"Could not find any parent account for {account_type} (root_type: {root_type}) in company {company}",
-                    "Account Lookup Error"
+                    "Account Lookup Error",
                 )
                 # Don't cache negative results
                 return None
-    
+
     # Cache the successful result
     parent_account_cache[cache_key] = parent_account
     cache_expiry[cache_key] = now_datetime().timestamp() + CACHE_EXPIRY_SECONDS
-    
+
     return parent_account
+
 
 def _find_company_root_account(company: str, root_type: str) -> Optional[str]:
     """
     Find root account for the company based on root type.
     This is the ultimate fallback when no other parent account can be found.
-    
+
     Args:
         company: Company name
         root_type: Root type of account
-        
+
     Returns:
         str: Account name if found, None otherwise
     """
@@ -422,39 +465,40 @@ def _find_company_root_account(company: str, root_type: str) -> Optional[str]:
     root_accounts = {
         "Asset": "Application of Funds (Assets)",
         "Liability": "Source of Funds (Liabilities)",
-        "Expense": "Expenses", 
+        "Expense": "Expenses",
         "Income": "Income",
-        "Equity": "Equity"
+        "Equity": "Equity",
     }
-    
+
     # Get company abbr
     abbr = frappe.get_cached_value("Company", company, "abbr")
     if not abbr:
         return None
-    
+
     # Try to find the root account
     root_account = root_accounts.get(root_type)
     if not root_account:
         return None
-        
+
     # Check with company suffix
     full_name = f"{root_account} - {abbr}"
     if frappe.db.exists("Account", full_name):
         return full_name
-        
+
     # Try without company suffix as last resort
     if frappe.db.exists("Account", root_account):
         return root_account
-        
+
     return None
+
 
 def _get_root_type_from_account_type(account_type: str) -> str:
     """
     Determine the root type based on account type
-    
+
     Args:
         account_type: Type of account
-        
+
     Returns:
         str: Root type
     """
@@ -466,7 +510,7 @@ def _get_root_type_from_account_type(account_type: str) -> str:
         return "Asset"
     elif account_type in ["Direct Income", "Indirect Income", "Income Account"]:
         return "Income"
-    
+
     # Default mapping
     mapping = {
         "Cost of Goods Sold": "Expense",
@@ -479,24 +523,24 @@ def _get_root_type_from_account_type(account_type: str) -> str:
         "Stock Adjustment": "Expense",
         "Round Off": "Expense",
     }
-    
+
     return mapping.get(account_type, "Liability")
 
 
 def _get_parent_account_candidates(root_type: str) -> List[str]:
     """
     Get parent account candidates for the given root type
-    
+
     Args:
         root_type: Root type of account
-        
+
     Returns:
         List[str]: List of candidate account names
     """
     # Get from config
     config = get_default_config()
     candidates = config.get("parent_account_candidates", {}).get(root_type, [])
-    
+
     # If no candidates found in config, use defaults
     if not candidates:
         if root_type == "Liability":
@@ -509,87 +553,77 @@ def _get_parent_account_candidates(root_type: str) -> List[str]:
             candidates = ["Current Assets", "Fixed Assets"]
         else:
             candidates = []
-    
+
     return candidates
 
 
 def _find_parent_from_candidates(company: str, candidates: List[str], abbr: str) -> Optional[str]:
     """
     Find parent account from the list of candidates
-    
+
     Args:
         company: Company name
         candidates: List of candidate account names
         abbr: Company abbreviation
-        
+
     Returns:
         str: Parent account name if found, None otherwise
     """
     for candidate in candidates:
         # First check exact account name
         account = frappe.db.get_value(
-            "Account",
-            {
-                "account_name": candidate,
-                "company": company,
-                "is_group": 1
-            },
-            "name"
+            "Account", {"account_name": candidate, "company": company, "is_group": 1}, "name"
         )
-        
+
         if account:
             debug_log(f"Found parent account by name: {account}", "Account Lookup")
             return account
-        
+
         # Then check with company suffix
         account_with_suffix = f"{candidate} - {abbr}"
         if frappe.db.exists("Account", account_with_suffix):
             debug_log(f"Found parent account with suffix: {account_with_suffix}", "Account Lookup")
             return account_with_suffix
-    
+
     return None
 
 
 def _find_fallback_parent_account(company: str, root_type: str) -> Optional[str]:
     """
     Find any group account with the correct root_type as fallback
-    
+
     Args:
         company: Company name
         root_type: Root type of account
-        
+
     Returns:
         str: Parent account name if found, None otherwise
     """
     # Query for any group account with the correct root_type
     accounts = frappe.get_all(
         "Account",
-        filters={
-            "company": company,
-            "is_group": 1,
-            "root_type": root_type
-        },
+        filters={"company": company, "is_group": 1, "root_type": root_type},
         order_by="lft",
-        limit=1
+        limit=1,
     )
-    
+
     if accounts:
         return accounts[0].name
-    
+
     return None
 
 
 def create_account(
-    company: str, 
-    account_name: str, 
-    account_type: str, 
-    parent: Optional[str] = None, 
-    root_type: Optional[str] = None, 
-    is_group: int = 0
+    company: str,
+    account_name: str,
+    account_type: str,
+    parent: Optional[str] = None,
+    root_type: Optional[str] = None,
+    is_group: int = 0,
 ) -> Optional[str]:
     """
     Create GL Account if not exists with standardized naming and enhanced validation
-    
+
     This is the single source of truth for account creation in Payroll Indonesia.
     It handles all account creation logic, including finding appropriate parent accounts.
 
@@ -605,10 +639,10 @@ def create_account(
         str: Full account name if created or already exists, None otherwise
     """
     debug_log(
-        f"Starting account creation: {account_name} in {company} (Type: {account_type})", 
-        "Account Creation"
+        f"Starting account creation: {account_name} in {company} (Type: {account_type})",
+        "Account Creation",
     )
-    
+
     try:
         # Normalize invalid account_type
         if account_type == "Expense":
@@ -640,16 +674,16 @@ def create_account(
                 ["account_type", "parent_account", "company", "is_group"],
                 as_dict=1,
             )
-            
+
             # For group accounts, account_type might be None
             expected_type = None if is_group else account_type
             actual_type = account_doc.account_type
 
             # Log differences but don't change existing accounts
             if (
-                (expected_type and actual_type != expected_type) or
-                account_doc.company != company or
-                cint(account_doc.is_group) != cint(is_group)
+                (expected_type and actual_type != expected_type)
+                or account_doc.company != company
+                or cint(account_doc.is_group) != cint(is_group)
             ):
                 debug_log(
                     f"Account {full_account_name} exists but has different properties.\n"
@@ -667,14 +701,14 @@ def create_account(
         # Find parent account if not provided
         if not parent:
             parent = find_parent_account(company, account_type, root_type)
-            
+
             if not parent:
                 debug_log(
                     f"Could not find suitable parent account for {account_name} ({account_type})",
-                    "Account Error"
+                    "Account Error",
                 )
                 return None
-        
+
         # Verify parent account exists
         if not frappe.db.exists("Account", parent):
             debug_log(f"Parent account {parent} does not exist", "Account Error")
@@ -690,7 +724,7 @@ def create_account(
             "root_type": root_type,
             "account_currency": frappe.get_cached_value("Company", company, "default_currency"),
         }
-        
+
         # Only add account_type for non-group accounts
         if not is_group and account_type:
             account_fields["account_type"] = account_type
@@ -718,16 +752,15 @@ def create_account(
             return full_account_name
         else:
             debug_log(
-                f"Failed to create account {full_account_name} despite no errors",
-                "Account Error"
+                f"Failed to create account {full_account_name} despite no errors", "Account Error"
             )
             return None
 
     except Exception as e:
         debug_log(
-            f"Error creating account {account_name} for {company}: {str(e)}", 
-            "Account Error", 
-            trace=True
+            f"Error creating account {account_name} for {company}: {str(e)}",
+            "Account Error",
+            trace=True,
         )
         return None
 
@@ -735,7 +768,7 @@ def create_account(
 def create_parent_liability_account(company: str) -> Optional[str]:
     """
     Create or get parent liability account for BPJS accounts
-    
+
     Uses the centralized create_account function with group account settings.
 
     Args:
@@ -752,7 +785,7 @@ def create_parent_liability_account(company: str) -> Optional[str]:
         # Get settings for account name
         settings = get_settings()
         account_name = "BPJS Payable"  # Default
-        
+
         # Check if settings has a GL account configuration
         if settings:
             # Try to get GL accounts data from settings
@@ -773,15 +806,15 @@ def create_parent_liability_account(company: str) -> Optional[str]:
                     account_name = parent_accounts.get("bpjs_payable", {}).get(
                         "account_name", account_name
                     )
-        
+
         # Get company abbreviation
         abbr = frappe.get_cached_value("Company", company, "abbr")
         if not abbr:
             debug_log(f"Company {company} does not have an abbreviation", "Account Error")
             return None
-            
+
         full_account_name = f"{account_name} - {abbr}"
-        
+
         # Check if account already exists
         if frappe.db.exists("Account", full_account_name):
             # Verify the account is a group account
@@ -800,18 +833,18 @@ def create_parent_liability_account(company: str) -> Optional[str]:
                         f"Could not convert {full_account_name} to group account: {str(e)}",
                         "Account Creation Error",
                     )
-            
+
             return full_account_name
-        
+
         # Create parent account using centralized function
         return create_account(
             company=company,
             account_name=account_name,
             account_type="Payable",
             root_type="Liability",
-            is_group=1
+            is_group=1,
         )
-        
+
     except Exception as e:
         frappe.log_error(
             f"Error in create_parent_liability_account for {company}: {str(e)}\n\n"
@@ -824,7 +857,7 @@ def create_parent_liability_account(company: str) -> Optional[str]:
 def create_parent_expense_account(company: str) -> Optional[str]:
     """
     Create or get parent expense account for BPJS accounts
-    
+
     Uses the centralized create_account function with group account settings.
 
     Args:
@@ -841,7 +874,7 @@ def create_parent_expense_account(company: str) -> Optional[str]:
         # Get settings for account name
         settings = get_settings()
         account_name = "BPJS Expenses"  # Default
-        
+
         # Check if settings has a GL account configuration
         if settings:
             # Try to get GL accounts data from settings
@@ -862,15 +895,15 @@ def create_parent_expense_account(company: str) -> Optional[str]:
                     account_name = parent_accounts.get("bpjs_expenses", {}).get(
                         "account_name", account_name
                     )
-        
+
         # Get company abbreviation
         abbr = frappe.get_cached_value("Company", company, "abbr")
         if not abbr:
             debug_log(f"Company {company} does not have an abbreviation", "Account Error")
             return None
-            
+
         full_account_name = f"{account_name} - {abbr}"
-        
+
         # Check if account already exists
         if frappe.db.exists("Account", full_account_name):
             # Verify the account is a group account
@@ -891,18 +924,18 @@ def create_parent_expense_account(company: str) -> Optional[str]:
                         f"Could not convert {full_account_name} to group account: {str(e)}",
                         "Account Creation Error",
                     )
-            
+
             return full_account_name
-        
+
         # Create parent account using centralized function
         return create_account(
             company=company,
             account_name=account_name,
             account_type=None,  # Group accounts should not have account_type
             root_type="Expense",
-            is_group=1
+            is_group=1,
         )
-        
+
     except Exception as e:
         frappe.log_error(
             f"Error in create_parent_expense_account for {company}: {str(e)}\n\n"
@@ -1003,6 +1036,7 @@ def retry_bpjs_mapping(companies: List[str]) -> None:
             f"Error in retry_bpjs_mapping: {str(e)}\n\n" f"Traceback: {frappe.get_traceback()}",
             "BPJS Mapping Retry Error",
         )
+
 
 # BPJS Settings and Calculation Functions
 @memoize_with_ttl(ttl=CACHE_MEDIUM)

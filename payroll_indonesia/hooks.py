@@ -21,7 +21,7 @@ after_install = "payroll_indonesia.install.after_install"
 after_migrate = [
     "payroll_indonesia.install.after_migrate",
     # Panggil fungsi yang tidak memerlukan parameter
-    "payroll_indonesia.fixtures.setup.setup_all_accounts" 
+    "payroll_indonesia.fixtures.setup.setup_all_accounts",
 ]
 # List view JS
 doctype_list_js = {
@@ -70,9 +70,7 @@ doc_events = {
         "on_cancel": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_hooks.payment_entry_on_cancel",
     },
     "Account": {"on_update": "payroll_indonesia.payroll_indonesia.account_hooks.account_on_update"},
-    "Company": {
-        "after_insert": "payroll_indonesia.fixtures.setup.setup_company_accounts"
-    }
+    "Company": {"after_insert": "payroll_indonesia.fixtures.setup.setup_company_accounts"},
 }
 
 # Fixtures - dengan filter sesuai dengan kebutuhan

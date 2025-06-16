@@ -20,7 +20,7 @@ Tax calculation methods:
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate, cint
+from frappe.utils import flt, getdate, cint, nowdate
 
 # Import base module function for component update
 from payroll_indonesia.override.salary_slip.base import update_component_amount
@@ -144,7 +144,7 @@ def calculate_tax_components(doc, employee):
         set_basic_payroll_note(doc, employee)
 
         # For December, always use progressive method as per PMK 168/2023
-        if is_december(doc):
+        if should_apply_december_logic(doc):
             # Force disable TER for December according to PMK 168/2023
             doc.is_using_ter = 0
             calculate_december_pph(doc, employee)
@@ -195,6 +195,7 @@ def _ensure_required_fields(doc):
         "total_bpjs": 0,
         "koreksi_pph21": 0,
         "is_final_gabung_suami": 0,
+        "is_december_override": 0,
     }
 
     # Set defaults for missing fields
@@ -360,6 +361,16 @@ def calculate_december_pph(doc, employee):
         correction = annual_pph - ytd.get("pph21", 0)
         doc.koreksi_pph21 = correction
 
+        # Log information before returning correction
+        frappe.logger().info(
+            {
+                "ytd_pph21": ytd.get("pph21"),
+                "annual_pph": annual_pph,
+                "correction": correction,
+                "triggered_by": "December override" if doc.is_december_override else "Month 12",
+            }
+        )
+
         # Update December PPh 21
         update_component_amount(doc, "PPh 21", correction, "deductions")
 
@@ -443,44 +454,28 @@ def set_basic_payroll_note(doc, employee):
         frappe.msgprint(_("Warning: Could not set detailed payroll note."), indicator="orange")
 
 
-def is_december(doc):
+def should_apply_december_logic(doc):
     """
-    Check if salary slip is for December based solely on the document's end_date
-    
-    Args:
-        doc: Salary slip document
-    
-    Returns:
-        bool: True if the salary slip is for December, False otherwise
+    Return True when:
+    • Salary Slip has custom flag  `is_december_override == 1`, OR
+    • Its end_date month == 12  (fallback, keeps legacy behaviour)
     """
     try:
-        # First ensure the document has an end_date attribute
-        if not hasattr(doc, "end_date") or not doc.end_date:
-            frappe.log_error(
-                message=f"December Check: Document has no end_date",
-                title="December Check: Missing end_date"
-            )
-            return False
-            
-        # Parse the end_date and check if month is December (12)
-        end_date = getdate(doc.end_date)
-        is_dec = end_date.month == DECEMBER_MONTH
-        
-        # Log the evaluation result
-        log_message = (
-            f"Document: {getattr(doc, 'name', 'unknown')}\n"
-            f"End Date: {doc.end_date}\n"
-            f"Parsed Month: {end_date.month}\n"
-            f"DECEMBER_MONTH constant: {DECEMBER_MONTH}\n"
-            f"Is December: {is_dec}"
-        )
-        frappe.log_error(message=log_message, title="December Check")
-        
-        return is_dec
-        
+        # Check for the override flag first
+        if hasattr(doc, "is_december_override") and cint(doc.is_december_override) == 1:
+            return True
+
+        # Then check if month is December (fallback to legacy behavior)
+        if hasattr(doc, "end_date") and doc.end_date:
+            end_date = getdate(doc.end_date)
+            return end_date.month == DECEMBER_MONTH
+
+        # If neither condition is met, return False
+        return False
+
     except Exception as e:
         # Non-critical error - log with existing function and default to False
-        log_tax_error("Date Check", str(e), doc)
+        log_tax_error("December Logic Check", str(e), doc)
         return False
 
 
@@ -599,3 +594,42 @@ def get_ytd_totals(doc, year):
 
         # Return empty result on error
         return {"gross": 0, "bpjs": 0, "pph21": 0}
+
+
+# Unit tests for backward compatibility
+if __name__ == "__main__":
+    # Create minimal test cases
+
+    # Test case 1: December override flag
+    test_doc1 = frappe._dict(
+        {
+            "end_date": "2025-03-31",  # Not December
+            "is_december_override": 1,  # But has override flag
+        }
+    )
+
+    # Test case 2: December month without override
+    test_doc2 = frappe._dict(
+        {
+            "end_date": "2025-12-15",  # December month
+            "is_december_override": 0,  # No override needed
+        }
+    )
+
+    # Test case 3: Not December, no override
+    test_doc3 = frappe._dict(
+        {"end_date": "2025-11-30", "is_december_override": 0}  # Not December  # No override
+    )
+
+    # Run tests
+    assert (
+        should_apply_december_logic(test_doc1) is True
+    ), "Test 1 failed: Override flag should trigger December logic"
+    assert (
+        should_apply_december_logic(test_doc2) is True
+    ), "Test 2 failed: December month should trigger December logic"
+    assert (
+        should_apply_december_logic(test_doc3) is False
+    ), "Test 3 failed: Non-December without override should not trigger December logic"
+
+    print("All tests passed!")

@@ -115,10 +115,10 @@ class CustomSalaryStructure(SalaryStructure):
                                 _("Warning: Could not set income tax slab automatically."),
                                 indicator="orange",
                             )
-                
+
             # Update GL accounts for all components if applicable
             self.update_gl_accounts_for_components()
-            
+
         except Exception as e:
             # Non-critical error in on_update - log but continue since this is a hook
             frappe.log_error(
@@ -131,39 +131,39 @@ class CustomSalaryStructure(SalaryStructure):
                 ),
                 indicator="orange",
             )
-    
+
     def update_gl_accounts_for_components(self):
         """Update GL accounts for all components in the salary structure"""
         if self.company == "%":
             # Skip for wildcard company
             return
-            
+
         try:
             company = self.company
             components_updated = 0
-            
+
             # Process earnings
             for earning in self.earnings:
                 component_name = earning.salary_component
                 if update_gl_account_for_component(company, component_name):
                     components_updated += 1
-                    
+
             # Process deductions
             for deduction in self.deductions:
                 component_name = deduction.salary_component
                 if update_gl_account_for_component(company, component_name):
                     components_updated += 1
-            
+
             if components_updated > 0:
                 frappe.log_error(
                     f"Updated GL accounts for {components_updated} salary components in {self.name}",
-                    "GL Account Update"
+                    "GL Account Update",
                 )
-                
+
         except Exception as e:
             frappe.log_error(
                 f"Error updating GL accounts for components in {self.name}: {str(e)}",
-                "GL Account Update Error"
+                "GL Account Update Error",
             )
 
 
@@ -172,16 +172,16 @@ def update_gl_account_for_component(company, component_name):
     try:
         if not frappe.db.exists("Salary Component", component_name):
             return False
-            
+
         component = frappe.get_doc("Salary Component", component_name)
         if not hasattr(component, "accounts"):
             return False
-            
+
         # Get the mapped GL account
         gl_account = get_gl_account_for_salary_component(company, component_name)
         if not gl_account:
             return False
-            
+
         # Check if an account entry already exists for this company
         account_exists = False
         for acc in component.accounts:
@@ -193,25 +193,22 @@ def update_gl_account_for_component(company, component_name):
                 else:
                     # Account already has the correct mapping
                     return False
-                    
+
         # If no account exists for this company, add a new one
         if not account_exists:
-            component.append("accounts", {
-                "company": company,
-                "default_account": gl_account
-            })
-            
+            component.append("accounts", {"company": company, "default_account": gl_account})
+
         # Save the component with updated accounts
         component.flags.ignore_validate_update_after_submit = True
         component.flags.ignore_validate = True
         component.flags.ignore_permissions = True
         component.save()
-        
+
         return True
     except Exception as e:
         frappe.log_error(
             f"Error updating GL account for component {component_name} in company {company}: {str(e)}",
-            "GL Account Update Error"
+            "GL Account Update Error",
         )
         return False
 
@@ -355,7 +352,7 @@ def create_default_salary_structure():
 
             # Note
             ss.note = "Nilai komponen BPJS dan PPh 21 dihitung otomatis berdasarkan pengaturan di BPJS Settings dan PPh 21 Settings."
-            
+
             # Track modification
             ss.modified_by = frappe.session.user
             ss.modified = now()
@@ -398,7 +395,7 @@ def create_default_salary_structure():
                 "deductions": deductions,
                 "note": "Nilai komponen BPJS dan PPh 21 dihitung otomatis berdasarkan pengaturan di BPJS Settings dan PPh 21 Settings.",
                 "owner": frappe.session.user,
-                "modified_by": frappe.session.user
+                "modified_by": frappe.session.user,
             }
 
             # Buat dokumen baru
@@ -431,7 +428,7 @@ def create_default_salary_structure():
             from payroll_indonesia.utilities.tax_slab import update_existing_assignments
 
             update_existing_assignments()
-            
+
         # Update GL accounts for all components in the structure
         if default_company:
             update_gl_accounts_for_components(ss)
@@ -455,19 +452,19 @@ def update_gl_accounts_for_components(salary_structure):
         company = frappe.defaults.get_global_default("company")
         if not company:
             return
-    
+
     try:
         # Process all components in the structure
         for earning in salary_structure.earnings:
             update_gl_account_for_component(company, earning.salary_component)
-            
+
         for deduction in salary_structure.deductions:
             update_gl_account_for_component(company, deduction.salary_component)
-            
+
     except Exception as e:
         frappe.log_error(
             f"Error updating GL accounts for components in structure {salary_structure.name}: {str(e)}",
-            "GL Account Update Error"
+            "GL Account Update Error",
         )
 
 
@@ -543,10 +540,9 @@ def create_salary_components():
                 if default_company and hasattr(doc, "accounts"):
                     gl_account = get_gl_account_for_salary_component(default_company, name)
                     if gl_account:
-                        doc.append("accounts", {
-                            "company": default_company,
-                            "default_account": gl_account
-                        })
+                        doc.append(
+                            "accounts", {"company": default_company, "default_account": gl_account}
+                        )
 
                 doc.insert(ignore_permissions=True)
                 frappe.db.commit()
@@ -595,24 +591,22 @@ def update_gl_accounts_for_all_components():
         company = frappe.defaults.get_global_default("company")
         if not company:
             return False
-            
+
         components = frappe.get_all("Salary Component", fields=["name"])
         updated_count = 0
-        
+
         for comp in components:
             if update_gl_account_for_component(company, comp.name):
                 updated_count += 1
-                
+
         if updated_count > 0:
             frappe.log_error(
-                f"Updated GL accounts for {updated_count} salary components",
-                "GL Account Update"
+                f"Updated GL accounts for {updated_count} salary components", "GL Account Update"
             )
-        
+
         return True
     except Exception as e:
         frappe.log_error(
-            f"Error updating GL accounts for all components: {str(e)}",
-            "GL Account Update Error"
+            f"Error updating GL accounts for all components: {str(e)}", "GL Account Update Error"
         )
         return False
