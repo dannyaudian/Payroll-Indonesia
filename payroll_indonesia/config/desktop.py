@@ -4,7 +4,7 @@ from frappe import _
 def get_data():
     return [
         {
-            "module_name": "Payroll Indonesia",
+            "module_name": "Payroll Indonesia ( ITB )",
             "color": "grey",
             "icon": "octicon octicon-file-directory",
             "type": "module",
