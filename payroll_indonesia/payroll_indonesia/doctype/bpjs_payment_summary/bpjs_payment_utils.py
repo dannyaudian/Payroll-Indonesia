@@ -1,35 +1,28 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-05-08 11:11:10 by dannyaudian
+# Last modified: 2025-06-16 09:36:49 by dannyaudian
 
 import frappe
-from frappe.utils import flt, fmt_money, now_datetime
+from frappe.utils import flt, now_datetime
+import logging
 
-# Removed unused imports: getdate, add_months, date_diff
+# Import mapping helpers from bpjs_account_mapping
+from payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping import (
+    get_mapping_for_company,
+)
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
-def debug_log(message, module_name="BPJS Payment Summary"):
+def debug_log(message, module_name="BPJS Payment Summary", trace=False):
     """Log debug message with timestamp and additional info"""
     timestamp = now_datetime().strftime("%Y-%m-%d %H:%M:%S")
-    frappe.log_error(f"[{timestamp}] {message}", module_name)
-
-
-def get_formatted_currency(value, company=None):
-    """Format currency value based on company settings"""
-    if company:
-        currency = frappe.get_cached_value("Company", company, "default_currency")
+    if trace:
+        frappe.log_error(f"[{timestamp}] {message}", module_name)
     else:
-        currency = frappe.db.get_default("currency")
-    return fmt_money(value, currency=currency)
-
-
-def add_component_if_positive(bpjs_summary, component, description, amount):
-    """Add a component to BPJS summary if amount is positive"""
-    if amount > 0:
-        bpjs_summary.append(
-            "komponen", {"component": component, "description": description, "amount": amount}
-        )
+        logger.debug(f"[{timestamp}] {message}")
 
 
 @frappe.whitelist()
@@ -95,6 +88,7 @@ def get_salary_slip_bpjs_data(salary_slip):
         return bpjs_data
 
     except Exception as e:
+        logger.error(f"Error getting BPJS data from salary slip {salary_slip}: {str(e)}")
         frappe.log_error(
             f"Error getting BPJS data from salary slip {salary_slip}: {str(e)}\n"
             f"Traceback: {frappe.get_traceback()}",
@@ -164,6 +158,7 @@ def get_salary_slips_for_period(
         return salary_slips
 
     except Exception as e:
+        logger.error(f"Error getting salary slips for {month}/{year} in {company}: {str(e)}")
         frappe.log_error(
             f"Error getting salary slips for {month}/{year} in {company}: {str(e)}\n"
             f"Traceback: {frappe.get_traceback()}",
@@ -173,166 +168,336 @@ def get_salary_slips_for_period(
 
 
 @frappe.whitelist()
-def check_salary_slips_bpjs_components(salary_slip_list):
+def create_journal_entry(bpjs_summary_name, posting_date=None):
     """
-    Check if salary slips have BPJS components
+    Create Journal Entry for BPJS Payment Summary
 
     Args:
-        salary_slip_list (list or str): List of salary slip names or a single slip name
+        bpjs_summary_name (str): Name of the BPJS Payment Summary
+        posting_date (str, optional): Custom posting date
 
     Returns:
-        dict: Dictionary with results
+        str: Name of the created journal entry or None if failed
     """
-    if isinstance(salary_slip_list, str):
-        # Convert single slip to list
-        salary_slip_list = [salary_slip_list]
-
-    results = {
-        "total_checked": len(salary_slip_list),
-        "with_bpjs": 0,
-        "without_bpjs": 0,
-        "slips_with_bpjs": [],
-        "slips_without_bpjs": [],
-    }
-
     try:
-        for slip_name in salary_slip_list:
-            bpjs_data = get_salary_slip_bpjs_data(slip_name)
+        if not bpjs_summary_name:
+            frappe.throw("BPJS Payment Summary name is required")
 
-            # Check if any BPJS component has a value
-            has_bpjs = False
-            if bpjs_data:
-                has_bpjs = any(flt(value) > 0 for value in bpjs_data.values())
+        # Get the BPJS Payment Summary document
+        bpjs_doc = frappe.get_doc("BPJS Payment Summary", bpjs_summary_name)
 
-            if has_bpjs:
-                results["with_bpjs"] += 1
-                results["slips_with_bpjs"].append(slip_name)
-            else:
-                results["without_bpjs"] += 1
-                results["slips_without_bpjs"].append(slip_name)
+        # Skip if already has journal entry
+        if hasattr(bpjs_doc, "journal_entry") and bpjs_doc.journal_entry:
+            frappe.msgprint(f"Journal Entry {bpjs_doc.journal_entry} already exists")
+            return bpjs_doc.journal_entry
 
-        return results
+        # Get BPJS Account Mapping
+        try:
+            mapping = get_mapping_for_company(bpjs_doc.company)
+        except frappe.DoesNotExistError:
+            frappe.throw(f"BPJS Account Mapping not found for company {bpjs_doc.company}")
 
-    except Exception as e:
-        frappe.log_error(
-            f"Error checking BPJS components in salary slips: {str(e)}\n"
-            f"Traceback: {frappe.get_traceback()}",
-            "BPJS Component Check Error",
+        if not mapping:
+            frappe.throw(f"BPJS Account Mapping not found for company {bpjs_doc.company}")
+
+        # Get company default accounts
+        company_default_accounts = frappe.get_cached_value(
+            "Company",
+            bpjs_doc.company,
+            ["default_expense_account", "default_payable_account", "cost_center"],
+            as_dict=1,
         )
-        return results
 
-
-@frappe.whitelist()
-def calculate_bpjs_rates_for_employee(
-    employee, base_salary=None, structure_salary=None, use_default_rates=True
-):
-    """
-    Calculate BPJS rates for an employee based on their salary
-
-    Args:
-        employee (str): Employee ID
-        base_salary (float, optional): Base salary to use for calculation
-        structure_salary (float, optional): Structure salary to use for calculation
-        use_default_rates (bool): Whether to use default rates if not found in BPJS Settings
-
-    Returns:
-        dict: Dictionary with calculated BPJS amounts
-    """
-    try:
         # Get BPJS settings
         bpjs_settings = frappe.get_single("BPJS Settings")
 
-        # If no base salary provided, try to determine it
-        if not base_salary:
-            # First try from structure_salary parameter
-            if structure_salary:
-                base_salary = flt(structure_salary)
-            else:
-                # Try to get from the most recent salary slip
-                recent_slip = frappe.get_all(
-                    "Salary Slip",
-                    filters={"employee": employee, "docstatus": 1},
-                    fields=["name", "base_salary", "gross_pay"],
-                    order_by="start_date desc",
-                    limit=1,
+        # Create Journal Entry
+        je = frappe.new_doc("Journal Entry")
+        je.voucher_type = "Journal Entry"
+        je.company = bpjs_doc.company
+        je.posting_date = posting_date or bpjs_doc.posting_date
+
+        # Format month name for description
+        month_names = [
+            "Januari",
+            "Februari",
+            "Maret",
+            "April",
+            "Mei",
+            "Juni",
+            "Juli",
+            "Agustus",
+            "September",
+            "Oktober",
+            "November",
+            "Desember",
+        ]
+
+        month_num = bpjs_doc.month
+        if isinstance(month_num, str):
+            try:
+                month_num = int(month_num)
+            except ValueError:
+                month_num = 0
+
+        month_name = (
+            month_names[month_num - 1]
+            if month_num >= 1 and month_num <= 12
+            else str(bpjs_doc.month)
+        )
+
+        je.user_remark = f"BPJS Contributions for {month_name} {bpjs_doc.year}"
+
+        # Calculate employee and employer contribution totals
+        employee_total, employer_total = calculate_contribution_totals(bpjs_doc)
+
+        # Get company abbreviation
+        company_abbr = frappe.get_cached_value("Company", bpjs_doc.company, "abbr")
+
+        # Add expense entries (debit)
+        # First for employee contributions - expense to Salary Payable
+        if employee_total > 0:
+            je.append(
+                "accounts",
+                {
+                    "account": company_default_accounts.default_payable_account,
+                    "debit_in_account_currency": employee_total,
+                    "reference_type": "BPJS Payment Summary",
+                    "reference_name": bpjs_doc.name,
+                    "cost_center": company_default_accounts.cost_center,
+                },
+            )
+
+        # For employer contributions - expense to BPJS Expense parent account or fallback
+        expense_account = None
+
+        # Try to find BPJS Expenses parent account
+        bpjs_expense_parent = f"BPJS Expenses - {company_abbr}"
+        if frappe.db.exists("Account", bpjs_expense_parent):
+            expense_account = bpjs_expense_parent
+
+        # If not found, try settings or default
+        if not expense_account:
+            expense_account = (
+                bpjs_settings.expense_account
+                if hasattr(bpjs_settings, "expense_account") and bpjs_settings.expense_account
+                else company_default_accounts.default_expense_account
+            )
+
+        if employer_total > 0:
+            je.append(
+                "accounts",
+                {
+                    "account": expense_account,
+                    "debit_in_account_currency": employer_total,
+                    "reference_type": "BPJS Payment Summary",
+                    "reference_name": bpjs_doc.name,
+                    "cost_center": company_default_accounts.cost_center,
+                },
+            )
+
+        # Add liability entries (credit) from account_details
+        if hasattr(bpjs_doc, "account_details") and bpjs_doc.account_details:
+            for acc in bpjs_doc.account_details:
+                je.append(
+                    "accounts",
+                    {
+                        "account": acc.account,
+                        "credit_in_account_currency": acc.amount,
+                        "reference_type": "BPJS Payment Summary",
+                        "reference_name": bpjs_doc.name,
+                        "cost_center": company_default_accounts.cost_center,
+                    },
                 )
+        else:
+            frappe.throw("No account details found in the BPJS Payment Summary")
 
-                if recent_slip:
-                    base_salary = recent_slip[0].base_salary or recent_slip[0].gross_pay
-                else:
-                    # Try to get from salary structure assignment
-                    assignment = frappe.get_all(
-                        "Salary Structure Assignment",
-                        filters={"employee": employee, "docstatus": 1},
-                        fields=["base"],
-                        order_by="from_date desc",
-                        limit=1,
-                    )
+        # Save and submit journal entry
+        je.insert()
+        je.submit()
 
-                    if assignment:
-                        base_salary = assignment[0].base
+        # Update reference in BPJS Payment Summary
+        bpjs_doc.db_set("journal_entry", je.name)
+        bpjs_doc.db_set("status", "Submitted")
 
-        # If still no base salary, exit
-        if not base_salary or flt(base_salary) <= 0:
-            return {
-                "employee": employee,
-                "no_salary_data": True,
-                "error": "Tidak dapat menemukan data gaji untuk karyawan ini",
-            }
-
-        # Calculate BPJS amounts based on settings or default rates
-        rates = {
-            "jht_employee_rate": 0.02,  # 2%
-            "jht_employer_rate": 0.037,  # 3.7%
-            "jp_employee_rate": 0.01,  # 1%
-            "jp_employer_rate": 0.02,  # 2%
-            "kesehatan_employee_rate": 0.01,  # 1%
-            "kesehatan_employer_rate": 0.04,  # 4%
-            "jkk_rate": 0.0054,  # 0.54%
-            "jkm_rate": 0.003,  # 0.3%
-        }
-
-        # Get rates from BPJS settings if available
-        for rate_key in rates.keys():
-            if hasattr(bpjs_settings, rate_key):
-                setting_rate = getattr(bpjs_settings, rate_key)
-                if setting_rate is not None:
-                    rates[rate_key] = flt(setting_rate) / 100
-
-        # Calculate BPJS amounts
-        result = {
-            "employee": employee,
-            "employee_name": frappe.db.get_value("Employee", employee, "employee_name"),
-            "base_salary": base_salary,
-            "jht_employee": flt(base_salary * rates["jht_employee_rate"]),
-            "jp_employee": flt(base_salary * rates["jp_employee_rate"]),
-            "kesehatan_employee": flt(base_salary * rates["kesehatan_employee_rate"]),
-            "jht_employer": flt(base_salary * rates["jht_employer_rate"]),
-            "jp_employer": flt(base_salary * rates["jp_employer_rate"]),
-            "kesehatan_employer": flt(base_salary * rates["kesehatan_employer_rate"]),
-            "jkk": flt(base_salary * rates["jkk_rate"]),
-            "jkm": flt(base_salary * rates["jkm_rate"]),
-        }
-
-        # Calculate total employee and employer contributions
-        result["total_employee"] = flt(
-            result["jht_employee"] + result["jp_employee"] + result["kesehatan_employee"]
-        )
-        result["total_employer"] = flt(
-            result["jht_employer"]
-            + result["jp_employer"]
-            + result["kesehatan_employer"]
-            + result["jkk"]
-            + result["jkm"]
-        )
-        result["grand_total"] = flt(result["total_employee"] + result["total_employer"])
-
-        return result
+        frappe.msgprint(f"Journal Entry {je.name} created successfully")
+        return je.name
 
     except Exception as e:
-        frappe.log_error(
-            f"Error calculating BPJS rates for employee {employee}: {str(e)}\n"
-            f"Traceback: {frappe.get_traceback()}",
-            "BPJS Rate Calculation Error",
+        logger.error(
+            f"Error creating Journal Entry for BPJS Payment Summary {bpjs_summary_name}: {str(e)}"
         )
-        return {"employee": employee, "error": f"Error calculating BPJS rates: {str(e)}"}
+        frappe.log_error(
+            f"Error creating Journal Entry for BPJS Payment Summary {bpjs_summary_name}: {str(e)}\n"
+            f"Traceback: {frappe.get_traceback()}",
+            "BPJS Journal Entry Error",
+        )
+        frappe.msgprint(f"Error creating Journal Entry: {str(e)}")
+        return None
+
+
+def calculate_contribution_totals(bpjs_doc):
+    """
+    Calculate employee and employer contribution totals from a BPJS Payment Summary document
+
+    Args:
+        bpjs_doc (Document): BPJS Payment Summary document
+
+    Returns:
+        tuple: (employee_total, employer_total)
+    """
+    employee_total = 0
+    employer_total = 0
+
+    if hasattr(bpjs_doc, "employee_details") and bpjs_doc.employee_details:
+        for d in bpjs_doc.employee_details:
+            # Sum up employee contributions
+            employee_total += flt(d.kesehatan_employee) + flt(d.jht_employee) + flt(d.jp_employee)
+
+            # Sum up employer contributions
+            employer_total += (
+                flt(d.kesehatan_employer)
+                + flt(d.jht_employer)
+                + flt(d.jp_employer)
+                + flt(d.jkk)
+                + flt(d.jkm)
+            )
+
+    return employee_total, employer_total
+
+
+@frappe.whitelist()
+def create_payment_entry(bpjs_summary_name, posting_date=None, payment_account=None):
+    """
+    Create Payment Entry for BPJS Payment Summary
+
+    Args:
+        bpjs_summary_name (str): Name of the BPJS Payment Summary
+        posting_date (str, optional): Custom posting date
+        payment_account (str, optional): Bank or cash account for payment
+
+    Returns:
+        str: Name of the created payment entry or None if failed
+    """
+    try:
+        if not bpjs_summary_name:
+            frappe.throw("BPJS Payment Summary name is required")
+
+        # Get the BPJS Payment Summary document
+        bpjs_doc = frappe.get_doc("BPJS Payment Summary", bpjs_summary_name)
+
+        # Skip if already has payment entry
+        if hasattr(bpjs_doc, "payment_entry") and bpjs_doc.payment_entry:
+            frappe.msgprint(f"Payment Entry {bpjs_doc.payment_entry} already exists")
+            return bpjs_doc.payment_entry
+
+        # Validate if Journal Entry exists
+        if not hasattr(bpjs_doc, "journal_entry") or not bpjs_doc.journal_entry:
+            frappe.throw("Journal Entry must be created before creating Payment Entry")
+
+        je = frappe.get_doc("Journal Entry", bpjs_doc.journal_entry)
+        if je.docstatus != 1:
+            frappe.throw("Journal Entry must be submitted before creating Payment Entry")
+
+        # Get company default bank account if payment_account not provided
+        if not payment_account:
+            payment_account = frappe.get_cached_value(
+                "Company", bpjs_doc.company, "default_bank_account"
+            )
+            if not payment_account:
+                frappe.throw(f"Default Bank Account not set for Company {bpjs_doc.company}")
+
+        # Get supplier
+        supplier = "BPJS"
+        if not frappe.db.exists("Supplier", supplier):
+            frappe.throw(f"Supplier '{supplier}' does not exist")
+
+        # Create Payment Entry
+        pe = frappe.new_doc("Payment Entry")
+        pe.payment_type = "Pay"
+        pe.mode_of_payment = "Bank"
+        pe.paid_from = payment_account
+        pe.company = bpjs_doc.company
+        pe.posting_date = posting_date or bpjs_doc.posting_date
+        pe.party_type = "Supplier"
+        pe.party = supplier
+        pe.paid_amount = bpjs_doc.total
+        pe.source_exchange_rate = 1.0
+        pe.target_exchange_rate = 1.0
+        pe.reference_no = bpjs_doc.name
+        pe.reference_date = bpjs_doc.posting_date
+
+        # Format month name for description
+        month_names = [
+            "Januari",
+            "Februari",
+            "Maret",
+            "April",
+            "Mei",
+            "Juni",
+            "Juli",
+            "Agustus",
+            "September",
+            "Oktober",
+            "November",
+            "Desember",
+        ]
+
+        month_num = bpjs_doc.month
+        if isinstance(month_num, str):
+            try:
+                month_num = int(month_num)
+            except ValueError:
+                month_num = 0
+
+        month_name = (
+            month_names[month_num - 1]
+            if month_num >= 1 and month_num <= 12
+            else str(bpjs_doc.month)
+        )
+
+        pe.remarks = f"Payment for BPJS Contributions {month_name} {bpjs_doc.year}"
+
+        # Add reference to Journal Entry
+        pe.append(
+            "references",
+            {
+                "reference_doctype": "Journal Entry",
+                "reference_name": je.name,
+                "total_amount": bpjs_doc.total,
+                "allocated_amount": bpjs_doc.total,
+            },
+        )
+
+        # Add reference to BPJS Payment Summary
+        pe.append(
+            "references",
+            {
+                "reference_doctype": "BPJS Payment Summary",
+                "reference_name": bpjs_doc.name,
+                "total_amount": bpjs_doc.total,
+                "allocated_amount": bpjs_doc.total,
+            },
+        )
+
+        # Save payment entry
+        pe.insert()
+
+        # Update reference in BPJS Payment Summary
+        bpjs_doc.db_set("payment_entry", pe.name)
+        bpjs_doc.db_set("status", "Paid")
+
+        frappe.msgprint(f"Payment Entry {pe.name} created successfully")
+        return pe.name
+
+    except Exception as e:
+        logger.error(
+            f"Error creating Payment Entry for BPJS Payment Summary {bpjs_summary_name}: {str(e)}"
+        )
+        frappe.log_error(
+            f"Error creating Payment Entry for BPJS Payment Summary {bpjs_summary_name}: {str(e)}\n"
+            f"Traceback: {frappe.get_traceback()}",
+            "BPJS Payment Entry Error",
+        )
+        frappe.msgprint(f"Error creating Payment Entry: {str(e)}")
+        return None

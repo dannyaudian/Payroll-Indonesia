@@ -133,7 +133,7 @@
         }
     ],
     "istable": 1,
-    "modified": "2025-05-08 11:07:51",
+    "modified": "2025-06-16 09:39:52",
     "modified_by": "dannyaudian",
     "module": "Payroll Indonesia",
     "name": "BPJS Payment Summary Detail",
@@ -141,5 +141,8 @@
     "permissions": [],
     "sort_field": "modified",
     "sort_order": "DESC",
-    "track_changes": 1
+    "track_changes": 1,
+    "unique_together": [
+        ["salary_slip", "employee"]
+    ]
 }
