@@ -10,12 +10,7 @@ from frappe.utils import getdate, flt
 from payroll_indonesia.payroll_indonesia.utils import (
     get_default_config,
     debug_log,
-    create_account,
-    find_parent_account,
 )
-
-# Import GL account mapper
-from payroll_indonesia.config.gl_account_mapper import map_gl_account
 
 __all__ = [
     "before_install",
@@ -431,12 +426,7 @@ def setup_accounts(config=None, specific_company=None):
     Returns:
         dict: Setup results
     """
-    from payroll_indonesia.payroll_indonesia.utils import (
-        debug_log,
-        create_account,
-        get_default_config,
-        find_parent_account,
-    )
+    from payroll_indonesia.payroll_indonesia.utils import debug_log, get_default_config
 
     # Get config if not provided
     if config is None:

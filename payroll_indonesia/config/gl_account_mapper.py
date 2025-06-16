@@ -3,10 +3,7 @@
 # For license information, please see license.txt
 # Last modified: 2025-05-24 06:02:26 by dannyaudian
 
-import frappe
 import logging
-from frappe import _
-from typing import Dict, Any, Optional
 
 # Import utility function for config
 from payroll_indonesia.payroll_indonesia.utils import get_default_config, debug_log

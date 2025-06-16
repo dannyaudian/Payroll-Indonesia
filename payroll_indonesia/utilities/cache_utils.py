@@ -8,7 +8,7 @@ from frappe.utils import now_datetime, add_to_date
 import hashlib
 import json
 import functools
-from typing import Any, Optional, Dict, List, Union
+from typing import Any, Optional, Dict
 
 
 # Main cache implementation as a class

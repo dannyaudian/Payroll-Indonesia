@@ -14,7 +14,7 @@ Tax rate calculations are delegated to the PPh 21 TER Table for better data mana
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Union, Optional
+from typing import Any, Dict, List, Union
 
 import frappe
 from frappe import _

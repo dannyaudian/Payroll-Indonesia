@@ -5,11 +5,10 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt, now_datetime
+from frappe.utils import now_datetime
 
 # Import from centralized utils module
 from payroll_indonesia.payroll_indonesia.utils import (
-    get_default_config,
     debug_log,
     find_parent_account,
 )
@@ -274,7 +273,7 @@ def set_missing_accounts(mapping_doc, liability_parent, expense_parent):
     """
     try:
         company = mapping_doc.company
-        config = get_default_config()
+        # Removed unused config variable
 
         # Define account field mappings with GL account keys and parent accounts
         account_mapping = {
@@ -457,32 +456,18 @@ def diagnose_accounts():
                             )
 
                 # Check parent accounts exist
-                abbr = company_info["abbr"]
-
-                # Get parent account names from config
-                config = get_default_config()
-                bpjs_payable_name = (
-                    config.get("gl_accounts", {})
-                    .get("parent_accounts", {})
-                    .get("bpjs_payable", {})
-                    .get("account_name", "BPJS Payable")
-                )
-                bpjs_expenses_name = (
-                    config.get("gl_accounts", {})
-                    .get("parent_accounts", {})
-                    .get("bpjs_expenses", {})
-                    .get("account_name", "BPJS Expenses")
-                )
+                # Removed unused variable abbr and the related variables
+                # bpjs_payable_name and bpjs_expenses_name
 
                 # Check liability parent account using find_parent_account
                 liability_parent = find_parent_account(company, "Payable", "Liability")
                 if not liability_parent:
-                    company_info["issues"].append(f"No suitable liability parent account found")
+                    company_info["issues"].append("No suitable liability parent account found")
 
                 # Check expense parent account using find_parent_account
                 expense_parent = find_parent_account(company, "Expense Account", "Expense")
                 if not expense_parent:
-                    company_info["issues"].append(f"No suitable expense parent account found")
+                    company_info["issues"].append("No suitable expense parent account found")
 
                 results["mappings"].append(mapping_info)
             else:
@@ -598,8 +583,8 @@ def validate_with_gl_mapper(doc, company):
             elif mapped_account and doc.get(field) != mapped_account:
                 # Just warn but don't change
                 frappe.msgprint(
-                    _(
-                        f"Field {field} has account {doc.get(field)} but expected {mapped_account} based on GL mapping."
+                    _("Field {0} has account {1} but expected {2} based on GL mapping.").format(
+                        field, doc.get(field), mapped_account
                     ),
                     indicator="orange",
                     alert=True,

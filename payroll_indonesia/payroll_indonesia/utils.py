@@ -9,12 +9,11 @@ import os
 from pathlib import Path
 from frappe import _
 from frappe.utils import flt, cint, getdate, now_datetime
-from typing import Dict, Any, Optional, List, Union, Tuple
+from typing import Dict, Any, Optional, List
 
 # Import constants
 from payroll_indonesia.constants import (
     CACHE_MEDIUM,
-    CACHE_SHORT,
     CACHE_LONG,
     BIAYA_JABATAN_PERCENT,
     BIAYA_JABATAN_MAX,

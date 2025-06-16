@@ -3,11 +3,8 @@
 # See license.txt
 
 import frappe
-import json
-import os
-from frappe.utils import flt, now, get_datetime
+from frappe.utils import flt, now
 import logging
-import hashlib
 from payroll_indonesia.config.gl_account_mapper import map_gl_account
 from payroll_indonesia.payroll_indonesia.utils import get_default_config, debug_log
 from payroll_indonesia.fixtures.setup import setup_accounts
@@ -333,7 +330,9 @@ def update_settings_from_config(settings, config):
         ptkp = config.get("ptkp", {})
         for status, amount in ptkp.items():
             settings.append("ptkp_table", {"status_pajak": status, "ptkp_amount": flt(amount)})
-        ptkp_summary = {"count": len(settings.ptkp_table)}
+
+        # Log PTKP details
+        logger.info(f"[PI-Install] PTKP table populated with {len(settings.ptkp_table)} entries")
 
         # PTKP to TER mapping
         ptkp_ter_mapping = config.get("ptkp_to_ter_mapping", {})
@@ -341,7 +340,11 @@ def update_settings_from_config(settings, config):
             settings.append(
                 "ptkp_ter_mapping_table", {"ptkp_status": status, "ter_category": category}
             )
-        ptkp_ter_mapping_summary = {"count": len(settings.ptkp_ter_mapping_table)}
+
+        # Log PTKP to TER mapping details
+        logger.info(
+            f"[PI-Install] PTKP-TER mapping populated with {len(settings.ptkp_ter_mapping_table)} entries"
+        )
 
         # Tax brackets
         tax_brackets = config.get("tax_brackets", [])
@@ -354,7 +357,11 @@ def update_settings_from_config(settings, config):
                     "tax_rate": flt(bracket.get("tax_rate", 0)),
                 },
             )
-        tax_brackets_summary = {"count": len(settings.tax_brackets_table)}
+
+        # Log tax brackets details
+        logger.info(
+            f"[PI-Install] Tax brackets populated with {len(settings.tax_brackets_table)} entries"
+        )
 
         # Defaults
         defaults = config.get("defaults", {})
@@ -367,10 +374,11 @@ def update_settings_from_config(settings, config):
             "include_holidays_in_total_working_days", 0
         )
         settings.working_hours_per_day = flt(defaults.get("working_hours_per_day", 8))
-        defaults_summary = {
-            "default_currency": settings.default_currency,
-            "payroll_frequency": settings.payroll_frequency,
-        }
+
+        # Log defaults details
+        logger.info(
+            f"[PI-Install] Default settings updated: currency={settings.default_currency}, frequency={settings.payroll_frequency}"
+        )
 
         # Struktur gaji
         struktur_gaji = config.get("struktur_gaji", {})
@@ -382,16 +390,21 @@ def update_settings_from_config(settings, config):
             struktur_gaji.get("position_allowance_percent", 7.5)
         )
         settings.hari_kerja_default = struktur_gaji.get("hari_kerja_default", 22)
-        struktur_gaji_summary = {
-            "basic_salary_percent": settings.basic_salary_percent,
-            "meal_allowance": settings.meal_allowance,
-        }
+
+        # Log struktur gaji details
+        logger.info(
+            f"[PI-Install] Salary structure settings updated: basic={settings.basic_salary_percent}%, meal={settings.meal_allowance}"
+        )
 
         # Tipe karyawan
         tipe_karyawan = config.get("tipe_karyawan", [])
         for tipe in tipe_karyawan:
             settings.append("tipe_karyawan", {"tipe_karyawan": tipe})
-        tipe_karyawan_summary = {"count": len(settings.tipe_karyawan)}
+
+        # Log tipe karyawan details
+        logger.info(
+            f"[PI-Install] Employee types populated with {len(settings.tipe_karyawan)} entries"
+        )
 
         logger.info(
             f"[PI-Install] update_settings_from_config summaries: app_info={app_info_summary}, bpjs={bpjs_summary}, tax={tax_summary}"

@@ -18,7 +18,7 @@ from payroll_indonesia.override.salary_slip.bpjs_calculator import calculate_bpj
 from payroll_indonesia.override.salary_slip.tax_calculator import calculate_tax_components
 
 # Import standardized cache utilities
-from payroll_indonesia.utilities.cache_utils import get_cached_value, cache_value, clear_cache
+from payroll_indonesia.utilities.cache_utils import get_cached_value, cache_value
 
 # Import constants
 from payroll_indonesia.constants import (

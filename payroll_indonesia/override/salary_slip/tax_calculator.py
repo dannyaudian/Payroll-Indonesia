@@ -20,7 +20,7 @@ Tax calculation methods:
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate, cint, nowdate
+from frappe.utils import flt, getdate, cint
 
 # Import base module function for component update
 from payroll_indonesia.override.salary_slip.base import update_component_amount
