@@ -5,12 +5,11 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt, now_datetime
+from frappe.utils import now_datetime
 from enum import Enum
 
 # Import from centralized utils module
 from payroll_indonesia.payroll_indonesia.utils import (
-    get_default_config,
     debug_log,
     find_parent_account,
 )
@@ -30,6 +29,7 @@ __all__ = [
 
 class BPJS_COMPONENTS(Enum):
     """Enum for BPJS component types"""
+
     KESEHATAN = "kesehatan"
     JHT = "jht"
     JP = "jp"
@@ -61,7 +61,9 @@ def get_mapping_for_company(company=None):
                 company = companies[0].name
 
     if not company:
-        frappe.throw(_("No company specified and no default company found"), frappe.DoesNotExistError)
+        frappe.throw(
+            _("No company specified and no default company found"), frappe.DoesNotExistError
+        )
 
     # Try to get from cache first
     cache_key = f"bpjs_mapping_{company}"
@@ -78,7 +80,7 @@ def get_mapping_for_company(company=None):
         if not mapping_name:
             frappe.throw(
                 _("No BPJS Account Mapping found for company {0}").format(company),
-                frappe.DoesNotExistError
+                frappe.DoesNotExistError,
             )
 
         # Get complete document data
@@ -93,17 +95,17 @@ def get_mapping_for_company(company=None):
         # Add account fields for all components
         for component in BPJS_COMPONENTS:
             component_name = component.value
-            
+
             # Employee account
             employee_field = f"{component_name}_employee_account"
             if hasattr(mapping, employee_field):
                 mapping_dict[employee_field] = getattr(mapping, employee_field)
-            
+
             # Employer debit account
             employer_debit_field = f"{component_name}_employer_debit_account"
             if hasattr(mapping, employer_debit_field):
                 mapping_dict[employer_debit_field] = getattr(mapping, employer_debit_field)
-            
+
             # Employer credit account
             employer_credit_field = f"{component_name}_employer_credit_account"
             if hasattr(mapping, employer_credit_field):
@@ -129,24 +131,26 @@ def get_mapping_for_company(company=None):
 def create_default_mapping(company):
     """
     Create a default BPJS Account Mapping using map_gl_account from config
-    
+
     Args:
         company (str): Company name
 
     Returns:
         str: Name of created mapping or None if failed
-        
+
     Note:
         This function is deprecated and will be removed in future versions.
         Use the UI to create mappings instead.
     """
     frappe.msgprint(
-        _("Warning: create_default_mapping() is deprecated and will be removed in future versions. "
-          "Use the UI to create mappings instead."),
+        _(
+            "Warning: create_default_mapping() is deprecated and will be removed in future versions. "
+            "Use the UI to create mappings instead."
+        ),
         indicator="orange",
-        alert=True
+        alert=True,
     )
-    
+
     try:
         # Verify company is valid
         if not frappe.db.exists("Company", company):
@@ -176,7 +180,10 @@ def create_default_mapping(company):
             debug_log(error_msg, "BPJS Mapping Error", trace=True)
             frappe.throw(_(error_msg))
 
-        debug_log(f"Found parent accounts: Liability={liability_parent}, Expense={expense_parent}", "BPJS Mapping")
+        debug_log(
+            f"Found parent accounts: Liability={liability_parent}, Expense={expense_parent}",
+            "BPJS Mapping",
+        )
 
         # Create new mapping with ignore_validate flag
         debug_log(f"Creating new BPJS Account Mapping for company {company}", "BPJS Mapping")
@@ -186,43 +193,48 @@ def create_default_mapping(company):
 
         # Define mapping between document fields and GL account keys and categories
         account_mapping_fields = {}
-        
+
         # Create mapping fields for all components
         for component in BPJS_COMPONENTS:
             component_name = component.value
-            
+
             # Employee account (liability)
             employee_field = f"{component_name}_employee_account"
-            account_mapping_fields[employee_field] = (f"bpjs_{component_name}_payable", "bpjs_payable_accounts")
-            
+            account_mapping_fields[employee_field] = (
+                f"bpjs_{component_name}_payable",
+                "bpjs_payable_accounts",
+            )
+
             # Employer expense account
             employer_debit_field = f"{component_name}_employer_debit_account"
-            account_mapping_fields[employer_debit_field] = (f"bpjs_{component_name}_employer_expense", "bpjs_expense_accounts")
-            
+            account_mapping_fields[employer_debit_field] = (
+                f"bpjs_{component_name}_employer_expense",
+                "bpjs_expense_accounts",
+            )
+
             # Employer liability account
             employer_credit_field = f"{component_name}_employer_credit_account"
-            account_mapping_fields[employer_credit_field] = (f"bpjs_{component_name}_payable", "bpjs_payable_accounts")
-            
+            account_mapping_fields[employer_credit_field] = (
+                f"bpjs_{component_name}_payable",
+                "bpjs_payable_accounts",
+            )
+
         # Map each account using the GL mapper function
         for field_name, (account_key, category) in account_mapping_fields.items():
             account = map_gl_account(company, account_key, category)
             if account and frappe.db.exists("Account", account):
                 mapping.set(field_name, account)
-                debug_log(
-                    f"Set {field_name} to {account} using map_gl_account",
-                    "BPJS Mapping"
-                )
+                debug_log(f"Set {field_name} to {account} using map_gl_account", "BPJS Mapping")
             else:
                 debug_log(
                     f"Failed to map account for {field_name} using key {account_key} in category {category}",
-                    "BPJS Mapping Warning"
+                    "BPJS Mapping Warning",
                 )
 
         # Insert mapping without strict validation
         try:
             debug_log(
-                f"Attempting to insert BPJS Account Mapping document for {company}",
-                "BPJS Mapping"
+                f"Attempting to insert BPJS Account Mapping document for {company}", "BPJS Mapping"
             )
             mapping.insert(ignore_permissions=True, ignore_mandatory=True)
         except Exception as e:
@@ -230,8 +242,7 @@ def create_default_mapping(company):
             error_msg = f"Failed to insert BPJS Account Mapping for {company}: {str(e)}"
             debug_log(error_msg, "BPJS Mapping Error", trace=True)
             frappe.log_error(
-                f"{error_msg}\n\nTraceback: {frappe.get_traceback()}",
-                "BPJS Mapping Creation Error"
+                f"{error_msg}\n\nTraceback: {frappe.get_traceback()}", "BPJS Mapping Creation Error"
             )
             frappe.throw(_(error_msg))
 
@@ -242,19 +253,15 @@ def create_default_mapping(company):
             for field_name, (account_key, category) in account_mapping_fields.items():
                 if not mapping.get(field_name):
                     missing_fields.append(field_name)
-                    
+
             if missing_fields:
                 debug_log(
                     f"Missing accounts for fields: {', '.join(missing_fields)}. Attempting to set accounts.",
-                    "BPJS Mapping"
+                    "BPJS Mapping",
                 )
                 set_missing_accounts(mapping, liability_parent, expense_parent)
         except Exception as e:
-            debug_log(
-                f"Error in set_missing_accounts: {str(e)}",
-                "BPJS Mapping Error",
-                trace=True
-            )
+            debug_log(f"Error in set_missing_accounts: {str(e)}", "BPJS Mapping Error", trace=True)
             # Don't throw here, try to save what we have
 
         # Save changes after account setup
@@ -267,7 +274,7 @@ def create_default_mapping(company):
 
             debug_log(
                 f"Successfully created BPJS Account Mapping for {company}: {mapping.name}",
-                "BPJS Mapping"
+                "BPJS Mapping",
             )
             return mapping.name
         except Exception as e:
@@ -275,8 +282,7 @@ def create_default_mapping(company):
             error_msg = f"Failed to save BPJS Account Mapping for {company}: {str(e)}"
             debug_log(error_msg, "BPJS Mapping Error", trace=True)
             frappe.log_error(
-                f"{error_msg}\n\nTraceback: {frappe.get_traceback()}",
-                "BPJS Mapping Creation Error"
+                f"{error_msg}\n\nTraceback: {frappe.get_traceback()}", "BPJS Mapping Creation Error"
             )
             frappe.throw(_(error_msg))
 
@@ -288,9 +294,7 @@ def create_default_mapping(company):
             "BPJS Mapping Error",
         )
         debug_log(
-            f"Critical error in create_default_mapping: {str(e)}",
-            "BPJS Mapping Error",
-            trace=True
+            f"Critical error in create_default_mapping: {str(e)}", "BPJS Mapping Error", trace=True
         )
         # Re-raise with a clear message
         frappe.throw(
@@ -302,7 +306,7 @@ def create_default_mapping(company):
 def set_missing_accounts(mapping_doc, liability_parent, expense_parent):
     """
     Set missing accounts in the mapping document using parent accounts found
-    
+
     Args:
         mapping_doc: BPJS Account Mapping document
         liability_parent: Parent account for liability accounts
@@ -310,32 +314,44 @@ def set_missing_accounts(mapping_doc, liability_parent, expense_parent):
     """
     try:
         company = mapping_doc.company
-        config = get_default_config()
-        
+        # Removed unused config variable
+
         # Define account field mappings with GL account keys and parent accounts
         account_mapping = {}
-        
+
         # Create mapping for all components
         for component in BPJS_COMPONENTS:
             component_name = component.value
-            
+
             # Employee account (liability)
             employee_field = f"{component_name}_employee_account"
-            account_mapping[employee_field] = (f"bpjs_{component_name}_payable", "bpjs_payable_accounts", liability_parent)
-            
+            account_mapping[employee_field] = (
+                f"bpjs_{component_name}_payable",
+                "bpjs_payable_accounts",
+                liability_parent,
+            )
+
             # Employer expense account
             employer_debit_field = f"{component_name}_employer_debit_account"
-            account_mapping[employer_debit_field] = (f"bpjs_{component_name}_employer_expense", "bpjs_expense_accounts", expense_parent)
-            
+            account_mapping[employer_debit_field] = (
+                f"bpjs_{component_name}_employer_expense",
+                "bpjs_expense_accounts",
+                expense_parent,
+            )
+
             # Employer liability account
             employer_credit_field = f"{component_name}_employer_credit_account"
-            account_mapping[employer_credit_field] = (f"bpjs_{component_name}_payable", "bpjs_payable_accounts", liability_parent)
+            account_mapping[employer_credit_field] = (
+                f"bpjs_{component_name}_payable",
+                "bpjs_payable_accounts",
+                liability_parent,
+            )
 
         for field, (account_key, category, parent_account) in account_mapping.items():
             # Skip if already filled
             if mapping_doc.get(field):
                 continue
-                
+
             # Try to map the account using map_gl_account
             try:
                 account = map_gl_account(company, account_key, category)
@@ -351,7 +367,9 @@ def set_missing_accounts(mapping_doc, liability_parent, expense_parent):
                 )
 
     except Exception as e:
-        debug_log(f"Error setting missing accounts: {str(e)}", "BPJS Account Setup Error", trace=True)
+        debug_log(
+            f"Error setting missing accounts: {str(e)}", "BPJS Account Setup Error", trace=True
+        )
 
 
 # Function for diagnostic purposes
@@ -413,7 +431,7 @@ def diagnose_accounts():
 
                 # Standardized account field list for consistency
                 account_fields = []
-                
+
                 # Build account fields list using components enum
                 for component in BPJS_COMPONENTS:
                     component_name = component.value
@@ -439,32 +457,17 @@ def diagnose_accounts():
                             )
 
                 # Check parent accounts exist
-                abbr = company_info["abbr"]
-
-                # Get parent account names from config
-                config = get_default_config()
-                bpjs_payable_name = (
-                    config.get("gl_accounts", {})
-                    .get("parent_accounts", {})
-                    .get("bpjs_payable", {})
-                    .get("account_name", "BPJS Payable")
-                )
-                bpjs_expenses_name = (
-                    config.get("gl_accounts", {})
-                    .get("parent_accounts", {})
-                    .get("bpjs_expenses", {})
-                    .get("account_name", "BPJS Expenses")
-                )
+                # Removed unused variables: abbr, bpjs_payable_name, bpjs_expenses_name
 
                 # Check liability parent account using find_parent_account
                 liability_parent = find_parent_account(company, "Payable", "Liability")
                 if not liability_parent:
-                    company_info["issues"].append(f"No suitable liability parent account found")
+                    company_info["issues"].append("No suitable liability parent account found")
 
                 # Check expense parent account using find_parent_account
                 expense_parent = find_parent_account(company, "Expense Account", "Expense")
                 if not expense_parent:
-                    company_info["issues"].append(f"No suitable expense parent account found")
+                    company_info["issues"].append("No suitable expense parent account found")
 
                 results["mappings"].append(mapping_info)
             else:
@@ -517,7 +520,7 @@ def validate(doc, method=None):
 
     # Call document validation method
     doc.validate_duplicate_mapping()
-    
+
     # Validate account fields against mapping from defaults.json
     company = doc.company
     validate_with_gl_mapper(doc, company)
@@ -526,7 +529,7 @@ def validate(doc, method=None):
 def validate_with_gl_mapper(doc, company):
     """
     Validate account fields using map_gl_account function
-    
+
     Args:
         doc: BPJS Account Mapping document
         company: Company to validate against
@@ -534,70 +537,80 @@ def validate_with_gl_mapper(doc, company):
     # Skip validation if in setup mode
     if getattr(doc, "flags", {}).get("ignore_validate"):
         return
-        
+
     # Define mapping between document fields and GL account mapper keys and categories
     field_mapping = {}
-    
+
     # Create mapping for all components
     for component in BPJS_COMPONENTS:
         component_name = component.value
-        
+
         # Employee account (liability)
         employee_field = f"{component_name}_employee_account"
         field_mapping[employee_field] = (f"bpjs_{component_name}_payable", "bpjs_payable_accounts")
-        
+
         # Employer expense account
         employer_debit_field = f"{component_name}_employer_debit_account"
-        field_mapping[employer_debit_field] = (f"bpjs_{component_name}_employer_expense", "bpjs_expense_accounts")
-        
+        field_mapping[employer_debit_field] = (
+            f"bpjs_{component_name}_employer_expense",
+            "bpjs_expense_accounts",
+        )
+
         # Employer liability account
         employer_credit_field = f"{component_name}_employer_credit_account"
-        field_mapping[employer_credit_field] = (f"bpjs_{component_name}_payable", "bpjs_payable_accounts")
-    
+        field_mapping[employer_credit_field] = (
+            f"bpjs_{component_name}_payable",
+            "bpjs_payable_accounts",
+        )
+
     # Validate and/or update each field
     failed_fields = []
-    
+
     for field, (account_key, category) in field_mapping.items():
         try:
             # Get mapped account from defaults.json
             mapped_account = map_gl_account(company, account_key, category)
-            
+
             # Check if field is set
             if not doc.get(field):
                 # Set field if valid mapped account exists
                 if mapped_account and frappe.db.exists("Account", mapped_account):
                     doc.set(field, mapped_account)
-                    debug_log(f"Set {field} to mapped account {mapped_account}", "BPJS Mapping Validation")
+                    debug_log(
+                        f"Set {field} to mapped account {mapped_account}", "BPJS Mapping Validation"
+                    )
                 else:
                     failed_fields.append(field)
             # If field is set but doesn't match mapped account, show warning
             elif mapped_account and doc.get(field) != mapped_account:
                 # Just warn but don't change
                 frappe.msgprint(
-                    _(f"Field {field} has account {doc.get(field)} but expected {mapped_account} based on GL mapping."),
+                    _("Field {0} has account {1} but expected {2} based on GL mapping.").format(
+                        field, doc.get(field), mapped_account
+                    ),
                     indicator="orange",
-                    alert=True
+                    alert=True,
                 )
-                
+
             # Validate account exists
             if doc.get(field) and not frappe.db.exists("Account", doc.get(field)):
                 failed_fields.append(field)
                 doc.set(field, None)  # Clear invalid account
-        
+
         except Exception as e:
             debug_log(
                 f"Error validating {field} with map_gl_account: {str(e)}",
                 "BPJS Mapping Validation Error",
-                trace=True
+                trace=True,
             )
             failed_fields.append(field)
-    
+
     # Raise ValidationError if any fields failed
     if failed_fields and not doc.flags.get("ignore_validation_errors"):
         frappe.throw(
-            _("Failed to map the following accounts from defaults.json: {0}. Please check the configuration.").format(
-                ", ".join(failed_fields)
-            )
+            _(
+                "Failed to map the following accounts from defaults.json: {0}. Please check the configuration."
+            ).format(", ".join(failed_fields))
         )
 
 
@@ -612,7 +625,7 @@ def on_update_mapping(doc, method=None):
     # Clear cache for this mapping
     frappe.cache().delete_value(f"bpjs_mapping_{doc.company}")
     debug_log(f"Cleared cache for BPJS mapping of company {doc.company}", "BPJS Mapping Update")
-    
+
     # Update accounts from GL mapping
     update_accounts_from_mapping(doc)
 
@@ -620,35 +633,41 @@ def on_update_mapping(doc, method=None):
 def update_accounts_from_mapping(doc):
     """
     Update empty account fields using map_gl_account function
-    
+
     Args:
         doc: BPJS Account Mapping document
     """
     if doc.flags.get("skip_account_update"):
         return
-        
+
     company = doc.company
     accounts_updated = False
-    
+
     # Define mapping between document fields and GL account mapper keys and categories
     field_mapping = {}
-    
+
     # Create mapping for all components
     for component in BPJS_COMPONENTS:
         component_name = component.value
-        
+
         # Employee account (liability)
         employee_field = f"{component_name}_employee_account"
         field_mapping[employee_field] = (f"bpjs_{component_name}_payable", "bpjs_payable_accounts")
-        
+
         # Employer expense account
         employer_debit_field = f"{component_name}_employer_debit_account"
-        field_mapping[employer_debit_field] = (f"bpjs_{component_name}_employer_expense", "bpjs_expense_accounts")
-        
+        field_mapping[employer_debit_field] = (
+            f"bpjs_{component_name}_employer_expense",
+            "bpjs_expense_accounts",
+        )
+
         # Employer liability account
         employer_credit_field = f"{component_name}_employer_credit_account"
-        field_mapping[employer_credit_field] = (f"bpjs_{component_name}_payable", "bpjs_payable_accounts")
-    
+        field_mapping[employer_credit_field] = (
+            f"bpjs_{component_name}_payable",
+            "bpjs_payable_accounts",
+        )
+
     # Update empty fields with mapped accounts
     for field, (account_key, category) in field_mapping.items():
         if not doc.get(field):
@@ -659,14 +678,14 @@ def update_accounts_from_mapping(doc):
                     accounts_updated = True
                     debug_log(
                         f"Updated empty {field} with mapped account {account}",
-                        "BPJS Mapping Update"
+                        "BPJS Mapping Update",
                     )
             except Exception as e:
                 debug_log(
                     f"Error mapping account for field {field}: {str(e)}",
-                    "BPJS Mapping Update Error"
+                    "BPJS Mapping Update Error",
                 )
-    
+
     # Save the document if any accounts were updated
     if accounts_updated:
         try:
@@ -674,11 +693,14 @@ def update_accounts_from_mapping(doc):
             doc.flags.ignore_validate = True
             doc.flags.ignore_permissions = True
             doc.save()
-            debug_log(f"Saved BPJS Account Mapping {doc.name} after updating accounts", "BPJS Mapping Update")
+            debug_log(
+                f"Saved BPJS Account Mapping {doc.name} after updating accounts",
+                "BPJS Mapping Update",
+            )
         except Exception as e:
             debug_log(
                 f"Error saving BPJS Account Mapping after updating accounts: {str(e)}",
-                "BPJS Mapping Update Error"
+                "BPJS Mapping Update Error",
             )
 
 
@@ -699,7 +721,7 @@ class BPJSAccountMapping(Document):
             return
 
         self.validate_duplicate_mapping()
-        
+
         # Validate accounts using map_gl_account
         company = self.company
         self.resolve_accounts_with_mapper(company)
@@ -723,34 +745,40 @@ class BPJSAccountMapping(Document):
                     existing, self.company
                 )
             )
-    
+
     def resolve_accounts_with_mapper(self, company):
         """
         Resolve and update account fields using map_gl_account function
-        
+
         Args:
             company: Company to resolve accounts for
         """
         # Define mapping between document fields and GL account mapper keys and categories
         field_mapping = {}
-        
+
         # Create mapping for all components
         for component in self.components:
             # Employee account (liability)
             employee_field = f"{component}_employee_account"
             field_mapping[employee_field] = (f"bpjs_{component}_payable", "bpjs_payable_accounts")
-            
+
             # Employer expense account
             employer_debit_field = f"{component}_employer_debit_account"
-            field_mapping[employer_debit_field] = (f"bpjs_{component}_employer_expense", "bpjs_expense_accounts")
-            
+            field_mapping[employer_debit_field] = (
+                f"bpjs_{component}_employer_expense",
+                "bpjs_expense_accounts",
+            )
+
             # Employer liability account
             employer_credit_field = f"{component}_employer_credit_account"
-            field_mapping[employer_credit_field] = (f"bpjs_{component}_payable", "bpjs_payable_accounts")
-        
+            field_mapping[employer_credit_field] = (
+                f"bpjs_{component}_payable",
+                "bpjs_payable_accounts",
+            )
+
         # List to collect fields that failed mapping
         failed_fields = []
-        
+
         # Process each field
         for field, (account_key, category) in field_mapping.items():
             try:
@@ -758,35 +786,34 @@ class BPJSAccountMapping(Document):
                 if not self.get(field):
                     # Get mapped account name
                     account = map_gl_account(company, account_key, category)
-                    
+
                     # Set field if account exists
                     if account and frappe.db.exists("Account", account):
                         self.set(field, account)
                         debug_log(
-                            f"Mapped {field} to {account} using map_gl_account", 
-                            "BPJS Mapping"
+                            f"Mapped {field} to {account} using map_gl_account", "BPJS Mapping"
                         )
                     else:
                         # Account couldn't be mapped or doesn't exist
                         failed_fields.append(field)
                         debug_log(
-                            f"Failed to map {field}: Account {account} doesn't exist", 
-                            "BPJS Mapping Error"
+                            f"Failed to map {field}: Account {account} doesn't exist",
+                            "BPJS Mapping Error",
                         )
             except Exception as e:
                 failed_fields.append(field)
                 debug_log(
-                    f"Error mapping {field} with map_gl_account: {str(e)}", 
+                    f"Error mapping {field} with map_gl_account: {str(e)}",
                     "BPJS Mapping Error",
-                    trace=True
+                    trace=True,
                 )
-        
+
         # Raise validation error if any fields couldn't be mapped
         if failed_fields and not self.flags.get("ignore_validation_errors"):
             frappe.throw(
-                _("Failed to map the following accounts from defaults.json: {0}. Please check the configuration.").format(
-                    ", ".join(failed_fields)
-                )
+                _(
+                    "Failed to map the following accounts from defaults.json: {0}. Please check the configuration."
+                ).format(", ".join(failed_fields))
             )
 
     def validate_account_types(self):
@@ -797,27 +824,25 @@ class BPJSAccountMapping(Document):
             employee_field = f"{component}_employee_account"
             if self.get(employee_field):
                 self.validate_account_type(
-                    self.get(employee_field), 
-                    ["Liability"], 
-                    f"BPJS {component.upper()} Employee"
+                    self.get(employee_field), ["Liability"], f"BPJS {component.upper()} Employee"
                 )
-            
+
             # Employer expense account
             employer_debit_field = f"{component}_employer_debit_account"
             if self.get(employer_debit_field):
                 self.validate_account_type(
-                    self.get(employer_debit_field), 
-                    ["Expense"], 
-                    f"BPJS {component.upper()} Employer Expense"
+                    self.get(employer_debit_field),
+                    ["Expense"],
+                    f"BPJS {component.upper()} Employer Expense",
                 )
-            
+
             # Employer liability account
             employer_credit_field = f"{component}_employer_credit_account"
             if self.get(employer_credit_field):
                 self.validate_account_type(
-                    self.get(employer_credit_field), 
-                    ["Liability"], 
-                    f"BPJS {component.upper()} Employer Liability"
+                    self.get(employer_credit_field),
+                    ["Liability"],
+                    f"BPJS {component.upper()} Employer Liability",
                 )
 
     def validate_account_type(self, account, allowed_root_types, account_description):
@@ -859,29 +884,38 @@ class BPJSAccountMapping(Document):
         debug_log(
             f"Cleared cache for BPJS mapping of company {self.company}", "BPJS Mapping Update"
         )
-        
+
         # Update empty accounts using map_gl_account
         if not self.flags.get("skip_account_update"):
             company = self.company
             field_mapping = {}
-            
+
             # Create mapping for all components
             for component in self.components:
                 # Employee account (liability)
                 employee_field = f"{component}_employee_account"
-                field_mapping[employee_field] = (f"bpjs_{component}_payable", "bpjs_payable_accounts")
-                
+                field_mapping[employee_field] = (
+                    f"bpjs_{component}_payable",
+                    "bpjs_payable_accounts",
+                )
+
                 # Employer expense account
                 employer_debit_field = f"{component}_employer_debit_account"
-                field_mapping[employer_debit_field] = (f"bpjs_{component}_employer_expense", "bpjs_expense_accounts")
-                
+                field_mapping[employer_debit_field] = (
+                    f"bpjs_{component}_employer_expense",
+                    "bpjs_expense_accounts",
+                )
+
                 # Employer liability account
                 employer_credit_field = f"{component}_employer_credit_account"
-                field_mapping[employer_credit_field] = (f"bpjs_{component}_payable", "bpjs_payable_accounts")
-            
+                field_mapping[employer_credit_field] = (
+                    f"bpjs_{component}_payable",
+                    "bpjs_payable_accounts",
+                )
+
             # Flag to track if any accounts were updated
             accounts_updated = False
-            
+
             # Only map empty fields to avoid overwriting user customizations
             for field, (account_key, category) in field_mapping.items():
                 if not self.get(field):
@@ -891,23 +925,23 @@ class BPJSAccountMapping(Document):
                             self.set(field, mapped_account)
                             accounts_updated = True
                             debug_log(
-                                f"Updated {field} with mapped account {mapped_account}", 
-                                "BPJS Mapping Update"
+                                f"Updated {field} with mapped account {mapped_account}",
+                                "BPJS Mapping Update",
                             )
                     except Exception as e:
                         debug_log(
-                            f"Error updating {field} with map_gl_account: {str(e)}", 
+                            f"Error updating {field} with map_gl_account: {str(e)}",
                             "BPJS Mapping Update Error",
-                            trace=True
+                            trace=True,
                         )
-            
+
             # Save the document again if any accounts were updated
             if accounts_updated:
                 self.flags.skip_account_update = True  # Prevent recursive updates
                 self.save(ignore_permissions=True)
                 debug_log(
-                    f"Updated BPJS Account Mapping {self.name} with mapped accounts", 
-                    "BPJS Mapping Update"
+                    f"Updated BPJS Account Mapping {self.name} with mapped accounts",
+                    "BPJS Mapping Update",
                 )
 
     def get_accounts_for_component(self, component_type):
@@ -923,7 +957,7 @@ class BPJSAccountMapping(Document):
         # Validate component type
         if component_type not in self.components:
             frappe.throw(_("Invalid BPJS component type: {0}").format(component_type))
-            
+
         accounts = {"employee_account": None, "employer_debit": None, "employer_credit": None}
 
         # Set employee account

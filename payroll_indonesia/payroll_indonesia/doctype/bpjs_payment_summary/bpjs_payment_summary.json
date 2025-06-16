@@ -69,7 +69,10 @@
             "in_standard_filter": 1,
             "label": "Status",
             "options": "Draft\nSubmitted\nPaid",
-            "read_only": 1
+            "read_only": 1,
+            "no_copy": 1,
+            "allow_on_submit": 1,
+            "track_changes": 0
         },
         {
             "fieldname": "amended_from",
@@ -215,7 +218,7 @@
     ],
     "is_submittable": 1,
     "links": [],
-    "modified": "2025-05-08 10:56:56",
+    "modified": "2025-06-16 09:29:04",
     "modified_by": "dannyaudian",
     "module": "Payroll Indonesia",
     "name": "BPJS Payment Summary",

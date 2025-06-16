@@ -1,107 +1,122 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa
 # For license information, please see license.txt
-# Last modified: 2025-05-08 11:25:49 by dannyaudian
+# Last modified: 2025-06-16 09:24:48 by dannyaudian
 
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import now_datetime
+from frappe.utils import now_datetime, flt
+import logging
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 class BPJSPaymentAccountDetail(Document):
     def validate(self):
         """Validate account detail"""
-        # Validasi jumlah harus positif
+        # Validate amount must be positive
         if self.amount and self.amount <= 0:
             frappe.throw(_("Amount must be greater than 0"))
 
-        # Validasi tipe akun sesuai dengan nama akun yang dipilih
+        # Validate account type matches the selected account
         self.validate_account_type_match()
 
-        # Update timestamp sinkronisasi terakhir
+        # Update last sync timestamp
         if hasattr(self, "auto_generated") and self.auto_generated:
             self.last_synced = now_datetime()
+            self.auto_generated_value = 1
 
     def validate_account_type_match(self):
-        """Validate that the account selected is appropriate for the account type"""
+        """Validate that the account selected is appropriate for the account type based on Account.account_type"""
         if not self.account or not self.account_type:
             return
 
         try:
-            # Get account name
-            account_name = frappe.db.get_value("Account", self.account, "account_name")
-            if not account_name:
+            # Get account details
+            account = frappe.get_doc("Account", self.account)
+            if not account:
                 return
 
-            # Check if account name contains the account type
-            account_name_lower = account_name.lower()
-            expected_terms = {
-                "Kesehatan": ["kesehatan", "health"],
-                "JHT": ["jht"],
-                "JP": ["jp", "pensiun", "pension"],
-                "JKK": ["jkk", "kecelakaan", "accident"],
-                "JKM": ["jkm", "kematian", "death"],
+            # Define expected account types for BPJS components
+            expected_account_types = {
+                "Kesehatan": ["Payable", "Liability"],
+                "JHT": ["Payable", "Liability"],
+                "JP": ["Payable", "Liability"],
+                "JKK": ["Payable", "Liability"],
+                "JKM": ["Payable", "Liability"],
             }
 
-            # Get expected terms for this account type
-            expected = expected_terms.get(self.account_type, [])
+            # Get expected account types for this BPJS type
+            expected_types = expected_account_types.get(self.account_type, [])
 
-            # Check if account name contains any expected term
-            matches = [term for term in expected if term.lower() in account_name_lower]
+            # Check if account type matches expected types
+            if account.account_type not in expected_types and account.root_type != "Liability":
+                frappe.log_warning(
+                    message=f"Account type mismatch for BPJS {self.account_type}: {account.account_type} (expected {', '.join(expected_types)})",
+                    title="BPJS Account Type Mismatch",
+                )
 
-            # If no match found and the account doesn't have a generic BPJS name
-            if not matches and "bpjs" in account_name_lower and "payable" in account_name_lower:
-                # This is a generic BPJS account, so we'll allow it
-                return
-
-            # If no match found and this is not a generic BPJS account, show a warning
-            if not matches and not ("bpjs payable" in account_name_lower):
-                frappe.msgprint(
+                frappe.warning(
                     _(
-                        "Warning: The selected account '{0}' may not be appropriate for BPJS {1}. Expected account should contain: {2}"
-                    ).format(account_name, self.account_type, ", ".join(expected)),
+                        "The selected account '{0}' (type: {1}) may not be appropriate for BPJS {2}. Expected account types: {3}"
+                    ).format(
+                        account.name,
+                        account.account_type,
+                        self.account_type,
+                        ", ".join(expected_types),
+                    ),
                     indicator="orange",
                 )
         except Exception as e:
+            logger.error(
+                f"Error validating account type match: {str(e)}\n"
+                f"Account: {self.account}, Type: {self.account_type}"
+            )
             frappe.log_error(
                 f"Error validating account type match: {str(e)}\n"
                 f"Account: {self.account}, Type: {self.account_type}",
                 "BPJS Account Detail Validation Error",
             )
-            # Don't throw error, just log it
+
+    def before_insert(self):
+        """Actions before inserting the document"""
+        # Generate reference number if empty
+        if not self.reference_number:
+            # Try to get parent document if this is a child table
+            parent_doc = None
+            try:
+                parent_doc_name = self.get("parent")
+                if parent_doc_name:
+                    parent_doc = frappe.get_doc(self.get("parenttype"), parent_doc_name)
+            except Exception as e:
+                logger.error(
+                    f"Error retrieving parent document: {str(e)}\n"
+                    f"Parent name: {self.get('parent')}, Parent type: {self.get('parenttype')}"
+                )
+
+            # Generate format F{year}{month}{rowidx}
+            year = ""
+            month = ""
+            idx = self.idx if hasattr(self, "idx") else frappe.utils.now_datetime().strftime("%S")
+
+            if parent_doc and hasattr(parent_doc, "year") and hasattr(parent_doc, "month"):
+                year = str(getattr(parent_doc, "year", ""))
+                month = str(getattr(parent_doc, "month", "")).zfill(2)
+            else:
+                # Use current date
+                current_date = frappe.utils.now_datetime()
+                year = current_date.strftime("%Y")
+                month = current_date.strftime("%m")
+
+            self.reference_number = f"F{year}{month}{idx}"
 
     def before_save(self):
         """Actions before saving the document"""
         # Automatically set description if empty
         if not self.description and self.account_type:
             self.description = f"BPJS {self.account_type} Payment"
-
-        # Generate reference number if empty
-        if not self.reference_number and self.account_type:
-            parent_doc = None
-            try:
-                # Try to get parent document if this is a child table
-                parent_doc_name = self.get("parent")
-                if parent_doc_name:
-                    parent_doc = frappe.get_doc(self.get("parenttype"), parent_doc_name)
-            except Exception as e:
-                frappe.log_error(
-                    f"Error retrieving parent document: {str(e)}\n"
-                    f"Parent name: {self.get('parent')}, Parent type: {self.get('parenttype')}",
-                    "BPJS Payment Account Parent Retrieval Error",
-                )
-
-            # Generate reference number using parent info if available
-            if parent_doc and hasattr(parent_doc, "month") and hasattr(parent_doc, "year"):
-                month = getattr(parent_doc, "month", "")
-                year = getattr(parent_doc, "year", "")
-                self.reference_number = f"BPJS-{self.account_type}-{month}-{year}"
-            else:
-                # Fallback to simple reference
-                self.reference_number = (
-                    f"BPJS-{self.account_type}-{frappe.utils.today().replace('-', '')}"
-                )
 
     @staticmethod
     def sync_with_defaults_json(parent_doc=None):
@@ -110,15 +125,18 @@ class BPJSPaymentAccountDetail(Document):
 
         Args:
             parent_doc (obj, optional): Parent document to update
+
+        Returns:
+            int: Number of accounts added
         """
         if not parent_doc or not hasattr(parent_doc, "company") or not parent_doc.company:
-            return
+            return 0
 
         try:
             # Get company abbreviation
             company_abbr = frappe.get_cached_value("Company", parent_doc.company, "abbr")
             if not company_abbr:
-                return
+                return 0
 
             # Get mapping from defaults.json
             mapping_config = frappe.get_file_json(
@@ -141,17 +159,13 @@ class BPJSPaymentAccountDetail(Document):
             # Try to calculate totals from employee_details
             if hasattr(parent_doc, "employee_details") and parent_doc.employee_details:
                 for emp in parent_doc.employee_details:
-                    bpjs_totals["JHT"] += frappe.utils.flt(emp.jht_employee) + frappe.utils.flt(
-                        emp.jht_employer
+                    bpjs_totals["JHT"] += flt(emp.jht_employee) + flt(emp.jht_employer)
+                    bpjs_totals["JP"] += flt(emp.jp_employee) + flt(emp.jp_employer)
+                    bpjs_totals["Kesehatan"] += flt(emp.kesehatan_employee) + flt(
+                        emp.kesehatan_employer
                     )
-                    bpjs_totals["JP"] += frappe.utils.flt(emp.jp_employee) + frappe.utils.flt(
-                        emp.jp_employer
-                    )
-                    bpjs_totals["Kesehatan"] += frappe.utils.flt(
-                        emp.kesehatan_employee
-                    ) + frappe.utils.flt(emp.kesehatan_employer)
-                    bpjs_totals["JKK"] += frappe.utils.flt(emp.jkk)
-                    bpjs_totals["JKM"] += frappe.utils.flt(emp.jkm)
+                    bpjs_totals["JKK"] += flt(emp.jkk)
+                    bpjs_totals["JKM"] += flt(emp.jkm)
 
             # Generate account entries
             accounts_added = 0
@@ -166,6 +180,7 @@ class BPJSPaymentAccountDetail(Document):
 
                 # Check if account exists
                 if not frappe.db.exists("Account", account):
+                    logger.warning(f"Account {account} does not exist for BPJS {bpjs_type}")
                     continue
 
                 # Get amount from totals
@@ -173,6 +188,12 @@ class BPJSPaymentAccountDetail(Document):
                 if amount <= 0:
                     # Skip if no amount
                     continue
+
+                # Generate reference number with format F{year}{month}{idx}
+                year = str(getattr(parent_doc, "year", frappe.utils.today()[:4]))
+                month = str(getattr(parent_doc, "month", frappe.utils.today()[5:7])).zfill(2)
+                idx = accounts_added + 1
+                reference_number = f"F{year}{month}{idx}"
 
                 # Add to parent's account_details table
                 parent_doc.append(
@@ -183,8 +204,10 @@ class BPJSPaymentAccountDetail(Document):
                         "amount": amount,
                         "mapped_from": "defaults.json",
                         "auto_generated": 1,
+                        "auto_generated_value": 1,
                         "last_synced": now_datetime(),
                         "description": f"BPJS {bpjs_type} Payment",
+                        "reference_number": reference_number,
                     },
                 )
                 accounts_added += 1
@@ -192,6 +215,7 @@ class BPJSPaymentAccountDetail(Document):
             return accounts_added
 
         except Exception as e:
+            logger.error(f"Error syncing account details with defaults.json: {str(e)}")
             frappe.log_error(
                 f"Error syncing account details with defaults.json: {str(e)}\n"
                 f"Traceback: {frappe.get_traceback()}",

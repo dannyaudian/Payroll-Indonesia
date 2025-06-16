@@ -1,94 +1,101 @@
 // Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 // For license information, please see license.txt
-// Last modified: 2025-04-27 09:52:03 by dannyaudian
+// Last modified: 2025-06-16 09:21:29 by dannyaudian
 
 frappe.ui.form.on('BPJS Account Mapping', {
     refresh: function(frm) {
-        // Tambahkan tombol untuk melihat BPJS Settings
-        frm.add_custom_button(__('View BPJS Settings'), function() {
+        // Add button to view BPJS Settings
+        frm.add_custom_button(__('View BPJS Settings'), async function() {
             frappe.set_route('Form', 'BPJS Settings');
         }, __('Actions'));
         
-        // Tambahkan tombol untuk test jurnal entry jika dokumen tersimpan
+        // Add button to test journal entry if document is saved
         if (!frm.is_new()) {
-            frm.add_custom_button(__('Test Journal Entry'), function() {
-                validate_create_journal_entry(frm);
+            frm.add_custom_button(__('Test Journal Entry'), async function() {
+                await validate_create_journal_entry(frm);
             }, __('Actions'));
         }
         
-        // Tambahkan tombol untuk membuka BPJS Payment Summary jika ada
+        // Add button to open BPJS Payment Summary if exists
         if (!frm.is_new()) {
-            frm.add_custom_button(__('BPJS Payment Summaries'), function() {
+            frm.add_custom_button(__('BPJS Payment Summaries'), async function() {
                 frappe.set_route('List', 'BPJS Payment Summary', {
                     'company': frm.doc.company
                 });
             }, __('View'));
         }
         
-        // Tambahkan indikator jika semua akun terisi
+        // Add indicator if all accounts are filled
         update_mapping_status(frm);
     },
     
     company: function(frm) {
-        // Reset field ketika company berubah
-        ['kesehatan_employee_account', 'kesehatan_employer_debit_account', 
-         'kesehatan_employer_credit_account', 'jht_employee_account',
-         'jht_employer_debit_account', 'jht_employer_credit_account',
-         'jp_employee_account', 'jp_employer_debit_account',
-         'jp_employer_credit_account', 'jkk_employer_debit_account',
-         'jkk_employer_credit_account', 'jkm_employer_debit_account',
-         'jkm_employer_credit_account'].forEach(function(field) {
+        // Reset fields when company changes
+        [
+            'kesehatan_employee_account', 
+            'kesehatan_employer_debit_account',
+            'kesehatan_employer_credit_account', 
+            'jht_employee_account',
+            'jht_employer_debit_account', 
+            'jht_employer_credit_account',
+            'jp_employee_account', 
+            'jp_employer_debit_account',
+            'jp_employer_credit_account', 
+            'jkk_employer_debit_account',
+            'jkk_employer_credit_account', 
+            'jkm_employer_debit_account',
+            'jkm_employer_credit_account'
+        ].forEach(function(field) {
             frm.set_value(field, '');
         });
-        
-        // Set nama pemetaan secara otomatis
-        if (frm.doc.company) {
-            frm.set_value('mapping_name', 'BPJS Account Mapping - ' + frm.doc.company);
-        } else {
-            frm.set_value('mapping_name', '');
-        }
     }
 });
 
-// Validasi dan test pembuatan journal entry
-function validate_create_journal_entry(frm) {
-    frappe.prompt([
-        {
-            fieldtype: 'Link',
-            label: __('BPJS Payment Component'),
-            fieldname: 'bpjs_component',
-            options: 'BPJS Payment Component',
-            reqd: 1,
-            get_query: function() {
-                return {
-                    filters: {
-                        'docstatus': 1,
-                        'company': frm.doc.company
-                    }
-                };
+// Validate and test journal entry creation
+async function validate_create_journal_entry(frm) {
+    const values = await new Promise(resolve => {
+        frappe.prompt([
+            {
+                fieldtype: 'Link',
+                label: __('BPJS Payment Component'),
+                fieldname: 'bpjs_component',
+                options: 'BPJS Payment Component',
+                reqd: 1,
+                get_query: function() {
+                    return {
+                        filters: {
+                            'docstatus': 1,
+                            'company': frm.doc.company
+                        }
+                    };
+                }
             }
-        }
-    ], function(values) {
-        frappe.call({
+        ], values => resolve(values), __('Select BPJS Component for Test'), __('Create Test Entry'));
+    });
+    
+    try {
+        const result = await frappe.call({
             method: 'payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.test_create_journal_entry',
             args: {
                 mapping_name: frm.doc.name,
                 bpjs_component: values.bpjs_component
-            },
-            callback: function(r) {
-                if (r.message) {
-                    frappe.msgprint(__('Test Journal Entry created successfully. Entry ID: {0}', [r.message]));
-                } else {
-                    frappe.msgprint(__('Failed to create test Journal Entry. Check console for details.'));
-                }
             }
         });
-    }, __('Select BPJS Component for Test'), __('Create Test Entry'));
+        
+        if (result.message) {
+            frappe.show_warning(__('Test Journal Entry created successfully. Entry ID: {0}', [result.message]));
+        } else {
+            frappe.show_warning(__('Failed to create test Journal Entry. Check console for details.'));
+        }
+    } catch (error) {
+        frappe.show_warning(__('Error creating test Journal Entry: {0}', [error.message || error]));
+        console.error("Error in test journal entry creation:", error);
+    }
 }
 
-// Update status indicator berdasarkan kelengkapan mapping
+// Update status indicator based on mapping completeness
 function update_mapping_status(frm) {
-    let required_accounts = [
+    const required_accounts = [
         'kesehatan_employee_account', 
         'kesehatan_employer_debit_account',
         'kesehatan_employer_credit_account',
@@ -104,7 +111,7 @@ function update_mapping_status(frm) {
         }
     });
     
-    let percentage = Math.round((total_filled / required_accounts.length) * 100);
+    const percentage = Math.round((total_filled / required_accounts.length) * 100);
     
     if (percentage == 100) {
         frm.dashboard.set_headline(
