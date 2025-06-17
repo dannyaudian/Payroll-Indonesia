@@ -549,7 +549,7 @@ def generate_december_correction_note(calc_result, salary_slip=None):
                 # Format "to" amount for infinity
                 to_text = "∞" if to_amount == float("inf") else f"{to_amount:,.0f}"
 
-                note.append(f"Lapisan {i+1}: Rp {from_amount:,.0f} - Rp {to_text} ({rate:.1f}%)")
+                note.append(f"Lapisan {i + 1}: Rp {from_amount:,.0f} - Rp {to_text} ({rate:.1f}%)")
                 note.append(f"  PKP: Rp {taxable:,.0f} x {rate:.1f}% = Rp {tax:,.0f}")
 
         # Add summary

@@ -1339,7 +1339,7 @@ def refresh_multiple_tax_summaries(
                     queue="long",
                     timeout=1800,  # 30 minutes timeout for large batches
                     slips=batch,
-                    job_name=f"tax_summary_batch_{i}_{i+len(batch)}",
+                    job_name=f"tax_summary_batch_{i}_{i + len(batch)}",
                     now=False,
                 )
 

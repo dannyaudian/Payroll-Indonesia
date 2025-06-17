@@ -5,7 +5,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate, get_last_day, add_days, cint
+from frappe.utils import flt, get_last_day, cint
 
 # Import get_bpjs_accounts from bpjs_account_mapping
 from payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping import (

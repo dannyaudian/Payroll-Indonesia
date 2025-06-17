@@ -1457,9 +1457,7 @@ def get_ter_rate(status_pajak, penghasilan_bruto):
         ter_category = get_ter_category(status_pajak)
 
         # Create cache key
-        cache_key = (
-            f"ter_rate:{ter_category}:{int(penghasilan_bruto/1000)*1000}"  # Round to nearest 1000
-        )
+        cache_key = f"ter_rate:{ter_category}:{int(penghasilan_bruto / 1000) * 1000}"  # Round to nearest 1000
         cached_rate = frappe.cache().get_value(cache_key)
 
         if cached_rate is not None:
@@ -1836,7 +1834,7 @@ def calculate_ytd_from_salary_slips(
         else:
             # Use end of previous month
             if month > 1:
-                end_date = f"{year}-{(month-1):02d}-31"
+                end_date = f"{year}-{(month - 1):02d}-31"
             else:
                 # If month is January and not including current, return zeros
                 return {
