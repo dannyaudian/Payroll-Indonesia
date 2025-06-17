@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-05-11 08:43:35 by dannyaudian
+# Last modified: 2025-06-17 06:19:41 by dannyaudian
 
 import frappe
 from frappe import _
@@ -13,7 +13,7 @@ from payroll_indonesia.payroll_indonesia.utils import get_ptkp_settings
 from payroll_indonesia.override.salary_slip.ter_calculator import map_ptkp_to_ter_category
 
 
-def hitung_pph_tahunan(employee, tahun_pajak):
+def hitung_pph_tahunan(employee, tahun_pajak, salary_slip=None):
     """
     Calculate annual progressive income tax (Pasal 17) for December correction
     with improved validation and error handling
@@ -21,6 +21,7 @@ def hitung_pph_tahunan(employee, tahun_pajak):
     Args:
         employee (str): Employee ID
         tahun_pajak (int): Tax year
+        salary_slip (obj, optional): Salary slip document
 
     Returns:
         dict: Annual tax calculation results
@@ -144,6 +145,7 @@ def hitung_pph_tahunan(employee, tahun_pajak):
                         "using_ter": is_using_ter,
                         "ter_rate": ter_rate if is_using_ter else 0,
                         "ter_category": ter_category if is_using_ter else "",
+                        "is_december_override": getattr(slip_doc, "is_december_override", 0),
                     }
                 )
             except Exception as e:
@@ -258,7 +260,18 @@ def hitung_pph_tahunan(employee, tahun_pajak):
         # Calculate correction needed
         correction = annual_tax - total_tax_paid
 
-        # Return the results with TER category
+        # Determine if this is a December run based on salary_slip parameter or any slip with is_december_override
+        is_december_override = 0
+        if salary_slip:
+            is_december_override = getattr(salary_slip, "is_december_override", 0)
+        else:
+            # Check if any of the salary slips has is_december_override=1
+            for slip_detail in slip_details:
+                if slip_detail.get("is_december_override"):
+                    is_december_override = 1
+                    break
+
+        # Return the results with TER category and is_december_override flag
         return {
             "annual_income": total_gross,
             "annual_net": net_annual,
@@ -272,7 +285,8 @@ def hitung_pph_tahunan(employee, tahun_pajak):
             "slip_details": slip_details,
             "tax_details": tax_details,
             "status_pajak": status_pajak,
-            "ter_category": ter_category,  # Add TER category to result
+            "ter_category": ter_category,
+            "is_december_override": is_december_override,
         }
 
     except Exception as e:
@@ -444,12 +458,13 @@ def calculate_progressive_tax(pkp):
         )
 
 
-def generate_december_correction_note(calc_result):
+def generate_december_correction_note(calc_result, salary_slip=None):
     """
     Generate detailed note for December correction with improved validation
 
     Args:
         calc_result (dict): Result from hitung_pph_tahunan function
+        salary_slip (obj, optional): Salary slip document
 
     Returns:
         str: Formatted note for December correction
@@ -473,7 +488,7 @@ def generate_december_correction_note(calc_result):
             "correction",
             "slip_details",
             "status_pajak",
-            "ter_category",  # Add new keys
+            "ter_category",
         ]
 
         for key in required_keys:
@@ -492,9 +507,21 @@ def generate_december_correction_note(calc_result):
                 else:
                     calc_result[key] = 0
 
-        # Build the note
+        # Determine if this is a December run based on salary_slip parameter or calculation result
+        is_december_override = 0
+        if salary_slip:
+            is_december_override = getattr(salary_slip, "is_december_override", 0)
+        elif "is_december_override" in calc_result:
+            is_december_override = calc_result["is_december_override"]
+
+        # Build the note with December indication from is_december_override
+        note_title = "=== Perhitungan PPh 21 Tahunan"
+        if is_december_override:
+            note_title += " (December Override)"
+        note_title += " ==="
+
         note = [
-            "=== Perhitungan PPh 21 Tahunan ===",
+            note_title,
             "Status Pajak: {0}{1}".format(
                 calc_result["status_pajak"],
                 " ({0})".format(calc_result["ter_category"]) if calc_result["ter_category"] else "",
@@ -531,7 +558,7 @@ def generate_december_correction_note(calc_result):
                 "",
                 f"PPh 21 Terutang Setahun: Rp {flt(calc_result['annual_tax']):,.0f}",
                 f"PPh 21 Sudah Dipotong: Rp {flt(calc_result['already_paid']):,.0f}",
-                f"Selisih PPh 21 Desember: Rp {flt(calc_result['correction']):,.0f}",
+                f"Selisih PPh 21: Rp {flt(calc_result['correction']):,.0f}",
             ]
         )
 
@@ -548,10 +575,13 @@ def generate_december_correction_note(calc_result):
                     ter_rate = flt(slip.get("ter_rate", 0))
                     tax = flt(slip.get("tax", 0))
                     ter_category = slip.get("ter_category", "")
+                    is_december = slip.get("is_december_override", 0)
 
                     ter_info = "Rate {0:.2f}%".format(ter_rate)
                     if ter_category:
                         ter_info = "{0}: {1}".format(ter_category, ter_info)
+                    if is_december:
+                        ter_info += " (December Override)"
 
                     note.append("- {0}: {1}, PPh 21: Rp {2:,.0f}".format(slip_date, ter_info, tax))
 

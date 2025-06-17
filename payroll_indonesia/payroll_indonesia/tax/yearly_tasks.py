@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-05-11 10:19:22 by dannyaudianllanjutkan
+# Last modified: 2025-06-17 06:28:51 by dannyaudian
 
 import frappe
 from frappe import _
@@ -297,6 +297,11 @@ def create_annual_tax_report(
         report_doc.year = year
         report_doc.company = emp_doc.get("company", "")
 
+        # Check if we should treat this as a December run
+        is_december_override = False
+        if tax_data and "is_december_override" in tax_data:
+            is_december_override = bool(tax_data.get("is_december_override", 0))
+        
         # Add tax information from tax_data
         if tax_data:
             report_doc.gross_income = flt(tax_data.get("annual_income", 0))
@@ -311,6 +316,10 @@ def create_annual_tax_report(
             # Set tax status if field exists
             if hasattr(report_doc, "tax_status"):
                 report_doc.tax_status = emp_doc.get("status_pajak", "TK0")
+                
+            # Set is_december_override flag if field exists
+            if hasattr(report_doc, "is_december_override"):
+                report_doc.is_december_override = is_december_override
 
             # Add TER information if field exists and TER is used
             if hasattr(report_doc, "ter_category") and tax_data.get("ter_used"):
@@ -385,6 +394,11 @@ def update_existing_tax_report(
         # Recalculate tax data using ter_logic
         tax_data = hitung_pph_tahunan(employee, year, emp_doc)
 
+        # Check if we should treat this as a December run
+        is_december_override = False
+        if tax_data and "is_december_override" in tax_data:
+            is_december_override = bool(tax_data.get("is_december_override", 0))
+
         # Update report with latest values
         if tax_data:
             report_doc.gross_income = flt(tax_data.get("annual_income", 0))
@@ -395,6 +409,10 @@ def update_existing_tax_report(
             report_doc.pkp = flt(tax_data.get("pkp", 0))
             report_doc.tax_paid = flt(tax_data.get("already_paid", 0))
             report_doc.annual_tax = flt(tax_data.get("annual_tax", 0))
+            
+            # Update is_december_override flag if field exists
+            if hasattr(report_doc, "is_december_override"):
+                report_doc.is_december_override = is_december_override
 
             # Update TER information if field exists and TER is used
             if hasattr(report_doc, "ter_category") and tax_data.get("ter_used"):
@@ -439,8 +457,44 @@ def update_existing_tax_report(
         raise
 
 
+def find_december_payroll_entries(year: Optional[int] = None) -> list:
+    """
+    Find payroll entries that should be processed as December runs
+    based on the is_december_run flag
+
+    Args:
+        year: Tax year to process. Defaults to current year.
+
+    Returns:
+        List of payroll entry documents that should be processed as December runs
+    """
+    try:
+        # Validate parameters
+        if not year:
+            year = datetime.now().year
+            
+        # Find payroll entries marked with is_december_run=1
+        entries = frappe.get_all(
+            "Payroll Entry",
+            filters={
+                "docstatus": 1,
+                "is_december_run": 1,
+                "posting_date": ["between", [f"{year}-01-01", f"{year}-12-31"]],
+            },
+            fields=["name", "posting_date", "company"]
+        )
+        
+        return entries
+    except Exception as e:
+        frappe.log_error(
+            f"Error finding December payroll entries for year {year}: {str(e)}",
+            "December Payroll Entry Search Error"
+        )
+        return []
+
+
 def generate_form_1721_a1(
-    employee: Optional[str] = None, year: Optional[int] = None
+    employee: Optional[str] = None, year: Optional[int] = None, is_december_override: bool = False
 ) -> Dict[str, Any]:
     """
     Generate Form 1721-A1 (Annual Tax Form) for an employee or all employees
@@ -449,6 +503,7 @@ def generate_form_1721_a1(
     Args:
         employee: Specific employee to generate form for
         year: Tax year to generate form for
+        is_december_override: Flag to force December calculation mode
 
     Returns:
         Summary of generated forms
@@ -466,8 +521,8 @@ def generate_form_1721_a1(
             if not employee_details:
                 frappe.throw(_("Employee {0} not found").format(employee))
 
-            # Generate form for one employee - pass pre-fetched employee details
-            return create_1721_a1_form(employee, year, employee_details)
+            # Generate form for one employee - pass pre-fetched employee details and December flag
+            return create_1721_a1_form(employee, year, employee_details, is_december_override)
 
         # Get employee list from cache
         cache_key = f"active_employees:{year}"
@@ -499,7 +554,7 @@ def generate_form_1721_a1(
                 # Get full employee details for form creation
                 emp_details = get_employee_details(emp.name)
 
-                result = create_1721_a1_form(emp.name, year, emp_details)
+                result = create_1721_a1_form(emp.name, year, emp_details, is_december_override)
                 summary["success"] += 1
                 summary["details"].append(
                     {
@@ -509,6 +564,7 @@ def generate_form_1721_a1(
                         "ter_category": ter_category,
                         "status": "Success",
                         "message": "Form generated successfully",
+                        "is_december_override": is_december_override,
                     }
                 )
             except Exception as e:
@@ -521,6 +577,7 @@ def generate_form_1721_a1(
                         "ter_category": ter_category if "ter_category" in locals() else "",
                         "status": "Failed",
                         "message": str(e)[:100],
+                        "is_december_override": is_december_override,
                     }
                 )
                 continue
@@ -529,7 +586,14 @@ def generate_form_1721_a1(
         log_message = (
             "Form 1721-A1 generation completed for {0} (PMK 168/2023). "
             "Success: {1}/{2}, "
-            "Failed: {3}".format(year, summary["success"], summary["total"], summary["failed"])
+            "Failed: {3}, "
+            "December Override: {4}".format(
+                year, 
+                summary["success"], 
+                summary["total"], 
+                summary["failed"],
+                "Yes" if is_december_override else "No"
+            )
         )
 
         if summary["failed"] > 0:
@@ -548,7 +612,10 @@ def generate_form_1721_a1(
 
 
 def create_1721_a1_form(
-    employee: str, year: int, employee_details: Optional[Dict[str, Any]] = None
+    employee: str, 
+    year: int, 
+    employee_details: Optional[Dict[str, Any]] = None,
+    is_december_override: bool = False
 ) -> Optional[str]:
     """
     Create Form 1721-A1 for a specific employee
@@ -557,6 +624,7 @@ def create_1721_a1_form(
         employee: Employee ID
         year: Tax year
         employee_details: Pre-fetched employee details (optional)
+        is_december_override: Flag to force December calculation mode
 
     Returns:
         Generated form document name or None if not implemented yet
@@ -568,8 +636,130 @@ def create_1721_a1_form(
 
     # Log the action for audit purposes
     frappe.log_error(
-        "Form 1721-A1 generation requested for employee {0}, year {1}".format(employee, year),
+        "Form 1721-A1 generation requested for employee {0}, year {1}, December override: {2}".format(
+            employee, year, is_december_override
+        ),
         "Form Generation Request",
     )
 
     return None
+
+
+def process_december_flagged_runs(year: Optional[int] = None):
+    """
+    Process payroll entries that have is_december_run flag set to 1
+    
+    Args:
+        year: Tax year to process. Defaults to current year.
+    """
+    try:
+        # Validate parameters
+        if not year:
+            year = datetime.now().year
+            
+        # Find payroll entries marked for December processing
+        december_entries = find_december_payroll_entries(year)
+        
+        if not december_entries:
+            frappe.msgprint(_("No payroll entries marked for December processing found for year {0}").format(year))
+            return
+            
+        # Process each payroll entry
+        for entry in december_entries:
+            try:
+                frappe.msgprint(
+                    _("Processing December-flagged payroll entry {0} from {1}").format(
+                        entry.name, entry.posting_date
+                    )
+                )
+                
+                # Find salary slips generated from this payroll entry
+                salary_slips = frappe.get_all(
+                    "Salary Slip",
+                    filters={
+                        "payroll_entry": entry.name,
+                        "docstatus": 1
+                    },
+                    fields=["name", "employee", "employee_name"]
+                )
+                
+                if not salary_slips:
+                    frappe.msgprint(
+                        _("No salary slips found for payroll entry {0}").format(entry.name)
+                    )
+                    continue
+                    
+                # Log the action
+                frappe.log_error(
+                    "Processing {0} salary slips from December-flagged payroll entry {1}".format(
+                        len(salary_slips), entry.name
+                    ),
+                    "December Run Processing"
+                )
+                
+                # Process each salary slip for tax correction
+                for slip in salary_slips:
+                    try:
+                        # Use employee details function for efficiency
+                        employee_details = get_employee_details(slip.employee)
+                        
+                        # Calculate annual tax with December flag
+                        tax_data = hitung_pph_tahunan(
+                            slip.employee, 
+                            year, 
+                            employee_details,
+                            {"is_december_override": 1}  # Pass December override flag
+                        )
+                        
+                        # Update or create annual tax report
+                        tax_summary_name = frappe.db.get_value(
+                            "Employee Tax Summary", 
+                            {"employee": slip.employee, "year": year}, 
+                            "name"
+                        )
+                        
+                        if tax_summary_name:
+                            update_existing_tax_report(
+                                tax_summary_name, 
+                                year, 
+                                slip.employee, 
+                                employee_details
+                            )
+                        else:
+                            create_annual_tax_report(
+                                slip.employee, 
+                                year, 
+                                tax_data, 
+                                employee_details
+                            )
+                            
+                    except Exception as e:
+                        frappe.log_error(
+                            "Error processing salary slip {0} for employee {1} ({2}): {3}".format(
+                                slip.name, slip.employee, slip.employee_name, str(e)
+                            ),
+                            "December Run Processing Error"
+                        )
+                        continue
+                
+                # Log completion
+                frappe.log_error(
+                    "Completed processing December-flagged payroll entry {0}".format(entry.name),
+                    "December Run Processing"
+                )
+                
+            except Exception as e:
+                frappe.log_error(
+                    "Error processing December-flagged payroll entry {0}: {1}".format(
+                        entry.name, str(e)
+                    ),
+                    "December Run Processing Error"
+                )
+                continue
+                
+    except Exception as e:
+        frappe.log_error(
+            "Error in process_december_flagged_runs for year {0}: {1}".format(year, str(e)),
+            "December Run Processing Error"
+        )
+        frappe.throw(_("Error processing December-flagged payroll runs: {0}").format(str(e)))

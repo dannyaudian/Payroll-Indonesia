@@ -501,3 +501,25 @@ def create_payment_entry(bpjs_summary_name, posting_date=None, payment_account=N
         )
         frappe.msgprint(f"Error creating Payment Entry: {str(e)}")
         return None
+
+
+def get_formatted_currency(value, currency=None):
+    """
+    Format a number as currency with thousands separator
+
+    Args:
+        value: Numeric value to format
+        currency: Currency symbol (optional)
+
+    Returns:
+        str: Formatted currency string
+    """
+    import frappe
+    from frappe.utils import flt, fmt_money
+
+    # Get default currency if not provided
+    if not currency:
+        currency = frappe.defaults.get_global_default("currency")
+
+    # Format as money with currency symbol
+    return fmt_money(flt(value), currency=currency)

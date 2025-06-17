@@ -53,6 +53,7 @@ __all__ = [
     "get_ytd_totals",
     "get_ytd_totals_from_tax_summary",
     "get_employee_details",
+    "is_december_run",
 ]
 
 # Settings cache
@@ -1378,6 +1379,20 @@ def get_spt_month() -> int:
         return 12  # Default to December
 
 
+# Helper function for December logic
+def is_december_run(flag: int) -> bool:
+    """
+    Check if this is a December run based on provided flag
+    
+    Args:
+        flag: Integer flag (0 or 1) indicating if this is a December run
+        
+    Returns:
+        bool: True if flag is truthy, False otherwise
+    """
+    return bool(flag)
+
+
 # TER-related functions
 def get_ter_category(ptkp_status):
     """
@@ -1534,10 +1549,14 @@ def get_ter_rate(status_pajak, penghasilan_bruto):
         return 0
 
 
-def should_use_ter():
+def should_use_ter(salary_slip=None, is_december_override=False):
     """
     Check if TER method should be used based on Payroll Indonesia Settings
-
+    
+    Args:
+        salary_slip (str, optional): Salary slip name (for context, not used)
+        is_december_override (bool, optional): Flag to override December behavior
+        
     Returns:
         bool: True if TER should be used, False otherwise
     """
@@ -1551,9 +1570,8 @@ def should_use_ter():
         calc_method = getattr(settings, "tax_calculation_method", "Progressive")
         use_ter = cint(getattr(settings, "use_ter", 0))
 
-        # December always uses Progressive method as per PMK 168/2023
-        current_month = getdate().month
-        if current_month == 12:
+        # Check if December override is set
+        if is_december_run(is_december_override):
             return False
 
         # Check settings
@@ -1971,14 +1989,15 @@ def calculate_ytd_from_salary_slips(
         }
 
 
-def get_ytd_tax_info(employee, date=None):
+def get_ytd_tax_info(employee, date=None, is_december_override=False):
     """
     Get year-to-date tax information for an employee
     Uses the centralized get_ytd_totals function
-
+    
     Args:
         employee (str): Employee ID
         date (datetime, optional): Date to determine year and month, defaults to current date
+        is_december_override (bool, optional): Flag to override December behavior
 
     Returns:
         dict: YTD tax information
@@ -2006,7 +2025,7 @@ def get_ytd_tax_info(employee, date=None):
         # Return simplified result for backward compatibility
         return {
             "ytd_tax": flt(ytd_data.get("ytd_tax", 0)),
-            "is_using_ter": ytd_data.get("is_using_ter", False),
+            "is_using_ter": ytd_data.get("is_using_ter", False) and not is_december_run(is_december_override),
             "ter_rate": flt(ytd_data.get("ter_rate", 0)),
         }
 
