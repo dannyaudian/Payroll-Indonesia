@@ -90,33 +90,29 @@ def map_gl_account(company: str, account_key: str, category: str) -> str:
             return f"{account_key} - {company}"
 
         account_name = account_info["account_name"]
-        
+
         # Get company abbreviation
         company_abbr = frappe.get_cached_value("Company", company, "abbr")
-        
+
         # Return the formatted account name with company abbreviation
         formatted_account_name = f"{account_name} - {company_abbr}"
-        
+
         # Check if account exists, create if needed
         if not frappe.db.exists("Account", formatted_account_name):
             # Get account type and root type from config
             account_type = account_info.get("account_type", "Expense")
             root_type = account_info.get("root_type", "Expense")
-            
+
             # Determine default parent
             default_parent = "Expenses - " + company_abbr
             if root_type == "Liability":
                 default_parent = "Liabilities - " + company_abbr
             elif root_type == "Asset":
                 default_parent = "Assets - " + company_abbr
-            
+
             # Create the account
             get_or_create_account(
-                company, 
-                formatted_account_name, 
-                account_type, 
-                root_type, 
-                default_parent
+                company, formatted_account_name, account_type, root_type, default_parent
             )
 
         return formatted_account_name
@@ -151,7 +147,7 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
             "Salary Component Mapping",
         )
         return ""
-    
+
     # Define the mapping from salary component to account key and category
     component_mapping = {
         # Earnings
@@ -161,7 +157,7 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
         "Insentif": ("beban_insentif", "expense_accounts"),
         "Bonus": ("beban_bonus", "expense_accounts"),
         # Deductions
-        "PPh 21": ("hutang_pph21", "payable_accounts")
+        "PPh 21": ("hutang_pph21", "payable_accounts"),
     }
 
     # Check if the salary component exists in the mapping
@@ -171,7 +167,7 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
             f"No GL account mapping found for salary component '{salary_component}'",
             "Salary Component Mapping",
         )
-        
+
         # Get company abbreviation
         company_abbr = frappe.get_cached_value("Company", company, "abbr")
         return f"{salary_component} Account - {company_abbr}"
@@ -183,17 +179,19 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
     return map_gl_account(company, account_key, category)
 
 
-def get_or_create_account(company, account_name, account_type, root_type="Expense", parent_account=None):
+def get_or_create_account(
+    company, account_name, account_type, root_type="Expense", parent_account=None
+):
     """
     Get an existing account or create it if it doesn't exist.
-    
+
     Args:
         company (str): Company name
         account_name (str): Full account name with company suffix
         account_type (str): Account type (e.g., 'Expense', 'Payable')
         root_type (str): Root type (e.g., 'Expense', 'Liability', 'Asset')
         parent_account (str, optional): Parent account name. If not provided, will try to find appropriate parent.
-        
+
     Returns:
         str: Account name
     """
@@ -201,10 +199,10 @@ def get_or_create_account(company, account_name, account_type, root_type="Expens
         # Check if account already exists
         if frappe.db.exists("Account", account_name):
             return account_name
-            
+
         # Get company abbreviation
         company_abbr = frappe.get_cached_value("Company", company, "abbr")
-        
+
         # Find appropriate parent account if not provided
         if not parent_account:
             if root_type == "Liability":
@@ -213,7 +211,7 @@ def get_or_create_account(company, account_name, account_type, root_type="Expens
                 parent_account = find_parent_account(company, "Asset", "Asset")
             else:  # Expense
                 parent_account = find_parent_account(company, "Expense", "Expense")
-                
+
         if not parent_account:
             # Fallback to standard parent accounts
             if root_type == "Liability":
@@ -222,23 +220,25 @@ def get_or_create_account(company, account_name, account_type, root_type="Expens
                 parent_account = f"Assets - {company_abbr}"
             else:  # Expense
                 parent_account = f"Expenses - {company_abbr}"
-        
+
         # Create the account
-        account = frappe.get_doc({
-            "doctype": "Account",
-            "account_name": account_name.replace(f" - {company_abbr}", ""),
-            "account_type": account_type,
-            "root_type": root_type,
-            "parent_account": parent_account,
-            "company": company,
-            "is_group": 0
-        })
-        
+        account = frappe.get_doc(
+            {
+                "doctype": "Account",
+                "account_name": account_name.replace(f" - {company_abbr}", ""),
+                "account_type": account_type,
+                "root_type": root_type,
+                "parent_account": parent_account,
+                "company": company,
+                "is_group": 0,
+            }
+        )
+
         account.insert(ignore_permissions=True)
         debug_log(f"Created account {account_name} under {parent_account}", "GL Account Creation")
-        
+
         return account_name
-        
+
     except Exception as e:
         logger.exception(f"Error creating account {account_name}: {str(e)}")
         debug_log(
@@ -252,55 +252,48 @@ def get_or_create_account(company, account_name, account_type, root_type="Expens
 def find_parent_account(company, account_type, root_type):
     """
     Find an appropriate parent account based on type and root type
-    
+
     Args:
         company (str): Company name
         account_type (str): Account type to look for
         root_type (str): Root type of the account
-        
+
     Returns:
         str: Parent account name or None if not found
     """
     company_abbr = frappe.get_cached_value("Company", company, "abbr")
-    
+
     # Try to find accounts with specified type and root type
     accounts = frappe.get_all(
         "Account",
-        filters={
-            "company": company,
-            "is_group": 1,
-            "root_type": root_type
-        },
-        fields=["name", "account_type"]
+        filters={"company": company, "is_group": 1, "root_type": root_type},
+        fields=["name", "account_type"],
     )
-    
+
     # Try to find best match
     for account in accounts:
         if account.account_type == account_type:
             return account.name
-    
+
     # Try to find standard parent accounts
     standard_parents = {
         "Expense": [
             f"Direct Expenses - {company_abbr}",
             f"Indirect Expenses - {company_abbr}",
-            f"Expenses - {company_abbr}"
+            f"Expenses - {company_abbr}",
         ],
         "Liability": [
             f"Current Liabilities - {company_abbr}",
             f"Duties and Taxes - {company_abbr}",
-            f"Liabilities - {company_abbr}"
+            f"Liabilities - {company_abbr}",
         ],
-        "Asset": [
-            f"Current Assets - {company_abbr}",
-            f"Assets - {company_abbr}"
-        ]
+        "Asset": [f"Current Assets - {company_abbr}", f"Assets - {company_abbr}"],
     }
-    
+
     if root_type in standard_parents:
         for parent in standard_parents[root_type]:
             if frappe.db.exists("Account", parent):
                 return parent
-    
+
     # No suitable parent found
     return None
