@@ -81,6 +81,7 @@ fixtures = [
     {"doctype": "Workspace", "filters": [["module", "=", "Payroll Indonesia"]]},
     {"doctype": "Report", "filters": [["module", "=", "Payroll Indonesia"]]},
     {"doctype": "Print Format", "filters": [["name", "in", ["BPJS Payment Summary Report"]]]},
+    # {"doctype": "Doctype",  "filters": [["name", "in", ["BPJS Payment Summary","BPJS Payment Summary Detail"]]]},
     # Master Data
     {"doctype": "Supplier Group", "filters": [["name", "in", ["BPJS Provider", "Tax Authority"]]]},
     {
@@ -131,6 +132,8 @@ fixtures = [
                     "PTKP TER Mapping Entry",
                     "Tax Bracket Entry",
                     "Tipe Karyawan Entry",
+                    "BPJS Payment Summary",
+                    "BPJS Payment Summary Detail",
                 ],
             ]
         ],
