@@ -185,9 +185,7 @@ def create_payment_entry(summary):
 
         # Check if summary has been submitted
         if summary.docstatus != 1:
-            frappe.throw(
-                ("BPJS Payment Summary must be submitted before creating a Payment Entry")
-            )
+            frappe.throw(("BPJS Payment Summary must be submitted before creating a Payment Entry"))
 
         # Check if summary has details
         if not summary.summary_details:
