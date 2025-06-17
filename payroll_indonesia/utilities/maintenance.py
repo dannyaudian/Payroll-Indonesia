@@ -6,7 +6,7 @@
 import frappe
 from frappe.utils import now_datetime
 
-# from frappe import _
+from frappe import _
 
 # Import functions from tax_slab.py to avoid duplication
 from payroll_indonesia.utilities.tax_slab import (
