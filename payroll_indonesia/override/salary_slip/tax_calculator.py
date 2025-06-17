@@ -41,7 +41,6 @@ from payroll_indonesia.constants import (
     CACHE_MEDIUM,
     BIAYA_JABATAN_PERCENT,
     BIAYA_JABATAN_MAX,
-    DECEMBER_MONTH,
 )
 
 # Import centralized tax logic functions
@@ -367,7 +366,7 @@ def calculate_december_pph(doc, employee):
                 "ytd_pph21": ytd.get("pph21"),
                 "annual_pph": annual_pph,
                 "correction": correction,
-                "triggered_by": "December override" if doc.is_december_override else "Month 12",
+                "triggered_by": "December override" if doc.is_december_override else "is_december_override",
             }
         )
 
@@ -457,26 +456,9 @@ def set_basic_payroll_note(doc, employee):
 def should_apply_december_logic(doc):
     """
     Return True when:
-    • Salary Slip has custom flag  `is_december_override == 1`, OR
-    • Its end_date month == 12  (fallback, keeps legacy behaviour)
+    • Salary Slip has custom flag `is_december_override == 1`
     """
-    try:
-        # Check for the override flag first
-        if hasattr(doc, "is_december_override") and cint(doc.is_december_override) == 1:
-            return True
-
-        # Then check if month is December (fallback to legacy behavior)
-        if hasattr(doc, "end_date") and doc.end_date:
-            end_date = getdate(doc.end_date)
-            return end_date.month == DECEMBER_MONTH
-
-        # If neither condition is met, return False
-        return False
-
-    except Exception as e:
-        # Non-critical error - log with existing function and default to False
-        log_tax_error("December Logic Check", str(e), doc)
-        return False
+    return bool(getattr(doc, "is_december_override", 0))
 
 
 def get_ytd_totals(doc, year):
@@ -626,8 +608,8 @@ if __name__ == "__main__":
         should_apply_december_logic(test_doc1) is True
     ), "Test 1 failed: Override flag should trigger December logic"
     assert (
-        should_apply_december_logic(test_doc2) is True
-    ), "Test 2 failed: December month should trigger December logic"
+        should_apply_december_logic(test_doc2) is False
+    ), "Test 2 failed: December month should no longer trigger December logic"
     assert (
         should_apply_december_logic(test_doc3) is False
     ), "Test 3 failed: Non-December without override should not trigger December logic"

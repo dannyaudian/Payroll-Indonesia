@@ -11,8 +11,7 @@ frappe.ui.form.on('Salary Slip', {
         }
         
         // Add indicator for December correction
-        if (frm.doc.koreksi_pph21 && frm.doc.end_date && 
-            (new Date(frm.doc.end_date).getMonth() + 1) === 12) {
+        if (frm.doc.koreksi_pph21 && frm.doc.is_december_override) {
             const indicator_color = frm.doc.koreksi_pph21 > 0 ? "orange" : "green";
             const indicator_text = frm.doc.koreksi_pph21 > 0 ? "Kurang Bayar" : "Lebih Bayar";
             frm.dashboard.add_indicator(__(`PPh 21 Koreksi: ${indicator_text}`), indicator_color);
@@ -123,6 +122,37 @@ frappe.ui.form.on('Salary Slip', {
                                 [format_currency(correct_tax)])
                 });
             }).addClass('btn-primary');
+        }
+        
+        // Add December Override toggle
+        if (frm.is_new() || frm.doc.docstatus === 0) {
+            frm.add_custom_button(__('Toggle December Mode'), function() {
+                // Toggle the is_december_override field
+                frm.set_value('is_december_override', frm.doc.is_december_override ? 0 : 1);
+                
+                // Show an alert to indicate the change
+                const status = frm.doc.is_december_override ? 'Enabled' : 'Disabled';
+                const indicator = frm.doc.is_december_override ? 'green' : 'blue';
+                
+                frappe.show_alert({
+                    message: __('December Override {0}', [status]),
+                    indicator: indicator
+                }, 5);
+                
+                // If enabling December mode, warn about TER
+                if (frm.doc.is_december_override && frm.doc.is_using_ter) {
+                    frappe.msgprint({
+                        title: __('Warning: TER and December Override'),
+                        indicator: 'orange',
+                        message: __('December mode will use Progressive method as required by PMK 168/2023, even though TER is currently enabled.')
+                    });
+                }
+            }, __('Actions'));
+        }
+        
+        // Show December Override Indicator
+        if (frm.doc.is_december_override) {
+            frm.dashboard.add_indicator(__("December Override Active"), "blue");
         }
         
         // === TAX SUMMARY BUTTONS START ===
@@ -246,6 +276,13 @@ frappe.ui.form.on('Salary Slip', {
                             fieldtype: 'Check',
                             default: 0,
                             description: __('If checked, will delete and recreate tax summary')
+                        },
+                        {
+                            label: __('Process as December'),
+                            fieldname: 'is_december_override',
+                            fieldtype: 'Check',
+                            default: frm.doc.is_december_override || 0,
+                            description: __('If checked, will apply December calculation logic')
                         }
                     ],
                     primary_action_label: __('Rebuild Tax Summary'),
@@ -257,7 +294,8 @@ frappe.ui.form.on('Salary Slip', {
                             args: {
                                 employee: values.employee,
                                 year: values.year,
-                                force: values.force
+                                force: values.force,
+                                is_december_override: values.is_december_override
                             },
                             freeze: true,
                             freeze_message: __('Rebuilding Annual Tax Data...'),
@@ -317,6 +355,11 @@ frappe.ui.form.on('Salary Slip', {
                 d.show();
             }, __('Actions'));
         }
+    },
+    
+    // When December Override is toggled, update the UI
+    is_december_override: function(frm) {
+        frm.refresh();
     }
 });
 
@@ -353,6 +396,7 @@ function display_tax_summary_dialog(data, employee, year) {
                     <th>${__('Gross Pay')}</th>
                     <th>${__('Tax Amount')}</th>
                     <th>${__('TER Status')}</th>
+                    <th>${__('December')}</th>
                     <th>${__('Status')}</th>
                 </tr>
             </thead>
@@ -382,6 +426,14 @@ function display_tax_summary_dialog(data, employee, year) {
                 '<span class="indicator gray">Progressive</span>';
         }
         
+        // Format December status
+        let december_status = '';
+        if (month_data.has_data && month_data.data && month_data.data.is_december_override) {
+            december_status = '<span class="indicator blue">Yes</span>';
+        } else {
+            december_status = '<span class="indicator gray">No</span>';
+        }
+        
         // Format gross pay and tax amount
         let gross_pay = month_data.has_data && month_data.data ? 
             month_data.data.formatted_gross : '-';
@@ -394,6 +446,7 @@ function display_tax_summary_dialog(data, employee, year) {
                 <td>${gross_pay}</td>
                 <td>${tax_amount}</td>
                 <td>${ter_status}</td>
+                <td>${december_status}</td>
                 <td>${status_indicator}</td>
             </tr>
         `;
@@ -416,6 +469,8 @@ function display_tax_summary_dialog(data, employee, year) {
                         <p><strong>${__('YTD Tax')}:</strong> ${data.tax_summary.formatted_ytd_tax}</p>
                         ${data.tax_summary.is_using_ter ? 
                             `<p><strong>${__('Using TER')}:</strong> ${data.tax_summary.ter_rate}%</p>` : ''}
+                        ${data.tax_summary.is_december_override ? 
+                            `<p><strong>${__('December Override')}:</strong> ${__('Yes')}</p>` : ''}
                     </div>
                 </div>
             </div>

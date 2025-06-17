@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-05-04 01:41:20 by dannyaudian
+# Last modified: 2025-06-17 07:25:15 by dannyaudian
 
 import frappe
 from frappe.utils import now_datetime
+from frappe import _
 
 # Import functions from tax_slab.py to avoid duplication
 from payroll_indonesia.utilities.tax_slab import (
@@ -20,6 +21,8 @@ __all__ = [
     "check_salary_structure_assignments",
     "fix_all_salary_structures_and_assignments",
     "diagnose_salary_structures",
+    "clean_obsolete_bpjs_docs",
+    "run_maintenance",
 ]
 
 
@@ -238,3 +241,129 @@ def diagnose_salary_structures():
         frappe.log_error(f"Error diagnosing salary structures: {str(e)}", "Maintenance Error")
         print(f"Error diagnosing salary structures: {str(e)}")
         return {"error": str(e)}
+
+
+def clean_obsolete_bpjs_docs():
+    """
+    Deletes obsolete BPJS-related DocTypes if they exist
+
+    This function checks for and deletes:
+    1. BPJS Payment Component DocType and its records
+    2. BPJS Payment Account Detail DocType and its records
+
+    Returns:
+        dict: Results of the cleanup operation
+    """
+    timestamp = now_datetime().strftime("%Y-%m-%d %H:%M:%S")
+    results = {
+        "timestamp": timestamp,
+        "doctypes_deleted": [],
+        "records_deleted": {},
+        "errors": []
+    }
+
+    try:
+        # List of obsolete DocTypes to check and delete
+        obsolete_doctypes = [
+            "BPJS Payment Component",
+            "BPJS Payment Account Detail"
+        ]
+
+        for doctype in obsolete_doctypes:
+            try:
+                if frappe.db.exists("DocType", doctype):
+                    # First delete all records of this DocType
+                    try:
+                        record_count = frappe.db.count(doctype)
+                        if record_count > 0:
+                            frappe.db.sql(f"DELETE FROM `tab{doctype}`")
+                            results["records_deleted"][doctype] = record_count
+                            print(f"[{timestamp}] Deleted {record_count} records from {doctype}")
+                    except Exception as e:
+                        error_msg = f"Error deleting records from {doctype}: {str(e)}"
+                        results["errors"].append(error_msg)
+                        print(f"[{timestamp}] {error_msg}")
+                        continue
+
+                    # Then delete the DocType itself
+                    frappe.delete_doc("DocType", doctype, force=1, ignore_permissions=True)
+                    results["doctypes_deleted"].append(doctype)
+                    print(f"[{timestamp}] Successfully deleted obsolete DocType: {doctype}")
+            except Exception as e:
+                error_msg = f"Error deleting DocType {doctype}: {str(e)}"
+                results["errors"].append(error_msg)
+                print(f"[{timestamp}] {error_msg}")
+
+        # Output summary
+        if results["doctypes_deleted"]:
+            print(f"\n[{timestamp}] Successfully deleted {len(results['doctypes_deleted'])} obsolete DocTypes:")
+            for dt in results["doctypes_deleted"]:
+                print(f"- {dt}")
+        else:
+            print(f"\n[{timestamp}] No obsolete DocTypes found to delete.")
+
+        if results["errors"]:
+            print(f"\n[{timestamp}] Encountered {len(results['errors'])} errors during cleanup:")
+            for error in results["errors"]:
+                print(f"- {error}")
+
+        return results
+
+    except Exception as e:
+        error_msg = f"Error in clean_obsolete_bpjs_docs: {str(e)}"
+        frappe.log_error(error_msg, "Maintenance Error")
+        print(f"[{timestamp}] {error_msg}")
+        results["errors"].append(error_msg)
+        return results
+
+
+def run_maintenance():
+    """
+    Run all maintenance tasks in the correct order
+    
+    This function:
+    1. Cleans up obsolete BPJS DocTypes
+    2. Fixes all Salary Structures and Assignments
+    
+    Returns:
+        dict: Results of the maintenance operation
+    """
+    timestamp = now_datetime().strftime("%Y-%m-%d %H:%M:%S")
+    results = {
+        "timestamp": timestamp,
+        "bpjs_cleanup": None,
+        "salary_structures": None,
+        "success": False
+    }
+    
+    try:
+        print(f"[{timestamp}] Starting Payroll Indonesia maintenance tasks...")
+        
+        # Step 1: Clean up obsolete BPJS DocTypes
+        print(f"[{timestamp}] Cleaning up obsolete BPJS DocTypes...")
+        bpjs_cleanup_results = clean_obsolete_bpjs_docs()
+        results["bpjs_cleanup"] = bpjs_cleanup_results
+        
+        # Step 2: Fix Salary Structures and Assignments
+        print(f"[{timestamp}] Fixing Salary Structures and Assignments...")
+        salary_fix_success = fix_all_salary_structures_and_assignments()
+        results["salary_structures"] = {"success": salary_fix_success}
+        
+        # Overall success
+        results["success"] = True
+        
+        print(f"[{timestamp}] Maintenance tasks completed successfully.")
+        return results
+        
+    except Exception as e:
+        error_msg = f"Error running maintenance tasks: {str(e)}"
+        frappe.log_error(error_msg, "Maintenance Error")
+        print(f"[{timestamp}] {error_msg}")
+        results["error"] = error_msg
+        results["success"] = False
+        return results
+
+
+# To run maintenance from bench console:
+# from payroll_indonesia.utilities.maintenance import run_maintenance
+# run_maintenance()

@@ -1,21 +1,18 @@
 # -*- coding: utf-8 -*-
 """setup_module.py – consolidated post‑migration setup
-This file contains utilities for PPh 21 / TER setup.
+This file contains utilities for Payroll Indonesia setup.
 It is hooked via **after_migrate** in hooks.py.
 """
 
 from __future__ import unicode_literals
 
 import frappe
-from frappe.utils import flt
+from frappe.utils import cint
 
 # ---------------------------------------------------------------------------
 # Central utilities
 # ---------------------------------------------------------------------------
-from payroll_indonesia.payroll_indonesia.utils import (
-    get_default_config,
-    debug_log,
-)
+from payroll_indonesia.payroll_indonesia.utils import debug_log
 
 # ---------------------------------------------------------------------------
 # Public hook functions
@@ -24,227 +21,162 @@ from payroll_indonesia.payroll_indonesia.utils import (
 
 def after_sync():
     """Public hook called after app sync/migrate."""
-    debug_log("Running after_sync for TER categories", "TER Setup")
-    setup_ter_categories()
+    debug_log("Running after_sync for Payroll Indonesia", "Setup")
+    
+    # Ensure Payroll Indonesia Settings exists
+    ensure_payroll_indonesia_settings()
+    
+    # Ensure BPJS Account Mapping exists for all companies
+    create_bpjs_account_mappings_for_companies()
 
 
 def after_install():
     """Hook called after app installation."""
-    debug_log("Running after_install setup for TER configuration", "TER Setup")
-    setup_ter_categories()
+    debug_log("Running after_install setup for Payroll Indonesia", "Setup")
+    
+    # Ensure Payroll Indonesia Settings exists
+    ensure_payroll_indonesia_settings()
+    
+    # Ensure BPJS Account Mapping exists for all companies
+    create_bpjs_account_mappings_for_companies()
 
 
 # ---------------------------------------------------------------------------
-# TER setup functions
+# Settings setup functions
 # ---------------------------------------------------------------------------
 
 
-def setup_ter_categories():
+def ensure_payroll_indonesia_settings():
     """
-    Primary function to set up TER categories
-
-    This function:
-    1. Checks if TER categories already exist
-    2. Gets TER rates from config
-    3. Creates TER rate entries
-
-    Returns:
-        bool: True if successful, False otherwise
+    Ensure a single "Payroll Indonesia Settings" document exists
+    
+    Creates the settings document if it doesn't exist yet
     """
-    debug_log("Starting PPh 21 TER categories setup for PMK 168/2023", "TER Setup")
-
-    try:
-        # Check if TER categories already exist
-        ter_categories_exist = check_existing_ter_categories()
-        if ter_categories_exist:
-            debug_log("TER categories already exist, skipping setup", "TER Setup")
-            return True
-
-        # Get TER rates from config
-        ter_rates = get_ter_rates_from_config()
-        if not ter_rates:
-            debug_log("Failed to get TER rates from config", "TER Setup Error")
-            return False
-
-        # Create TER rates
-        create_ter_rates(ter_rates)
-
-        # Commit changes
-        frappe.db.commit()
-        debug_log("TER categories setup completed successfully", "TER Setup")
-        return True
-
-    except Exception as e:
-        frappe.db.rollback()
-        frappe.log_error(f"Error during TER categories setup: {str(e)}", "TER Setup Error")
-        debug_log(f"Error during TER categories setup: {str(e)}", "TER Setup Error", trace=True)
-        return False
-
-
-def check_existing_ter_categories():
-    """
-    Check if TER categories already exist in the database
-
-    Returns:
-        bool: True if all categories exist, False otherwise
-    """
-    debug_log("Checking if TER categories already exist", "TER Setup")
-
-    # Check for all three TER categories
-    ter_categories = ["TER A", "TER B", "TER C"]
-    for category in ter_categories:
-        if not frappe.db.exists("PPh 21 TER Table", {"status_pajak": category}):
-            debug_log(f"TER category {category} not found, setup required", "TER Setup")
-            return False
-
-    debug_log("All TER categories already exist", "TER Setup")
-    return True
-
-
-def get_ter_rates_from_config():
-    """
-    Get TER rates from configuration
-
-    Returns:
-        dict: Dictionary of TER rates or fallback values if config not available
-    """
-    debug_log("Getting TER rates from configuration", "TER Setup")
-
-    # Try to get TER rates from config
-    config = get_default_config()
-    ter_rates = config.get("ter_rates", {})
-
-    if not ter_rates:
-        debug_log("TER rates not found in config, using fallback values", "TER Setup Warning")
-        # Define fallback rates
-        ter_rates = {
-            "TER A": [
-                {"income_from": 0, "income_to": 5000000, "rate": 5.0},
-                {"income_from": 5000000, "income_to": 0, "rate": 15.0, "is_highest_bracket": 1},
-            ],
-            "TER B": [
-                {"income_from": 0, "income_to": 5000000, "rate": 10.0},
-                {"income_from": 5000000, "income_to": 0, "rate": 20.0, "is_highest_bracket": 1},
-            ],
-            "TER C": [
-                {"income_from": 0, "income_to": 5000000, "rate": 15.0},
-                {"income_from": 5000000, "income_to": 0, "rate": 25.0, "is_highest_bracket": 1},
-            ],
-        }
+    debug_log("Checking if Payroll Indonesia Settings exists", "Setup")
+    
+    if not frappe.db.exists("Payroll Indonesia Settings", "Payroll Indonesia Settings"):
+        try:
+            debug_log("Creating Payroll Indonesia Settings", "Setup")
+            
+            # Create settings document
+            settings = frappe.new_doc("Payroll Indonesia Settings")
+            settings.document_name = "Payroll Indonesia Settings"
+            
+            # Set default values if needed
+            settings.enabled = 1
+            settings.auto_create_salary_structure = 1
+            
+            # Insert with ignore_permissions
+            settings.flags.ignore_permissions = True
+            settings.insert(ignore_permissions=True)
+            
+            # Commit changes
+            frappe.db.commit()
+            
+            debug_log("Successfully created Payroll Indonesia Settings", "Setup")
+            
+        except Exception as e:
+            frappe.db.rollback()
+            frappe.log_error(f"Error creating Payroll Indonesia Settings: {str(e)}", "Setup Error")
+            debug_log(f"Error creating Payroll Indonesia Settings: {str(e)}", "Setup Error", trace=True)
     else:
-        # Log some statistics about the loaded TER rates
-        categories_count = len(ter_rates)
-        total_brackets = sum(len(rates) for rates in ter_rates.values())
-        debug_log(
-            f"Loaded {categories_count} TER categories with {total_brackets} rate brackets from config",
-            "TER Setup",
-        )
-
-    return ter_rates
+        debug_log("Payroll Indonesia Settings already exists", "Setup")
 
 
-def create_ter_rates(ter_rates):
+def create_bpjs_account_mappings_for_companies():
     """
-    Create TER rate entries in the database
-
-    Args:
-        ter_rates (dict): Dictionary of TER rates to create
+    Create BPJS Account Mapping for all companies if they don't exist
+    
+    This function:
+    1. Gets all active companies
+    2. Checks if BPJS Account Mapping exists for each company
+    3. Creates a default mapping if it doesn't exist
     """
-    debug_log("Creating TER rate entries", "TER Setup")
-
-    # Track statistics for logging
-    created_count = 0
-    skipped_count = 0
-    error_count = 0
-
-    for status, rates in ter_rates.items():
-        debug_log(f"Processing rates for category {status}", "TER Setup")
-
-        for row in rates:
-            # Extract values with defaults
-            income_from = flt(row.get("income_from", 0))
-            income_to = flt(row.get("income_to", 0))
-            rate = flt(row.get("rate", 0))
-
-            # Check if rate already exists to maintain idempotence
-            if frappe.db.exists(
-                "PPh 21 TER Table",
-                {
-                    "status_pajak": status,
-                    "income_from": income_from,
-                    "income_to": income_to,
-                },
-            ):
-                debug_log(
-                    f"TER rate for {status} ({income_from:,.0f}-{income_to:,.0f}) already exists",
-                    "TER Setup",
-                )
+    debug_log("Starting BPJS Account Mapping setup for companies", "Setup")
+    
+    try:
+        # Get all active companies
+        companies = frappe.get_all("Company", filters={"is_group": 0, "disabled": 0}, pluck="name")
+        
+        if not companies:
+            debug_log("No active companies found", "Setup")
+            return
+        
+        # Track statistics for logging
+        created_count = 0
+        skipped_count = 0
+        
+        # Check and create mapping for each company
+        for company in companies:
+            if frappe.db.exists("BPJS Account Mapping", {"company": company}):
+                debug_log(f"BPJS Account Mapping already exists for company: {company}", "Setup")
                 skipped_count += 1
-                continue
-
-            # Create new TER rate entry
-            try:
-                # Build description
-                description = build_ter_description(status, row)
-
-                # Create document
-                ter_doc = frappe.new_doc("PPh 21 TER Table")
-                ter_doc.update(
-                    {
-                        "status_pajak": status,
-                        "income_from": income_from,
-                        "income_to": income_to,
-                        "rate": rate,
-                        "is_highest_bracket": row.get("is_highest_bracket", 0),
-                        "description": description,
-                    }
-                )
-
-                # Insert with ignore_permissions
-                ter_doc.flags.ignore_permissions = True
-                ter_doc.insert(ignore_permissions=True)
-
+            else:
+                create_default_mapping(company)
                 created_count += 1
-                debug_log(
-                    f"Created TER rate for {status}: {income_from:,.0f}-{income_to:,.0f} at {rate}%",
-                    "TER Setup",
-                )
-
-            except Exception as e:
-                error_count += 1
-                debug_log(
-                    f"Error creating TER rate for {status} ({income_from:,.0f}-{income_to:,.0f}): {str(e)}",
-                    "TER Setup Error",
-                )
-                frappe.log_error(
-                    f"Error creating TER rate for {status}: {str(e)}\n\nData: {row}",
-                    "TER Setup Error",
-                )
-
-    # Log summary
-    debug_log(
-        f"TER rate creation summary: created={created_count}, skipped={skipped_count}, errors={error_count}",
-        "TER Setup",
-    )
+        
+        # Log summary
+        debug_log(
+            f"BPJS Account Mapping creation summary: created={created_count}, skipped={skipped_count}",
+            "Setup"
+        )
+        
+    except Exception as e:
+        frappe.log_error(f"Error setting up BPJS Account Mappings: {str(e)}", "Setup Error")
+        debug_log(f"Error setting up BPJS Account Mappings: {str(e)}", "Setup Error", trace=True)
 
 
-def build_ter_description(status, row):
+def create_default_mapping(company):
     """
-    Build a descriptive label for TER rate entries
-
+    Create a default BPJS Account Mapping for a specific company
+    
     Args:
-        status (str): TER category (A, B, or C)
-        row (dict): Rate data
-
+        company (str): Name of the company
+    
     Returns:
-        str: Formatted description string
+        object: The created BPJS Account Mapping document
     """
-    inc_from = flt(row.get("income_from", 0))
-    inc_to = flt(row.get("income_to", 0))
-
-    # Different formatting for highest bracket
-    if row.get("is_highest_bracket") or inc_to == 0:
-        return f"{status} > {inc_from:,.0f}"
-
-    # Standard formatting for regular brackets
-    return f"{status} {inc_from:,.0f} – {inc_to:,.0f}"
+    debug_log(f"Creating default BPJS Account Mapping for company: {company}", "Setup")
+    
+    try:
+        # Create the mapping document
+        mapping = frappe.new_doc("BPJS Account Mapping")
+        mapping.company = company
+        mapping.mapping_name = f"BPJS Mapping - {company}"
+        
+        # Set blank accounts as required
+        mapping.bpjs_kesehatan_employee_account = ""
+        mapping.bpjs_kesehatan_employer_account = ""
+        mapping.bpjs_ketenagakerjaan_jht_employee_account = ""
+        mapping.bpjs_ketenagakerjaan_jht_employer_account = ""
+        mapping.bpjs_ketenagakerjaan_jp_employee_account = ""
+        mapping.bpjs_ketenagakerjaan_jp_employer_account = ""
+        mapping.bpjs_ketenagakerjaan_jkk_account = ""
+        mapping.bpjs_ketenagakerjaan_jkm_account = ""
+        
+        # Default payable accounts
+        mapping.bpjs_kesehatan_payable_account = ""
+        mapping.bpjs_ketenagakerjaan_payable_account = ""
+        
+        # Default cost centers
+        mapping.default_cost_center = ""
+        
+        # Insert with ignore_permissions
+        mapping.flags.ignore_permissions = True
+        mapping.insert(ignore_permissions=True)
+        
+        debug_log(f"Successfully created default BPJS Account Mapping for {company}", "Setup")
+        
+        return mapping
+        
+    except Exception as e:
+        frappe.log_error(
+            f"Error creating default BPJS Account Mapping for {company}: {str(e)}",
+            "Setup Error"
+        )
+        debug_log(
+            f"Error creating default BPJS Account Mapping for {company}: {str(e)}",
+            "Setup Error",
+            trace=True
+        )
+        return None
