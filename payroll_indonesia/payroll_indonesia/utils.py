@@ -982,7 +982,7 @@ def retry_bpjs_mapping(companies: List[str]) -> None:
                         f"Retrying BPJS Account Mapping creation for {company}",
                         "BPJS Mapping Retry",
                     )
-                    
+
                     # Get account mapping from bpjs_account_mapping module instead of settings
                     try:
                         # We'll use get_bpjs_accounts() for each company
@@ -1457,9 +1457,7 @@ def get_ter_rate(status_pajak, penghasilan_bruto):
         ter_category = get_ter_category(status_pajak)
 
         # Create cache key
-        cache_key = (
-            f"ter_rate:{ter_category}:{int(penghasilan_bruto / 1000) * 1000}"  # Round to nearest 1000
-        )
+        cache_key = f"ter_rate:{ter_category}:{int(penghasilan_bruto / 1000) * 1000}"  # Round to nearest 1000
         cached_rate = frappe.cache().get_value(cache_key)
 
         if cached_rate is not None:

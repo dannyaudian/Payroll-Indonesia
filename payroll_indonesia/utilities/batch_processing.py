@@ -316,7 +316,9 @@ def process_in_batches(
             except Exception as e:
                 # Log error but continue with other batches
                 log_batch_event(
-                    f"Error processing sub-batch {i + 1}: {str(e)}", batch_id=batch_id, level="error"
+                    f"Error processing sub-batch {i + 1}: {str(e)}",
+                    batch_id=batch_id,
+                    level="error",
                 )
                 results.append({"status": "error", "error": str(e), "sub_batch": i + 1})
 

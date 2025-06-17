@@ -67,18 +67,16 @@ def validate_bpjs_account_mapping(company):
     mapping_name = frappe.db.get_value("BPJS Account Mapping", {"company": company}, "name")
     if not mapping_name:
         frappe.throw(
-            _("BPJS Account Mapping not found for company {0}. Please create one first.").format(company)
+            _("BPJS Account Mapping not found for company {0}. Please create one first.").format(
+                company
+            )
         )
 
     # Get the mapping document
     mapping = frappe.get_doc("BPJS Account Mapping", mapping_name)
 
     # Validate required accounts
-    required_fields = [
-        "employee_expense_account",
-        "employer_expense_account",
-        "payable_account"
-    ]
+    required_fields = ["employee_expense_account", "employer_expense_account", "payable_account"]
 
     missing_fields = []
     for field in required_fields:
@@ -97,7 +95,7 @@ def validate_bpjs_account_mapping(company):
         "name": mapping.name,
         "employee_expense_account": mapping.employee_expense_account,
         "employer_expense_account": mapping.employer_expense_account,
-        "payable_account": mapping.payable_account
+        "payable_account": mapping.payable_account,
     }
 
 
@@ -128,7 +126,7 @@ def validate_bpjs_components(company, salary_structure=None):
         "BPJS JHT Employer",
         "BPJS JP Employer",
         "BPJS JKK",
-        "BPJS JKM"
+        "BPJS JKM",
     ]
 
     # Check if all components exist
@@ -148,11 +146,7 @@ def validate_bpjs_components(company, salary_structure=None):
     if salary_structure:
         return validate_structure_components(salary_structure, required_components)
 
-    return {
-        "status": "success",
-        "message": _("All BPJS components exist"),
-        "mapping": mapping
-    }
+    return {"status": "success", "message": _("All BPJS components exist"), "mapping": mapping}
 
 
 def validate_structure_components(salary_structure, required_components):
@@ -170,7 +164,7 @@ def validate_structure_components(salary_structure, required_components):
         frappe.throw(_("Salary Structure {0} does not exist").format(salary_structure))
 
     structure = frappe.get_doc("Salary Structure", salary_structure)
-    
+
     # Get all components in the structure
     structure_components = []
     if hasattr(structure, "earnings"):
@@ -188,10 +182,10 @@ def validate_structure_components(salary_structure, required_components):
         return {
             "status": "warning",
             "message": _("Some BPJS components are missing in the salary structure"),
-            "missing_components": missing_in_structure
+            "missing_components": missing_in_structure,
         }
 
     return {
         "status": "success",
-        "message": _("All required BPJS components exist in the salary structure")
+        "message": _("All required BPJS components exist in the salary structure"),
     }
