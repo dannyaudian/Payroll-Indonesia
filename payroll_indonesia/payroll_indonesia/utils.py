@@ -974,26 +974,7 @@ def retry_bpjs_mapping(companies: List[str]) -> None:
             frappe.log_error("create_default_mapping function not found", "BPJS Mapping Error")
             return
 
-        # Get account mapping from Payroll Indonesia Settings
-        settings = get_settings()
-
-        # Get account mapping from settings
-        account_mapping = {}
-        if settings:
-            # Try to get GL accounts data from settings
-            gl_accounts_data = {}
-            try:
-                if hasattr(settings, "gl_accounts") and settings.gl_accounts:
-                    if isinstance(settings.gl_accounts, str):
-                        gl_accounts_data = json.loads(settings.gl_accounts)
-                    else:
-                        gl_accounts_data = settings.gl_accounts
-
-                    if "bpjs_account_mapping" in gl_accounts_data:
-                        account_mapping = gl_accounts_data["bpjs_account_mapping"]
-            except (ValueError, AttributeError):
-                debug_log("Error parsing GL accounts data from settings", "BPJS Mapping Retry")
-
+        # Get account mapping from the BPJS module for each company
         for company in companies:
             try:
                 if not frappe.db.exists("BPJS Account Mapping", {"company": company}):
@@ -1001,7 +982,19 @@ def retry_bpjs_mapping(companies: List[str]) -> None:
                         f"Retrying BPJS Account Mapping creation for {company}",
                         "BPJS Mapping Retry",
                     )
-                    mapping_name = create_default_mapping(company, account_mapping)
+                    
+                    # Get account mapping from bpjs_account_mapping module instead of settings
+                    try:
+                        # We'll use get_bpjs_accounts() for each company
+                        bpjs_accounts = module.get_bpjs_accounts(company)
+                        mapping_name = create_default_mapping(company, bpjs_accounts)
+                    except Exception as e:
+                        debug_log(
+                            f"Error getting BPJS accounts for {company}: {str(e)}",
+                            "BPJS Mapping Retry Error",
+                            trace=True,
+                        )
+                        mapping_name = create_default_mapping(company, {})
 
                     if mapping_name:
                         frappe.logger().info(
