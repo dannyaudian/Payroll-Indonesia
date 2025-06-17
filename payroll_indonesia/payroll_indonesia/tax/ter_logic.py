@@ -312,14 +312,14 @@ def get_ptkp_amount(status_pajak, pph_settings=None):
         return 54000000
 
 
-def should_use_ter_method(employee, pph_settings=None):
+def should_use_ter_method(employee, slip=None):
     """
     Determine if TER method should be used for this employee according to PMK 168/2023
     Enhanced with better validation and error handling
 
     Args:
         employee: Employee document or dict
-        pph_settings: PPh 21 Settings document (optional)
+        slip: Salary slip document (optional)
 
     Returns:
         bool: True if TER should be used, False otherwise
@@ -347,29 +347,28 @@ def should_use_ter_method(employee, pph_settings=None):
         if cached_result is not None:
             return cached_result
 
-        # Get PPh 21 Settings if not provided - use cached value for better performance
-        if not pph_settings:
-            settings_cache_key = "pph_settings:use_ter"
-            pph_settings = get_cached_value(settings_cache_key)
+        # Get PPh 21 Settings - use cached value for better performance
+        settings_cache_key = "pph_settings:use_ter"
+        pph_settings = get_cached_value(settings_cache_key)
 
-            if pph_settings is None:
-                try:
-                    pph_settings = (
-                        frappe.get_cached_value(
-                            "PPh 21 Settings",
-                            "PPh 21 Settings",
-                            ["calculation_method", "use_ter"],
-                            as_dict=True,
-                        )
-                        or {}
+        if pph_settings is None:
+            try:
+                pph_settings = (
+                    frappe.get_cached_value(
+                        "PPh 21 Settings",
+                        "PPh 21 Settings",
+                        ["calculation_method", "use_ter"],
+                        as_dict=True,
                     )
-                    # Cache settings for 1 hour
-                    cache_value(settings_cache_key, pph_settings, CACHE_MEDIUM)
-                except Exception as e:
-                    log_tax_logic_error(
-                        "Settings Error", f"Error retrieving PPh 21 Settings: {str(e)}"
-                    )
-                    pph_settings = {}
+                    or {}
+                )
+                # Cache settings for 1 hour
+                cache_value(settings_cache_key, pph_settings, CACHE_MEDIUM)
+            except Exception as e:
+                log_tax_logic_error(
+                    "Settings Error", f"Error retrieving PPh 21 Settings: {str(e)}"
+                )
+                pph_settings = {}
 
         # Fast path for global TER setting disabled - with default safety
         use_ter_setting = False
@@ -391,15 +390,8 @@ def should_use_ter_method(employee, pph_settings=None):
             cache_value(cache_key, False, CACHE_MEDIUM)  # Cache for 1 hour
             return False
 
-        # Special cases - December always uses Progressive method per PMK 168/2023
-        current_month = 0
-        try:
-            current_month = getdate().month
-        except Exception:
-            # If date operation fails, use a non-December value
-            current_month = 1
-
-        if current_month == 12:
+        # Check for December override in salary slip
+        if slip and getattr(slip, "is_december_override", 0):
             cache_value(cache_key, False, CACHE_MEDIUM)  # Cache for 1 hour
             return False
 
