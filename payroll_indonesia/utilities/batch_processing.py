@@ -278,7 +278,7 @@ def process_in_batches(
         # Process batches asynchronously
         batch_jobs = []
         for i, batch in enumerate(batches):
-            job_name = f"{batch_id}_sub{i+1}"
+            job_name = f"{batch_id}_sub{i + 1}"
 
             # Queue the batch processing job
             enqueue(
@@ -316,7 +316,7 @@ def process_in_batches(
             except Exception as e:
                 # Log error but continue with other batches
                 log_batch_event(
-                    f"Error processing sub-batch {i+1}: {str(e)}", batch_id=batch_id, level="error"
+                    f"Error processing sub-batch {i + 1}: {str(e)}", batch_id=batch_id, level="error"
                 )
                 results.append({"status": "error", "error": str(e), "sub_batch": i + 1})
 

@@ -80,9 +80,7 @@ class EmployeeTaxSummary(Document):
         # current_year = getdate().year
         if self.year < 2000 or self.year > 2100:
             frappe.throw(
-                _("Invalid tax year: {0}. Must be between 2000 and 2100").format(
-                    self.year
-                )
+                _("Invalid tax year: {0}. Must be between 2000 and 2100").format(self.year)
             )
 
     def validate_duplicate(self):

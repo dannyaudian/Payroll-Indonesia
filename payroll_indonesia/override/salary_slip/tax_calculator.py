@@ -366,7 +366,9 @@ def calculate_december_pph(doc, employee):
                 "ytd_pph21": ytd.get("pph21"),
                 "annual_pph": annual_pph,
                 "correction": correction,
-                "triggered_by": "December override" if doc.is_december_override else "is_december_override",
+                "triggered_by": (
+                    "December override" if doc.is_december_override else "is_december_override"
+                ),
             }
         )
 
