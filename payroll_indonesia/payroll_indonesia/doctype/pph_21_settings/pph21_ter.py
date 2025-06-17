@@ -92,6 +92,7 @@ def map_ptkp_to_ter_category(status_pajak):
     mapping = {
         # TER A: PTKP TK/0 (Rp 54 juta/tahun)
         "TK0": "TER A",
+        # TER TK1 : TER A
         "TK1": "TER A",
         # TER B: PTKP K/0 dan TK/1 (Rp 58,5 juta/tahun)
         "K0": "TER B",

@@ -56,6 +56,10 @@ doc_events = {
         "validate": "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.validate",
         "on_update": "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.on_update",
     },
+    # "BPJS Payment Component": {
+    #     "validate": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_component.bpjs_payment_component.validate",
+    #     "on_submit": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_component.bpjs_payment_component.on_submit",
+    # },
     "BPJS Payment Summary": {
         "validate": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.validate",
         "on_submit": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.on_submit",
@@ -77,6 +81,7 @@ fixtures = [
     {"doctype": "Workspace", "filters": [["module", "=", "Payroll Indonesia"]]},
     {"doctype": "Report", "filters": [["module", "=", "Payroll Indonesia"]]},
     {"doctype": "Print Format", "filters": [["name", "in", ["BPJS Payment Summary Report"]]]},
+    # {"doctype": "Doctype",  "filters": [["name", "in", ["BPJS Payment Summary","BPJS Payment Summary Detail"]]]},
     # Master Data
     {"doctype": "Supplier Group", "filters": [["name", "in", ["BPJS Provider", "Tax Authority"]]]},
     {
@@ -127,6 +132,8 @@ fixtures = [
                     "PTKP TER Mapping Entry",
                     "Tax Bracket Entry",
                     "Tipe Karyawan Entry",
+                    "BPJS Payment Summary",
+                    "BPJS Payment Summary Detail",
                 ],
             ]
         ],

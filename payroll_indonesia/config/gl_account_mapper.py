@@ -5,8 +5,6 @@
 
 import frappe
 import logging
-from frappe.utils import cint, flt
-from frappe import _
 
 # Import utility function for config
 from payroll_indonesia.payroll_indonesia.utils import get_default_config, debug_log
