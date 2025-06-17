@@ -2,6 +2,7 @@
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
 # Created: 2025-05-23 04:28:09 by dannyaudian
+# Last modified: 2025-06-17 07:28:35 by dannyaudian
 
 from typing import Any, Dict, Optional, Union
 import logging
@@ -194,6 +195,108 @@ def validate_tax_related_fields(slip: Any) -> Dict[str, Any]:
         return result
 
 
+def validate_salary_slip(doc: Any) -> Dict[str, Any]:
+    """
+    Comprehensive validation of a Salary Slip for tax and BPJS compliance.
+    
+    Args:
+        doc: Salary Slip document
+        
+    Returns:
+        Dictionary with validation results
+    """
+    result = {
+        "is_valid": False,
+        "messages": [],
+        "warnings": [],
+        "errors": [],
+        "has_tax": False,
+        "has_bpjs": False,
+        "is_year_end": False
+    }
+    
+    try:
+        if not doc or not isinstance(doc, object):
+            result["errors"].append(_("Invalid salary slip document"))
+            return result
+            
+        # Check if this is December or override is set (for year-end processing)
+        result["is_year_end"] = bool(getattr(doc, "is_december_override", 0))
+        
+        # Check tax components
+        tax_amount = 0
+        if hasattr(doc, "deductions") and doc.deductions:
+            for deduction in doc.deductions:
+                if deduction.salary_component == "PPh 21":
+                    tax_amount = flt(deduction.amount)
+                    result["has_tax"] = True
+                    break
+        
+        # Validate tax if present
+        if result["has_tax"]:
+            # Check employee tax fields
+            if hasattr(doc, "employee"):
+                npwp = frappe.db.get_value("Employee", doc.employee, "npwp")
+                status_pajak = frappe.db.get_value("Employee", doc.employee, "status_pajak")
+                
+                if not npwp:
+                    result["warnings"].append(_("Employee is missing NPWP (Tax ID)"))
+                
+                if not status_pajak:
+                    result["warnings"].append(_("Employee is missing tax status (Status Pajak)"))
+            
+            # Check YTD tax for December/year-end
+            if result["is_year_end"]:
+                if not hasattr(doc, "ytd_tax") or flt(doc.ytd_tax) <= 0:
+                    result["warnings"].append(
+                        _("Year-end salary slip should have YTD tax amount")
+                    )
+        
+        # Check BPJS components
+        bpjs_components = [
+            "BPJS Kesehatan Employee",
+            "BPJS JHT Employee", 
+            "BPJS JP Employee"
+        ]
+        found_bpjs = []
+        
+        if hasattr(doc, "deductions") and doc.deductions:
+            for deduction in doc.deductions:
+                if deduction.salary_component in bpjs_components and flt(deduction.amount) > 0:
+                    found_bpjs.append(deduction.salary_component)
+        
+        result["has_bpjs"] = len(found_bpjs) > 0
+        
+        # If BPJS components are present, validate completeness
+        if result["has_bpjs"]:
+            # Check if all necessary components exist
+            missing_components = [comp for comp in bpjs_components if comp not in found_bpjs]
+            if missing_components:
+                result["warnings"].append(
+                    _("Some BPJS components are missing: {0}").format(", ".join(missing_components))
+                )
+            
+            # Check BPJS employee registration
+            if hasattr(doc, "employee"):
+                ikut_bpjs = frappe.db.get_value("Employee", doc.employee, "ikut_bpjs_ketenagakerjaan")
+                if ikut_bpjs == 0:
+                    result["warnings"].append(
+                        _("Employee is not marked as BPJS participant but has BPJS deductions")
+                    )
+        
+        # Final validation result
+        if not result["errors"]:
+            result["is_valid"] = True
+            result["messages"].append(_("Salary slip passed validation"))
+        
+        return result
+        
+    except Exception as e:
+        debug_log(f"Error in validate_salary_slip: {str(e)}", "error")
+        result["errors"].append(str(e))
+        return result
+
+
 def validate_for_tax_summary(salary_slip: str) -> Dict[str, Any]:
     """
     Validate if a Salary Slip is suitable for tax summary processing.
@@ -255,6 +358,74 @@ def validate_for_tax_summary(salary_slip: str) -> Dict[str, Any]:
 
     except Exception as e:
         debug_log(f"Error in validate_for_tax_summary: {str(e)}", "error")
+        result["error"] = str(e)
+        return result
+
+
+def validate_for_bpjs_summary(salary_slip: str) -> Dict[str, Any]:
+    """
+    Validate if a Salary Slip is suitable for BPJS summary processing.
+
+    Args:
+        salary_slip: Name of the salary slip
+
+    Returns:
+        Dictionary with validation results containing:
+        - is_valid: Overall validity for BPJS summary
+        - slip: The salary slip document if valid
+        - error: Error message if not valid
+        - year: Year from the slip
+        - month: Month number from the slip
+        - has_bpjs: Whether the slip has BPJS components
+    """
+    result = {
+        "is_valid": False,
+        "slip": None,
+        "error": None,
+        "year": None,
+        "month": None,
+        "has_bpjs": False,
+    }
+
+    try:
+        # Get and validate the document
+        slip = get_salary_slip_with_validation(salary_slip)
+
+        if not slip:
+            result["error"] = _("Invalid or non-existent salary slip")
+            return result
+
+        # Store the document in result
+        result["slip"] = slip
+
+        # Get year and month
+        if hasattr(slip, "end_date"):
+            end_date = getdate(slip.end_date)
+            result["year"] = end_date.year
+            result["month"] = end_date.month
+        else:
+            result["error"] = _("Salary slip missing end date")
+            return result
+
+        # Check BPJS components
+        bpjs_components = [
+            "BPJS Kesehatan Employee",
+            "BPJS JHT Employee", 
+            "BPJS JP Employee"
+        ]
+        
+        if hasattr(slip, "deductions") and slip.deductions:
+            for deduction in slip.deductions:
+                if deduction.salary_component in bpjs_components and flt(deduction.amount) > 0:
+                    result["has_bpjs"] = True
+                    break
+        
+        # All validations passed
+        result["is_valid"] = True
+        return result
+
+    except Exception as e:
+        debug_log(f"Error in validate_for_bpjs_summary: {str(e)}", "error")
         result["error"] = str(e)
         return result
 
@@ -338,4 +509,41 @@ def has_pph21_component(salary_slip: Union[str, Any]) -> bool:
 
     except Exception as e:
         debug_log(f"Error checking for PPh 21 component: {str(e)}", "error")
+        return False
+
+
+def has_bpjs_components(salary_slip: Union[str, Any]) -> bool:
+    """
+    Check if a Salary Slip has any BPJS components.
+
+    Args:
+        salary_slip: Salary Slip document or name
+
+    Returns:
+        True if the slip has any BPJS components, False otherwise
+    """
+    try:
+        # If string is passed, get the document
+        if isinstance(salary_slip, str):
+            slip = frappe.get_doc("Salary Slip", salary_slip)
+        else:
+            slip = salary_slip
+
+        # BPJS component names to check
+        bpjs_components = [
+            "BPJS Kesehatan Employee",
+            "BPJS JHT Employee", 
+            "BPJS JP Employee"
+        ]
+
+        # Check deductions for BPJS components
+        if hasattr(slip, "deductions") and slip.deductions:
+            for deduction in slip.deductions:
+                if deduction.salary_component in bpjs_components and flt(deduction.amount) > 0:
+                    return True
+
+        return False
+
+    except Exception as e:
+        debug_log(f"Error checking for BPJS components: {str(e)}", "error")
         return False
