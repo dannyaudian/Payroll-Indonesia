@@ -10,7 +10,6 @@ from frappe.model.document import Document
 # Module level functions
 # ---------------------------------------------------------------------------
 
-
 @frappe.whitelist()
 def get_mapping_for_company(company=None):
     """
@@ -65,7 +64,7 @@ def get_mapping_for_company(company=None):
             "company": mapping.company,
             "employee_expense_account": mapping.employee_expense_account,
             "employer_expense_account": mapping.employer_expense_account,
-            "payable_account": mapping.payable_account,
+            "payable_account": mapping.payable_account
         }
 
         # Cache the result with appropriate TTL
@@ -109,12 +108,12 @@ def create_default_mapping(company):
         mapping = frappe.new_doc("BPJS Account Mapping")
         mapping.company = company
         mapping.mapping_name = f"BPJS Mapping - {company}"
-
+        
         # Set blank accounts
         mapping.employee_expense_account = ""
         mapping.employer_expense_account = ""
         mapping.payable_account = ""
-
+        
         # Insert with ignore_permissions
         mapping.insert(ignore_permissions=True)
         frappe.db.commit()
@@ -123,7 +122,7 @@ def create_default_mapping(company):
         frappe.cache().delete_value(f"bpjs_mapping_{company}")
 
         return mapping.name
-
+        
     except Exception as e:
         frappe.db.rollback()
         frappe.log_error(
@@ -146,57 +145,52 @@ def get_bpjs_accounts(company):
         "employer_expense": <Account>,
         "payable": <Account>
     }
-
+    
     Args:
         company (str): Company to get BPJS accounts for
-
+        
     Returns:
         dict: Dictionary with BPJS accounts
-
+        
     Raises:
         frappe.ValidationError: If mapping not found or incomplete
     """
     if not company:
         frappe.throw(_("Company is required to get BPJS accounts"), frappe.ValidationError)
-
+    
     # Find mapping for this company
     mapping_name = frappe.db.get_value("BPJS Account Mapping", {"company": company}, "name")
-
+    
     if not mapping_name:
         frappe.throw(
             _("No BPJS Account Mapping found for company {0}").format(company),
-            frappe.ValidationError,
+            frappe.ValidationError
         )
-
+    
     # Get mapping document
     mapping = frappe.get_doc("BPJS Account Mapping", mapping_name)
-
+    
     # Check if all required accounts are set
     if not mapping.employee_expense_account:
-        frappe.throw(
-            _("Employee expense account not set in BPJS Account Mapping"), frappe.ValidationError
-        )
-
+        frappe.throw(_("Employee expense account not set in BPJS Account Mapping"), frappe.ValidationError)
+    
     if not mapping.employer_expense_account:
-        frappe.throw(
-            _("Employer expense account not set in BPJS Account Mapping"), frappe.ValidationError
-        )
-
+        frappe.throw(_("Employer expense account not set in BPJS Account Mapping"), frappe.ValidationError)
+    
     if not mapping.payable_account:
         frappe.throw(_("Payable account not set in BPJS Account Mapping"), frappe.ValidationError)
-
+    
     # Return accounts
     return {
         "employee_expense": mapping.employee_expense_account,
         "employer_expense": mapping.employer_expense_account,
-        "payable": mapping.payable_account,
+        "payable": mapping.payable_account
     }
 
 
 # ---------------------------------------------------------------------------
 # Document class
 # ---------------------------------------------------------------------------
-
 
 class BPJSAccountMapping(Document):
     def validate(self):
@@ -226,8 +220,12 @@ class BPJSAccountMapping(Document):
 
     def validate_accounts_belong_to_company(self):
         """Validate that all accounts belong to the specified company"""
-        account_fields = ["employee_expense_account", "employer_expense_account", "payable_account"]
-
+        account_fields = [
+            "employee_expense_account",
+            "employer_expense_account", 
+            "payable_account"
+        ]
+        
         for field in account_fields:
             account = self.get(field)
             if account:
@@ -246,16 +244,18 @@ class BPJSAccountMapping(Document):
             "bpjs_kesehatan_employer_rate",
             "bpjs_jht_employee_rate",
             "bpjs_jht_employer_rate",
-            "bpjs_jp_employee_rate",
+            "bpjs_jp_employee_rate", 
             "bpjs_jp_employer_rate",
             "bpjs_jkk_rate",
-            "bpjs_jkm_rate",
+            "bpjs_jkm_rate"
         ]
-
+        
         for field in amount_fields:
             if hasattr(self, field) and self.get(field) is not None:
                 if self.get(field) < 0:
-                    frappe.throw(_("{0} must be a positive value").format(frappe.unscrub(field)))
+                    frappe.throw(_("{0} must be a positive value").format(
+                        frappe.unscrub(field)
+                    ))
 
     def on_update(self):
         """Clear cache after update"""

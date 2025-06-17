@@ -60,7 +60,9 @@ def after_install():
             debug_log("Accounts setup completed successfully", "Account Setup")
         else:
             frappe.logger().warning("Accounts setup completed with warnings or errors")
-            debug_log("Accounts setup completed with warnings or errors", "Account Setup Warning")
+            debug_log(
+                "Accounts setup completed with warnings or errors", "Account Setup Warning"
+            )
 
         # Continue with other installation steps
         setup_payroll_components()
@@ -101,24 +103,9 @@ def setup_payroll_components():
         {"name": "BPJS JHT Employee", "type": "Deduction", "abbr": "BJE"},
         {"name": "BPJS JP Employee", "type": "Deduction", "abbr": "BPE"},
         # Statistical Components (for reporting only)
-        {
-            "name": "BPJS Kesehatan Employer",
-            "type": "Deduction",
-            "abbr": "BKEE",
-            "statistical_component": 1,
-        },
-        {
-            "name": "BPJS JHT Employer",
-            "type": "Deduction",
-            "abbr": "BJEE",
-            "statistical_component": 1,
-        },
-        {
-            "name": "BPJS JP Employer",
-            "type": "Deduction",
-            "abbr": "BPEE",
-            "statistical_component": 1,
-        },
+        {"name": "BPJS Kesehatan Employer", "type": "Deduction", "abbr": "BKEE", "statistical_component": 1},
+        {"name": "BPJS JHT Employer", "type": "Deduction", "abbr": "BJEE", "statistical_component": 1},
+        {"name": "BPJS JP Employer", "type": "Deduction", "abbr": "BPEE", "statistical_component": 1},
         {"name": "BPJS JKK", "type": "Deduction", "abbr": "BJKK", "statistical_component": 1},
         {"name": "BPJS JKM", "type": "Deduction", "abbr": "BJKM", "statistical_component": 1},
         # Tax Component
@@ -141,11 +128,7 @@ def setup_payroll_components():
             doc.type = comp["type"]
 
             # Add optional fields
-            for field in [
-                "is_tax_applicable",
-                "variable_based_on_taxable_salary",
-                "statistical_component",
-            ]:
+            for field in ["is_tax_applicable", "variable_based_on_taxable_salary", "statistical_component"]:
                 if field in comp:
                     setattr(doc, field, comp[field])
 
@@ -156,9 +139,7 @@ def setup_payroll_components():
             skipped_count += 1
 
     frappe.db.commit()
-    logger.info(
-        f"Payroll Indonesia components setup completed: created={created_count}, skipped={skipped_count}"
-    )
+    logger.info(f"Payroll Indonesia components setup completed: created={created_count}, skipped={skipped_count}")
 
 
 def setup_property_setters():
@@ -192,7 +173,7 @@ def setup_property_setters():
 
     for ps in property_setters:
         ps_name = f"{ps['doctype']}-{ps['property']}"
-
+        
         if not frappe.db.exists("Property Setter", ps_name):
             doc = frappe.new_doc("Property Setter")
             doc.doc_type = ps["doctype"]
@@ -207,9 +188,7 @@ def setup_property_setters():
             skipped_count += 1
 
     frappe.db.commit()
-    logger.info(
-        f"Property setters setup completed: created={created_count}, skipped={skipped_count}"
-    )
+    logger.info(f"Property setters setup completed: created={created_count}, skipped={skipped_count}")
 
 
 def migrate_from_json_to_doctype():
@@ -304,7 +283,7 @@ def migrate_from_json_to_doctype():
             logger.info(
                 f"[PI-Install] PPh 21 TER Table exists with {ter_table_count} entries, proceeding with migration"
             )
-
+            
             # Migrate TER rates
             migrate_ter_rates_result = migrate_ter_rates(config.get("ter_rates", {}))
             logger.info(f"[PI-Install] migrate_ter_rates() returned {migrate_ter_rates_result}")

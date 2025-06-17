@@ -255,11 +255,19 @@ def clean_obsolete_bpjs_docs():
         dict: Results of the cleanup operation
     """
     timestamp = now_datetime().strftime("%Y-%m-%d %H:%M:%S")
-    results = {"timestamp": timestamp, "doctypes_deleted": [], "records_deleted": {}, "errors": []}
+    results = {
+        "timestamp": timestamp,
+        "doctypes_deleted": [],
+        "records_deleted": {},
+        "errors": []
+    }
 
     try:
         # List of obsolete DocTypes to check and delete
-        obsolete_doctypes = ["BPJS Payment Component", "BPJS Payment Account Detail"]
+        obsolete_doctypes = [
+            "BPJS Payment Component",
+            "BPJS Payment Account Detail"
+        ]
 
         for doctype in obsolete_doctypes:
             try:
@@ -288,9 +296,7 @@ def clean_obsolete_bpjs_docs():
 
         # Output summary
         if results["doctypes_deleted"]:
-            print(
-                f"\n[{timestamp}] Successfully deleted {len(results['doctypes_deleted'])} obsolete DocTypes:"
-            )
+            print(f"\n[{timestamp}] Successfully deleted {len(results['doctypes_deleted'])} obsolete DocTypes:")
             for dt in results["doctypes_deleted"]:
                 print(f"- {dt}")
         else:
@@ -314,11 +320,11 @@ def clean_obsolete_bpjs_docs():
 def run_maintenance():
     """
     Run all maintenance tasks in the correct order
-
+    
     This function:
     1. Cleans up obsolete BPJS DocTypes
     2. Fixes all Salary Structures and Assignments
-
+    
     Returns:
         dict: Results of the maintenance operation
     """
@@ -327,28 +333,28 @@ def run_maintenance():
         "timestamp": timestamp,
         "bpjs_cleanup": None,
         "salary_structures": None,
-        "success": False,
+        "success": False
     }
-
+    
     try:
         print(f"[{timestamp}] Starting Payroll Indonesia maintenance tasks...")
-
+        
         # Step 1: Clean up obsolete BPJS DocTypes
         print(f"[{timestamp}] Cleaning up obsolete BPJS DocTypes...")
         bpjs_cleanup_results = clean_obsolete_bpjs_docs()
         results["bpjs_cleanup"] = bpjs_cleanup_results
-
+        
         # Step 2: Fix Salary Structures and Assignments
         print(f"[{timestamp}] Fixing Salary Structures and Assignments...")
         salary_fix_success = fix_all_salary_structures_and_assignments()
         results["salary_structures"] = {"success": salary_fix_success}
-
+        
         # Overall success
         results["success"] = True
-
+        
         print(f"[{timestamp}] Maintenance tasks completed successfully.")
         return results
-
+        
     except Exception as e:
         error_msg = f"Error running maintenance tasks: {str(e)}"
         frappe.log_error(error_msg, "Maintenance Error")

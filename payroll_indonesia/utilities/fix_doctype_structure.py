@@ -24,7 +24,7 @@ def run():
     """
     Main function to fix all BPJS-related DocTypes
     Can be called from patches or console
-
+    
     Returns:
         dict: Status of fixed DocTypes
     """
@@ -87,25 +87,25 @@ def fix_bpjs_payment_summary():
                 "insert_after": "month_name",
             },
             "total_employee": {
-                "fieldtype": "Currency",
-                "label": "Total Employee Share",
-                "insert_after": "month_year_title",
+                "fieldtype": "Currency", 
+                "label": "Total Employee Share", 
+                "insert_after": "month_year_title"
             },
             "total_employer": {
-                "fieldtype": "Currency",
-                "label": "Total Employer Share",
-                "insert_after": "total_employee",
+                "fieldtype": "Currency", 
+                "label": "Total Employer Share", 
+                "insert_after": "total_employee"
             },
             "grand_total": {
-                "fieldtype": "Currency",
-                "label": "Grand Total",
-                "insert_after": "total_employer",
+                "fieldtype": "Currency", 
+                "label": "Grand Total", 
+                "insert_after": "total_employer"
             },
             "payment_entry": {
-                "fieldtype": "Link",
-                "label": "Payment Entry",
+                "fieldtype": "Link", 
+                "label": "Payment Entry", 
                 "options": "Payment Entry",
-                "insert_after": "grand_total",
+                "insert_after": "grand_total"
             },
         }
 
@@ -189,9 +189,7 @@ def check_bpjs_payment_details():
             # Check if we can find or create a child DocType
             child_doctype_name = "BPJS Payment Summary Detail"
             if not frappe.db.exists("DocType", child_doctype_name):
-                frappe.logger().info(
-                    f"Child table DocType {child_doctype_name} not found. Creating it..."
-                )
+                frappe.logger().info(f"Child table DocType {child_doctype_name} not found. Creating it...")
                 child_doctype_name = create_custom_child_doctype(child_doctype_name)
                 if not child_doctype_name:
                     return False
@@ -207,9 +205,7 @@ def check_bpjs_payment_details():
                     "insert_after": "summary_details_section",
                 },
             )
-            frappe.logger().info(
-                f"Created summary_details table field linked to {child_doctype_name}"
-            )
+            frappe.logger().info(f"Created summary_details table field linked to {child_doctype_name}")
 
         # Check fields in the child table
         if child_doctype_name and frappe.db.exists("DocType", child_doctype_name):
@@ -538,15 +534,8 @@ def diagnose_doctype_structure():
 
             # Check required fields
             bpjs_required_fields = [
-                "month",
-                "year",
-                "month_year",
-                "month_name",
-                "month_year_title",
-                "total_employee",
-                "total_employer",
-                "grand_total",
-                "payment_entry",
+                "month", "year", "month_year", "month_name", "month_year_title",
+                "total_employee", "total_employer", "grand_total", "payment_entry"
             ]
             docfields = frappe.get_meta("BPJS Payment Summary").fields
             existing_fields = [df.fieldname for df in docfields]
@@ -581,10 +570,7 @@ def diagnose_doctype_structure():
 
             # Check required fields
             required_fields = [
-                "company",
-                "employee_expense_account",
-                "employer_expense_account",
-                "payable_account",
+                "company", "employee_expense_account", "employer_expense_account", "payable_account"
             ]
             docfields = frappe.get_meta("BPJS Account Mapping").fields
             existing_fields = [df.fieldname for df in docfields]
@@ -595,7 +581,7 @@ def diagnose_doctype_structure():
 
         # Output diagnostic info
         frappe.logger().info("\nBPJS DocType Structure Diagnosis:")
-
+        
         frappe.logger().info("\n1. BPJS Payment Summary:")
         if results["bpjs_payment_summary"]["exists"]:
             frappe.logger().info("   - Status: Exists")
@@ -606,9 +592,7 @@ def diagnose_doctype_structure():
             else:
                 frappe.logger().info("   - All required fields present")
 
-            frappe.logger().info(
-                f"   - Child table: {results['bpjs_payment_summary']['child_table_status']}"
-            )
+            frappe.logger().info(f"   - Child table: {results['bpjs_payment_summary']['child_table_status']}")
         else:
             frappe.logger().info("   - Status: Not found")
 

@@ -198,10 +198,10 @@ def validate_tax_related_fields(slip: Any) -> Dict[str, Any]:
 def validate_salary_slip(doc: Any) -> Dict[str, Any]:
     """
     Comprehensive validation of a Salary Slip for tax and BPJS compliance.
-
+    
     Args:
         doc: Salary Slip document
-
+        
     Returns:
         Dictionary with validation results
     """
@@ -212,17 +212,17 @@ def validate_salary_slip(doc: Any) -> Dict[str, Any]:
         "errors": [],
         "has_tax": False,
         "has_bpjs": False,
-        "is_year_end": False,
+        "is_year_end": False
     }
-
+    
     try:
         if not doc or not isinstance(doc, object):
             result["errors"].append(_("Invalid salary slip document"))
             return result
-
+            
         # Check if this is December or override is set (for year-end processing)
         result["is_year_end"] = bool(getattr(doc, "is_december_override", 0))
-
+        
         # Check tax components
         tax_amount = 0
         if hasattr(doc, "deductions") and doc.deductions:
@@ -231,36 +231,42 @@ def validate_salary_slip(doc: Any) -> Dict[str, Any]:
                     tax_amount = flt(deduction.amount)
                     result["has_tax"] = True
                     break
-
+        
         # Validate tax if present
         if result["has_tax"]:
             # Check employee tax fields
             if hasattr(doc, "employee"):
                 npwp = frappe.db.get_value("Employee", doc.employee, "npwp")
                 status_pajak = frappe.db.get_value("Employee", doc.employee, "status_pajak")
-
+                
                 if not npwp:
                     result["warnings"].append(_("Employee is missing NPWP (Tax ID)"))
-
+                
                 if not status_pajak:
                     result["warnings"].append(_("Employee is missing tax status (Status Pajak)"))
-
+            
             # Check YTD tax for December/year-end
             if result["is_year_end"]:
                 if not hasattr(doc, "ytd_tax") or flt(doc.ytd_tax) <= 0:
-                    result["warnings"].append(_("Year-end salary slip should have YTD tax amount"))
-
+                    result["warnings"].append(
+                        _("Year-end salary slip should have YTD tax amount")
+                    )
+        
         # Check BPJS components
-        bpjs_components = ["BPJS Kesehatan Employee", "BPJS JHT Employee", "BPJS JP Employee"]
+        bpjs_components = [
+            "BPJS Kesehatan Employee",
+            "BPJS JHT Employee", 
+            "BPJS JP Employee"
+        ]
         found_bpjs = []
-
+        
         if hasattr(doc, "deductions") and doc.deductions:
             for deduction in doc.deductions:
                 if deduction.salary_component in bpjs_components and flt(deduction.amount) > 0:
                     found_bpjs.append(deduction.salary_component)
-
+        
         result["has_bpjs"] = len(found_bpjs) > 0
-
+        
         # If BPJS components are present, validate completeness
         if result["has_bpjs"]:
             # Check if all necessary components exist
@@ -269,24 +275,22 @@ def validate_salary_slip(doc: Any) -> Dict[str, Any]:
                 result["warnings"].append(
                     _("Some BPJS components are missing: {0}").format(", ".join(missing_components))
                 )
-
+            
             # Check BPJS employee registration
             if hasattr(doc, "employee"):
-                ikut_bpjs = frappe.db.get_value(
-                    "Employee", doc.employee, "ikut_bpjs_ketenagakerjaan"
-                )
+                ikut_bpjs = frappe.db.get_value("Employee", doc.employee, "ikut_bpjs_ketenagakerjaan")
                 if ikut_bpjs == 0:
                     result["warnings"].append(
                         _("Employee is not marked as BPJS participant but has BPJS deductions")
                     )
-
+        
         # Final validation result
         if not result["errors"]:
             result["is_valid"] = True
             result["messages"].append(_("Salary slip passed validation"))
-
+        
         return result
-
+        
     except Exception as e:
         debug_log(f"Error in validate_salary_slip: {str(e)}", "error")
         result["errors"].append(str(e))
@@ -404,14 +408,18 @@ def validate_for_bpjs_summary(salary_slip: str) -> Dict[str, Any]:
             return result
 
         # Check BPJS components
-        bpjs_components = ["BPJS Kesehatan Employee", "BPJS JHT Employee", "BPJS JP Employee"]
-
+        bpjs_components = [
+            "BPJS Kesehatan Employee",
+            "BPJS JHT Employee", 
+            "BPJS JP Employee"
+        ]
+        
         if hasattr(slip, "deductions") and slip.deductions:
             for deduction in slip.deductions:
                 if deduction.salary_component in bpjs_components and flt(deduction.amount) > 0:
                     result["has_bpjs"] = True
                     break
-
+        
         # All validations passed
         result["is_valid"] = True
         return result
@@ -522,7 +530,11 @@ def has_bpjs_components(salary_slip: Union[str, Any]) -> bool:
             slip = salary_slip
 
         # BPJS component names to check
-        bpjs_components = ["BPJS Kesehatan Employee", "BPJS JHT Employee", "BPJS JP Employee"]
+        bpjs_components = [
+            "BPJS Kesehatan Employee",
+            "BPJS JHT Employee", 
+            "BPJS JP Employee"
+        ]
 
         # Check deductions for BPJS components
         if hasattr(slip, "deductions") and slip.deductions:

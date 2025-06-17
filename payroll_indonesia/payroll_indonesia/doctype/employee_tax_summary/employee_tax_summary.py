@@ -77,10 +77,12 @@ class EmployeeTaxSummary(Document):
             frappe.throw(_("Tax year is mandatory for Employee Tax Summary"))
 
         # Validate year is a reasonable value
-        # current_year = getdate().year
-        if self.year < 2000 or self.year > 2100:
+        current_year = getdate().year
+        if self.year < 2000 or self.year > current_year + 1:
             frappe.throw(
-                _("Invalid tax year: {0}. Must be between 2000 and 2100").format(self.year)
+                _("Invalid tax year: {0}. Must be between 2000 and {1}").format(
+                    self.year, current_year + 1
+                )
             )
 
     def validate_duplicate(self):

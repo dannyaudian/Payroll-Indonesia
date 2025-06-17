@@ -302,22 +302,22 @@ def create_salary_slips_for_employees(employees, payroll_entry, publish_progress
                 "end_date": payroll_entry.end_date,
                 "payroll_entry": payroll_entry.name,
                 "salary_slip_based_on_timesheet": payroll_entry.salary_slip_based_on_timesheet,
-                "is_december_override": cint(payroll_entry.is_december_run),
+                "is_december_override": cint(payroll_entry.is_december_run)
             }
-
+            
             # Add optional fields if available
             if hasattr(emp, "department") and emp.department:
                 args["department"] = emp.department
-
+                
             if hasattr(emp, "designation") and emp.designation:
                 args["designation"] = emp.designation
-
+                
             if hasattr(payroll_entry, "salary_structure") and payroll_entry.salary_structure:
                 args["salary_structure"] = payroll_entry.salary_structure
-
+                
             if hasattr(payroll_entry, "payment_days") and payroll_entry.payment_days:
                 args["payment_days"] = payroll_entry.payment_days
-
+            
             # Insert the document
             salary_slip = frappe.get_doc(args).insert()
             salary_slips.append(salary_slip.name)

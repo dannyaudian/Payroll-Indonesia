@@ -365,7 +365,9 @@ def should_use_ter_method(employee, slip=None):
                 # Cache settings for 1 hour
                 cache_value(settings_cache_key, pph_settings, CACHE_MEDIUM)
             except Exception as e:
-                log_tax_logic_error("Settings Error", f"Error retrieving PPh 21 Settings: {str(e)}")
+                log_tax_logic_error(
+                    "Settings Error", f"Error retrieving PPh 21 Settings: {str(e)}"
+                )
                 pph_settings = {}
 
         # Fast path for global TER setting disabled - with default safety
