@@ -982,7 +982,7 @@ def retry_bpjs_mapping(companies: List[str]) -> None:
                         f"Retrying BPJS Account Mapping creation for {company}",
                         "BPJS Mapping Retry",
                     )
-                    
+
                     # Get account mapping from bpjs_account_mapping module instead of settings
                     try:
                         # We'll use get_bpjs_accounts() for each company
@@ -1376,10 +1376,10 @@ def get_spt_month() -> int:
 def is_december_run(flag: int) -> bool:
     """
     Check if this is a December run based on provided flag
-    
+
     Args:
         flag: Integer flag (0 or 1) indicating if this is a December run
-        
+
     Returns:
         bool: True if flag is truthy, False otherwise
     """
@@ -1545,11 +1545,11 @@ def get_ter_rate(status_pajak, penghasilan_bruto):
 def should_use_ter(salary_slip=None, is_december_override=False):
     """
     Check if TER method should be used based on Payroll Indonesia Settings
-    
+
     Args:
         salary_slip (str, optional): Salary slip name (for context, not used)
         is_december_override (bool, optional): Flag to override December behavior
-        
+
     Returns:
         bool: True if TER should be used, False otherwise
     """
@@ -1986,7 +1986,7 @@ def get_ytd_tax_info(employee, date=None, is_december_override=False):
     """
     Get year-to-date tax information for an employee
     Uses the centralized get_ytd_totals function
-    
+
     Args:
         employee (str): Employee ID
         date (datetime, optional): Date to determine year and month, defaults to current date
@@ -2018,7 +2018,8 @@ def get_ytd_tax_info(employee, date=None, is_december_override=False):
         # Return simplified result for backward compatibility
         return {
             "ytd_tax": flt(ytd_data.get("ytd_tax", 0)),
-            "is_using_ter": ytd_data.get("is_using_ter", False) and not is_december_run(is_december_override),
+            "is_using_ter": ytd_data.get("is_using_ter", False)
+            and not is_december_run(is_december_override),
             "ter_rate": flt(ytd_data.get("ter_rate", 0)),
         }
 
