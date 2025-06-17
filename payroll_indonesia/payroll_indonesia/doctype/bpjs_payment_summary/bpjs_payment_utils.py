@@ -4,7 +4,8 @@
 # Last modified: 2025-06-17 06:52:53 by dannyaudian
 
 import frappe
-from frappe import _
+
+# from frappe import _
 from frappe.utils import flt, get_last_day, cint
 
 # Import get_bpjs_accounts from bpjs_account_mapping
@@ -47,7 +48,7 @@ def fetch_from_salary_slip(summary):
         )
 
         if not salary_slips:
-            frappe.msgprint(_("No submitted salary slips found for the selected period"))
+            frappe.msgprint(("No submitted salary slips found for the selected period"))
             return {"total_employee": 0, "total_employer": 0, "grand_total": 0}
 
         # Aggregate totals
@@ -89,7 +90,7 @@ def fetch_from_salary_slip(summary):
         if not summary.is_new():
             summary.save()
             frappe.msgprint(
-                _("Successfully fetched BPJS data from {0} salary slips").format(
+                ("Successfully fetched BPJS data from {0} salary slips").format(
                     len(summary.summary_details)
                 )
             )
@@ -106,7 +107,7 @@ def fetch_from_salary_slip(summary):
             f"Traceback: {frappe.get_traceback()}",
             "BPJS Payment Summary Error",
         )
-        frappe.throw(_("Error fetching BPJS data from salary slips: {0}").format(str(e)))
+        frappe.throw(("Error fetching BPJS data from salary slips: {0}").format(str(e)))
 
 
 def extract_bpjs_components(salary_slip):
@@ -154,7 +155,7 @@ def get_period_dates(month, year):
     year = cint(year)
 
     if month < 1 or month > 12:
-        frappe.throw(_("Month must be between 1 and 12"))
+        frappe.throw(("Month must be between 1 and 12"))
 
     start_date = f"{year}-{month:02d}-01"
     end_date = get_last_day(start_date)
@@ -179,19 +180,17 @@ def create_payment_entry(summary):
     try:
         # Check if payment entry already exists
         if summary.payment_entry:
-            frappe.msgprint(_("Payment Entry {0} already exists").format(summary.payment_entry))
+            frappe.msgprint(("Payment Entry {0} already exists").format(summary.payment_entry))
             return summary.payment_entry
 
         # Check if summary has been submitted
         if summary.docstatus != 1:
-            frappe.throw(
-                _("BPJS Payment Summary must be submitted before creating a Payment Entry")
-            )
+            frappe.throw(("BPJS Payment Summary must be submitted before creating a Payment Entry"))
 
         # Check if summary has details
         if not summary.summary_details:
             frappe.throw(
-                _("No BPJS payment details found. Please fetch data from salary slips first.")
+                ("No BPJS payment details found. Please fetch data from salary slips first.")
             )
 
         # Get BPJS accounts for the company
@@ -206,7 +205,7 @@ def create_payment_entry(summary):
         )
 
         if not default_bank_account:
-            frappe.throw(_("Default Bank Account not set for Company {0}").format(summary.company))
+            frappe.throw(("Default Bank Account not set for Company {0}").format(summary.company))
 
         # Create Payment Entry
         pe = frappe.new_doc("Payment Entry")
@@ -280,7 +279,7 @@ def create_payment_entry(summary):
         summary.db_set("payment_entry", pe.name)
         summary.db_set("status", "Paid")
 
-        frappe.msgprint(_("Payment Entry {0} created successfully").format(pe.name))
+        frappe.msgprint(("Payment Entry {0} created successfully").format(pe.name))
         return pe.name
 
     except Exception as e:
@@ -289,7 +288,7 @@ def create_payment_entry(summary):
             f"Traceback: {frappe.get_traceback()}",
             "BPJS Payment Entry Error",
         )
-        frappe.throw(_("Error creating Payment Entry: {0}").format(str(e)))
+        frappe.throw(("Error creating Payment Entry: {0}").format(str(e)))
 
 
 def get_bpjs_supplier(company):

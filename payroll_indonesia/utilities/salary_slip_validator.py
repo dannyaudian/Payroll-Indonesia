@@ -224,11 +224,11 @@ def validate_salary_slip(doc: Any) -> Dict[str, Any]:
         result["is_year_end"] = bool(getattr(doc, "is_december_override", 0))
 
         # Check tax components
-        tax_amount = 0
+        # tax_amount = 0
         if hasattr(doc, "deductions") and doc.deductions:
             for deduction in doc.deductions:
                 if deduction.salary_component == "PPh 21":
-                    tax_amount = flt(deduction.amount)
+                    # tax_amount = flt(deduction.amount)
                     result["has_tax"] = True
                     break
 

@@ -4,7 +4,8 @@
 # Last modified: 2025-06-17 07:16:30 by dannyaudian
 
 import frappe
-from frappe import _
+
+# from frappe import _
 from frappe.custom.doctype.custom_field.custom_field import create_custom_field
 from frappe.utils import now_datetime
 

@@ -276,13 +276,13 @@ def create_salary_slips_for_employees(employees, payroll_entry, publish_progress
     salary_slips = []
 
     # Get December override from payroll entry
-    is_december_override = False
-    if hasattr(payroll_entry, "should_run_as_december") and callable(
-        payroll_entry.should_run_as_december
-    ):
-        is_december_override = payroll_entry.should_run_as_december()
-    elif hasattr(payroll_entry, "is_december_run"):
-        is_december_override = bool(payroll_entry.get("is_december_run"))
+    # _is_december_override = False
+    # if hasattr(payroll_entry, "should_run_as_december") and callable(
+    #     payroll_entry.should_run_as_december
+    # ):
+    #     _is_december_override = payroll_entry.should_run_as_december()
+    # elif hasattr(payroll_entry, "is_december_run"):
+    #     _is_december_override = bool(payroll_entry.get("is_december_run"))
 
     # Create salary slips
     for i, emp in enumerate(employees):

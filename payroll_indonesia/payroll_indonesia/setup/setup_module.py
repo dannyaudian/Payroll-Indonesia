@@ -7,7 +7,8 @@ It is hooked via **after_migrate** in hooks.py.
 from __future__ import unicode_literals
 
 import frappe
-from frappe.utils import cint
+
+# from frappe.utils import cint
 
 # ---------------------------------------------------------------------------
 # Central utilities
