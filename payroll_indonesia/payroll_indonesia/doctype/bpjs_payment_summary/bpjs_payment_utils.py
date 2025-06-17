@@ -14,6 +14,10 @@ from payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_accou
 )
 
 
+def debug_log(message):
+    frappe.logger().debug(message)
+
+
 @frappe.whitelist()
 def fetch_from_salary_slip(summary):
     """
