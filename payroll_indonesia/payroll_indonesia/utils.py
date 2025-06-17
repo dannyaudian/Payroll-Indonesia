@@ -53,6 +53,7 @@ __all__ = [
     "get_ytd_totals",
     "get_ytd_totals_from_tax_summary",
     "get_employee_details",
+    "is_december_run",
 ]
 
 # Settings cache
@@ -973,26 +974,7 @@ def retry_bpjs_mapping(companies: List[str]) -> None:
             frappe.log_error("create_default_mapping function not found", "BPJS Mapping Error")
             return
 
-        # Get account mapping from Payroll Indonesia Settings
-        settings = get_settings()
-
-        # Get account mapping from settings
-        account_mapping = {}
-        if settings:
-            # Try to get GL accounts data from settings
-            gl_accounts_data = {}
-            try:
-                if hasattr(settings, "gl_accounts") and settings.gl_accounts:
-                    if isinstance(settings.gl_accounts, str):
-                        gl_accounts_data = json.loads(settings.gl_accounts)
-                    else:
-                        gl_accounts_data = settings.gl_accounts
-
-                    if "bpjs_account_mapping" in gl_accounts_data:
-                        account_mapping = gl_accounts_data["bpjs_account_mapping"]
-            except (ValueError, AttributeError):
-                debug_log("Error parsing GL accounts data from settings", "BPJS Mapping Retry")
-
+        # Get account mapping from the BPJS module for each company
         for company in companies:
             try:
                 if not frappe.db.exists("BPJS Account Mapping", {"company": company}):
@@ -1000,7 +982,19 @@ def retry_bpjs_mapping(companies: List[str]) -> None:
                         f"Retrying BPJS Account Mapping creation for {company}",
                         "BPJS Mapping Retry",
                     )
-                    mapping_name = create_default_mapping(company, account_mapping)
+                    
+                    # Get account mapping from bpjs_account_mapping module instead of settings
+                    try:
+                        # We'll use get_bpjs_accounts() for each company
+                        bpjs_accounts = module.get_bpjs_accounts(company)
+                        mapping_name = create_default_mapping(company, bpjs_accounts)
+                    except Exception as e:
+                        debug_log(
+                            f"Error getting BPJS accounts for {company}: {str(e)}",
+                            "BPJS Mapping Retry Error",
+                            trace=True,
+                        )
+                        mapping_name = create_default_mapping(company, {})
 
                     if mapping_name:
                         frappe.logger().info(
@@ -1378,6 +1372,20 @@ def get_spt_month() -> int:
         return 12  # Default to December
 
 
+# Helper function for December logic
+def is_december_run(flag: int) -> bool:
+    """
+    Check if this is a December run based on provided flag
+    
+    Args:
+        flag: Integer flag (0 or 1) indicating if this is a December run
+        
+    Returns:
+        bool: True if flag is truthy, False otherwise
+    """
+    return bool(flag)
+
+
 # TER-related functions
 def get_ter_category(ptkp_status):
     """
@@ -1534,10 +1542,14 @@ def get_ter_rate(status_pajak, penghasilan_bruto):
         return 0
 
 
-def should_use_ter():
+def should_use_ter(salary_slip=None, is_december_override=False):
     """
     Check if TER method should be used based on Payroll Indonesia Settings
-
+    
+    Args:
+        salary_slip (str, optional): Salary slip name (for context, not used)
+        is_december_override (bool, optional): Flag to override December behavior
+        
     Returns:
         bool: True if TER should be used, False otherwise
     """
@@ -1551,9 +1563,8 @@ def should_use_ter():
         calc_method = getattr(settings, "tax_calculation_method", "Progressive")
         use_ter = cint(getattr(settings, "use_ter", 0))
 
-        # December always uses Progressive method as per PMK 168/2023
-        current_month = getdate().month
-        if current_month == 12:
+        # Check if December override is set
+        if is_december_run(is_december_override):
             return False
 
         # Check settings
@@ -1971,14 +1982,15 @@ def calculate_ytd_from_salary_slips(
         }
 
 
-def get_ytd_tax_info(employee, date=None):
+def get_ytd_tax_info(employee, date=None, is_december_override=False):
     """
     Get year-to-date tax information for an employee
     Uses the centralized get_ytd_totals function
-
+    
     Args:
         employee (str): Employee ID
         date (datetime, optional): Date to determine year and month, defaults to current date
+        is_december_override (bool, optional): Flag to override December behavior
 
     Returns:
         dict: YTD tax information
@@ -2006,7 +2018,7 @@ def get_ytd_tax_info(employee, date=None):
         # Return simplified result for backward compatibility
         return {
             "ytd_tax": flt(ytd_data.get("ytd_tax", 0)),
-            "is_using_ter": ytd_data.get("is_using_ter", False),
+            "is_using_ter": ytd_data.get("is_using_ter", False) and not is_december_run(is_december_override),
             "ter_rate": flt(ytd_data.get("ter_rate", 0)),
         }
 

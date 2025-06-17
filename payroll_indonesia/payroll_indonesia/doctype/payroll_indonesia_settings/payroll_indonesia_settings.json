@@ -260,40 +260,6 @@
       "options": "JSON"
     },
     {
-      "fieldname": "account_settings_section",
-      "fieldtype": "Section Break",
-      "label": "Account Settings",
-      "collapsible": 1
-    },
-    {
-      "fieldname": "bpjs_account_mapping_json",
-      "fieldtype": "Code",
-      "label": "BPJS Account Mapping (JSON)",
-      "description": "Mapping akun debit/kredit untuk semua komponen BPJS",
-      "options": "JSON"
-    },
-    {
-      "fieldname": "expense_accounts_json",
-      "fieldtype": "Code",
-      "label": "Expense Accounts (JSON)",
-      "description": "Daftar akun untuk gaji pokok, tunjangan, bonus, dll",
-      "options": "JSON"
-    },
-    {
-      "fieldname": "payable_accounts_json",
-      "fieldtype": "Code",
-      "label": "Payable Accounts (JSON)",
-      "description": "Daftar akun hutang pajak dan BPJS",
-      "options": "JSON"
-    },
-    {
-      "fieldname": "parent_accounts_json",
-      "fieldtype": "Code",
-      "label": "Parent GL Accounts (JSON)",
-      "description": "Akun induk seperti Direct Expenses dan Duties and Taxes",
-      "options": "JSON"
-    },
-    {
       "fieldname": "fallback_parent_accounts_section",
       "fieldtype": "Section Break",
       "label": "Fallback Parent Accounts",

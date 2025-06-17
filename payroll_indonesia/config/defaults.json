@@ -304,21 +304,6 @@
                 "account_type": "Payable",
                 "root_type": "Liability"
             }
-        },
-        "bpjs_account_mapping": {
-            "kesehatan_employee_account": "BPJS Kesehatan Payable",
-            "kesehatan_employer_debit_account": "BPJS Kesehatan Employer Expense",
-            "kesehatan_employer_credit_account": "BPJS Kesehatan Payable",
-            "jht_employee_account": "BPJS JHT Payable",
-            "jht_employer_debit_account": "BPJS JHT Employer Expense",
-            "jht_employer_credit_account": "BPJS JHT Payable",
-            "jp_employee_account": "BPJS JP Payable",
-            "jp_employer_debit_account": "BPJS JP Employer Expense",
-            "jp_employer_credit_account": "BPJS JP Payable",
-            "jkk_employer_debit_account": "BPJS JKK Employer Expense",
-            "jkk_employer_credit_account": "BPJS JKK Payable",
-            "jkm_employer_debit_account": "BPJS JKM Employer Expense",
-            "jkm_employer_credit_account": "BPJS JKM Payable"
         }
     },
     "bpjs_settings": {

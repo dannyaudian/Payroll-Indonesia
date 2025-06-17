@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-05-04 02:05:35 by dannyaudian
+# Last modified: 2025-06-17 07:16:30 by dannyaudian
 
 import frappe
 from frappe import _
@@ -10,14 +10,51 @@ from frappe.utils import now_datetime
 
 __all__ = [
     "fix_bpjs_payment_summary",
+    "fix_bpjs_account_mapping",
     "check_bpjs_payment_details",
     "check_child_table_fields",
     "create_custom_child_doctype",
-    "fix_employee_tax_summary",
-    "fix_all_doctypes",
+    "run",
     "diagnose_doctype_structure",
     "log_error",
 ]
+
+
+def run():
+    """
+    Main function to fix all BPJS-related DocTypes
+    Can be called from patches or console
+    
+    Returns:
+        dict: Status of fixed DocTypes
+    """
+    timestamp = now_datetime().strftime("%Y-%m-%d %H:%M:%S")
+    results = {
+        "timestamp": timestamp,
+        "bpjs_payment_summary": False,
+        "bpjs_account_mapping": False,
+        "success": False,
+    }
+
+    try:
+        frappe.logger().info(f"[{timestamp}] Starting BPJS DocType structure fixes")
+
+        # Fix BPJS Payment Summary and related child tables
+        results["bpjs_payment_summary"] = fix_bpjs_payment_summary()
+
+        # Fix BPJS Account Mapping
+        results["bpjs_account_mapping"] = fix_bpjs_account_mapping()
+
+        # Set overall success
+        results["success"] = results["bpjs_payment_summary"] and results["bpjs_account_mapping"]
+
+        frappe.logger().info(f"[{timestamp}] BPJS DocType structure fixes completed")
+        return results
+
+    except Exception as e:
+        log_error(f"Error fixing BPJS DocTypes: {str(e)}", "DocType Fix Error")
+        results["error"] = str(e)
+        return results
 
 
 def fix_bpjs_payment_summary():
@@ -28,10 +65,10 @@ def fix_bpjs_payment_summary():
         bool: True if successful, False if error occurred
     """
     try:
-        frappe.msgprint(_("Checking BPJS Payment Summary DocType structure..."))
+        frappe.logger().info("Checking BPJS Payment Summary DocType structure...")
 
         if not frappe.db.exists("DocType", "BPJS Payment Summary"):
-            frappe.throw(_("BPJS Payment Summary DocType not found."))
+            frappe.logger().error("BPJS Payment Summary DocType not found.")
             return False
 
         # Check required fields using custom field approach
@@ -49,6 +86,27 @@ def fix_bpjs_payment_summary():
                 "label": "Title",
                 "insert_after": "month_name",
             },
+            "total_employee": {
+                "fieldtype": "Currency", 
+                "label": "Total Employee Share", 
+                "insert_after": "month_year_title"
+            },
+            "total_employer": {
+                "fieldtype": "Currency", 
+                "label": "Total Employer Share", 
+                "insert_after": "total_employee"
+            },
+            "grand_total": {
+                "fieldtype": "Currency", 
+                "label": "Grand Total", 
+                "insert_after": "total_employer"
+            },
+            "payment_entry": {
+                "fieldtype": "Link", 
+                "label": "Payment Entry", 
+                "options": "Payment Entry",
+                "insert_after": "grand_total"
+            },
         }
 
         # Check if fields exist already
@@ -57,10 +115,8 @@ def fix_bpjs_payment_summary():
         missing_fields = [f for f in required_fields.keys() if f not in existing_fields]
 
         if missing_fields:
-            frappe.msgprint(
-                _("Missing fields detected in BPJS Payment Summary: {0}").format(
-                    ", ".join(missing_fields)
-                )
+            frappe.logger().info(
+                f"Missing fields detected in BPJS Payment Summary: {', '.join(missing_fields)}"
             )
 
             # Create custom fields for missing fields
@@ -75,17 +131,17 @@ def fix_bpjs_payment_summary():
                             "fieldtype": field_def["fieldtype"],
                             "label": field_def["label"],
                             "insert_after": field_def["insert_after"],
+                            "options": field_def.get("options", ""),
                         },
                     )
-                    frappe.msgprint(f"Added field '{field_name}' to BPJS Payment Summary.")
+                    frappe.logger().info(f"Added field '{field_name}' to BPJS Payment Summary.")
                 except Exception as e:
                     log_error(
                         f"Error creating custom field {field_name}: {str(e)}",
                         "Custom Field Creation Error",
                     )
-                    frappe.msgprint(f"Error creating field '{field_name}': {str(e)}")
         else:
-            frappe.msgprint(_("BPJS Payment Summary structure is OK."))
+            frappe.logger().info("BPJS Payment Summary structure is OK.")
 
         # Check child table
         check_bpjs_payment_details()
@@ -93,7 +149,6 @@ def fix_bpjs_payment_summary():
 
     except Exception as e:
         log_error(f"Error fixing BPJS Payment Summary: {str(e)}", "DocType Fix Error")
-        frappe.msgprint(_("Error fixing BPJS Payment Summary structure: {0}").format(str(e)))
         return False
 
 
@@ -111,7 +166,7 @@ def check_bpjs_payment_details():
 
         for field in parent_meta.fields:
             if field.fieldtype == "Table" and (
-                "employee_details" in field.fieldname or "details" in field.fieldname
+                "summary_details" in field.fieldname or "details" in field.fieldname
             ):
                 child_table_fieldname = field.fieldname
                 child_doctype_name = field.options
@@ -119,42 +174,38 @@ def check_bpjs_payment_details():
 
         if not child_table_fieldname:
             # Create a custom link field for the child table relationship
-            frappe.msgprint(_("Creating employee_details table field in BPJS Payment Summary"))
+            frappe.logger().info("Creating summary_details table field in BPJS Payment Summary")
 
             create_custom_field(
                 "BPJS Payment Summary",
                 {
-                    "fieldname": "employee_details_section",
+                    "fieldname": "summary_details_section",
                     "fieldtype": "Section Break",
-                    "label": "Employee Details",
-                    "insert_after": "month_year_title",
+                    "label": "Payment Details",
+                    "insert_after": "payment_entry",
                 },
             )
 
             # Check if we can find or create a child DocType
-            child_doctype_name = "BPJS Payment Details"
+            child_doctype_name = "BPJS Payment Summary Detail"
             if not frappe.db.exists("DocType", child_doctype_name):
-                frappe.msgprint(
-                    _(
-                        f"Child table DocType {child_doctype_name} not found. Please create it manually."
-                    )
-                )
-                return False
+                frappe.logger().info(f"Child table DocType {child_doctype_name} not found. Creating it...")
+                child_doctype_name = create_custom_child_doctype(child_doctype_name)
+                if not child_doctype_name:
+                    return False
 
             # Create the table field
             create_custom_field(
                 "BPJS Payment Summary",
                 {
-                    "fieldname": "employee_details",
+                    "fieldname": "summary_details",
                     "fieldtype": "Table",
-                    "label": "Employee Details",
+                    "label": "Payment Details",
                     "options": child_doctype_name,
-                    "insert_after": "employee_details_section",
+                    "insert_after": "summary_details_section",
                 },
             )
-            frappe.msgprint(
-                _(f"Created employee_details table field linked to {child_doctype_name}")
-            )
+            frappe.logger().info(f"Created summary_details table field linked to {child_doctype_name}")
 
         # Check fields in the child table
         if child_doctype_name and frappe.db.exists("DocType", child_doctype_name):
@@ -168,7 +219,6 @@ def check_bpjs_payment_details():
             f"Error checking BPJS Payment Details structure: {str(e)}",
             "DocType Structure Check Error",
         )
-        frappe.msgprint(_("Error checking BPJS Payment Details structure: {0}").format(str(e)))
         return False
 
 
@@ -206,47 +256,28 @@ def check_child_table_fields(child_doctype_name):
                 "options": "Salary Slip",
                 "insert_after": "employee_name",
             },
-            "jht_employee": {
+            "employee_share": {
                 "fieldtype": "Currency",
-                "label": "JHT Employee",
+                "label": "Employee Share",
                 "insert_after": "salary_slip",
             },
-            "jht_employer": {
+            "employer_share": {
                 "fieldtype": "Currency",
-                "label": "JHT Employer",
-                "insert_after": "jht_employee",
+                "label": "Employer Share",
+                "insert_after": "employee_share",
             },
-            "jp_employee": {
+            "total": {
                 "fieldtype": "Currency",
-                "label": "JP Employee",
-                "insert_after": "jht_employer",
-            },
-            "jp_employer": {
-                "fieldtype": "Currency",
-                "label": "JP Employer",
-                "insert_after": "jp_employee",
-            },
-            "jkk": {"fieldtype": "Currency", "label": "JKK", "insert_after": "jp_employer"},
-            "jkm": {"fieldtype": "Currency", "label": "JKM", "insert_after": "jkk"},
-            "kesehatan_employee": {
-                "fieldtype": "Currency",
-                "label": "Kesehatan Employee",
-                "insert_after": "jkm",
-            },
-            "kesehatan_employer": {
-                "fieldtype": "Currency",
-                "label": "Kesehatan Employer",
-                "insert_after": "kesehatan_employee",
+                "label": "Total",
+                "insert_after": "employer_share",
             },
         }
 
         missing_fields = [f for f in required_fields.keys() if f not in existing_fields]
 
         if missing_fields:
-            frappe.msgprint(
-                _("Missing fields detected in {0}: {1}").format(
-                    child_doctype_name, ", ".join(missing_fields)
-                )
+            frappe.logger().info(
+                f"Missing fields detected in {child_doctype_name}: {', '.join(missing_fields)}"
             )
 
             # For child table, if it's a custom DocType, we can directly add the fields
@@ -273,23 +304,18 @@ def check_child_table_fields(child_doctype_name):
                             field.fetch_from = field_def["fetch_from"]
 
                         doc.save()
-                        frappe.msgprint(f"Added field '{field_name}' to {child_doctype_name}")
-
+                        frappe.logger().info(f"Added field '{field_name}' to {child_doctype_name}")
                     except Exception as e:
                         log_error(
                             f"Error adding field {field_name}: {str(e)}", "Field Addition Error"
                         )
-                        frappe.msgprint(f"Error adding field '{field_name}': {str(e)}")
             else:
-                # For standard DocTypes, suggest creating a custom child DocType
-                frappe.msgprint(
-                    _(
-                        "Cannot modify standard child table directly. "
-                        "Please create a custom child DocType with all required fields."
-                    )
+                frappe.logger().warning(
+                    "Cannot modify standard child table directly. "
+                    "Please create a custom child DocType with all required fields."
                 )
         else:
-            frappe.msgprint(_("{0} structure is OK.").format(child_doctype_name))
+            frappe.logger().info(f"{child_doctype_name} structure is OK.")
 
         return True
 
@@ -298,7 +324,6 @@ def check_child_table_fields(child_doctype_name):
             f"Error checking child table fields for {child_doctype_name}: {str(e)}",
             "Child Table Check Error",
         )
-        frappe.msgprint(_("Error checking child table fields: {0}").format(str(e)))
         return False
 
 
@@ -314,7 +339,7 @@ def create_custom_child_doctype(doctype_name):
     """
     try:
         if frappe.db.exists("DocType", doctype_name):
-            frappe.msgprint(_(f"{doctype_name} already exists."))
+            frappe.logger().info(f"{doctype_name} already exists.")
             return doctype_name
 
         # Create custom DocType
@@ -350,30 +375,22 @@ def create_custom_child_doctype(doctype_name):
                 "options": "Salary Slip",
             },
             {
-                "fieldname": "jht_employee",
+                "fieldname": "employee_share",
                 "fieldtype": "Currency",
-                "label": "JHT Employee",
+                "label": "Employee Share",
                 "in_list_view": 1,
             },
             {
-                "fieldname": "jht_employer",
+                "fieldname": "employer_share",
                 "fieldtype": "Currency",
-                "label": "JHT Employer",
+                "label": "Employer Share",
                 "in_list_view": 1,
             },
-            {"fieldname": "jp_employee", "fieldtype": "Currency", "label": "JP Employee"},
-            {"fieldname": "jp_employer", "fieldtype": "Currency", "label": "JP Employer"},
-            {"fieldname": "jkk", "fieldtype": "Currency", "label": "JKK"},
-            {"fieldname": "jkm", "fieldtype": "Currency", "label": "JKM"},
             {
-                "fieldname": "kesehatan_employee",
+                "fieldname": "total",
                 "fieldtype": "Currency",
-                "label": "Kesehatan Employee",
-            },
-            {
-                "fieldname": "kesehatan_employer",
-                "fieldtype": "Currency",
-                "label": "Kesehatan Employer",
+                "label": "Total",
+                "in_list_view": 1,
             },
         ]
 
@@ -397,55 +414,65 @@ def create_custom_child_doctype(doctype_name):
 
         # Save DocType
         doc.insert()
-        frappe.msgprint(_(f"Created new custom DocType: {doctype_name}"))
+        frappe.logger().info(f"Created new custom DocType: {doctype_name}")
         return doctype_name
 
     except Exception as e:
         log_error(f"Error creating {doctype_name} DocType: {str(e)}", "DocType Creation Error")
-        frappe.throw(_("Error creating DocType: {0}").format(str(e)))
         return None
 
 
-def fix_employee_tax_summary():
+def fix_bpjs_account_mapping():
     """
-    Fix Employee Tax Summary structure using Custom Fields
+    Fix BPJS Account Mapping structure by adding required fields if missing
 
     Returns:
         bool: True if successful, False if error occurred
     """
     try:
-        frappe.msgprint(_("Checking Employee Tax Summary DocType structure..."))
+        frappe.logger().info("Checking BPJS Account Mapping DocType structure...")
 
-        if not frappe.db.exists("DocType", "Employee Tax Summary"):
-            frappe.throw(_("Employee Tax Summary DocType not found."))
+        if not frappe.db.exists("DocType", "BPJS Account Mapping"):
+            frappe.logger().error("BPJS Account Mapping DocType not found.")
             return False
 
-        # Check required fields - Note: TER fields are included for PMK-168 compliance
+        # Check required fields using custom field approach
         required_fields = {
-            "year": {"fieldtype": "Int", "label": "Year", "insert_after": "employee_name"},
-            "ytd_tax": {"fieldtype": "Currency", "label": "YTD Tax", "insert_after": "year"},
-            "is_using_ter": {
-                "fieldtype": "Check",
-                "label": "Is Using TER",
-                "insert_after": "ytd_tax",
+            "company": {
+                "fieldtype": "Link",
+                "label": "Company",
+                "options": "Company",
+                "reqd": 1,
+                "insert_after": "mapping_name",
             },
-            "ter_rate": {
-                "fieldtype": "Float",
-                "label": "TER Rate (%)",
-                "insert_after": "is_using_ter",
+            "employee_expense_account": {
+                "fieldtype": "Link",
+                "label": "Employee Expense Account",
+                "options": "Account",
+                "insert_after": "company",
+            },
+            "employer_expense_account": {
+                "fieldtype": "Link",
+                "label": "Employer Expense Account",
+                "options": "Account",
+                "insert_after": "employee_expense_account",
+            },
+            "payable_account": {
+                "fieldtype": "Link",
+                "label": "Payable Account",
+                "options": "Account",
+                "insert_after": "employer_expense_account",
             },
         }
 
         # Check if fields exist already
-        docfields = frappe.get_meta("Employee Tax Summary").fields
+        docfields = frappe.get_meta("BPJS Account Mapping").fields
         existing_fields = [df.fieldname for df in docfields]
         missing_fields = [f for f in required_fields.keys() if f not in existing_fields]
 
         if missing_fields:
-            frappe.msgprint(
-                _("Missing fields detected in Employee Tax Summary: {0}").format(
-                    ", ".join(missing_fields)
-                )
+            frappe.logger().info(
+                f"Missing fields detected in BPJS Account Mapping: {', '.join(missing_fields)}"
             )
 
             # Create custom fields for missing fields
@@ -454,77 +481,35 @@ def fix_employee_tax_summary():
 
                 try:
                     create_custom_field(
-                        "Employee Tax Summary",
+                        "BPJS Account Mapping",
                         {
                             "fieldname": field_name,
                             "fieldtype": field_def["fieldtype"],
                             "label": field_def["label"],
+                            "options": field_def.get("options", ""),
+                            "reqd": field_def.get("reqd", 0),
                             "insert_after": field_def["insert_after"],
                         },
                     )
-                    frappe.msgprint(f"Added field '{field_name}' to Employee Tax Summary.")
+                    frappe.logger().info(f"Added field '{field_name}' to BPJS Account Mapping.")
                 except Exception as e:
                     log_error(
                         f"Error creating custom field {field_name}: {str(e)}",
                         "Custom Field Creation Error",
                     )
-                    frappe.msgprint(f"Error creating field '{field_name}': {str(e)}")
         else:
-            frappe.msgprint(_("Employee Tax Summary structure is OK."))
+            frappe.logger().info("BPJS Account Mapping structure is OK.")
 
         return True
 
     except Exception as e:
-        log_error(f"Error fixing Employee Tax Summary: {str(e)}", "DocType Fix Error")
-        frappe.msgprint(_("Error fixing Employee Tax Summary structure: {0}").format(str(e)))
+        log_error(f"Error fixing BPJS Account Mapping: {str(e)}", "DocType Fix Error")
         return False
-
-
-def fix_all_doctypes():
-    """
-    Fix all Payroll Indonesia DocTypes using Custom Fields approach
-
-    Returns:
-        dict: Status of fixed DocTypes
-    """
-    timestamp = now_datetime().strftime("%Y-%m-%d %H:%M:%S")
-    results = {
-        "timestamp": timestamp,
-        "bpjs_payment_summary": False,
-        "employee_tax_summary": False,
-        "success": False,
-    }
-
-    try:
-        frappe.msgprint(_("Starting to fix all Payroll Indonesia DocTypes..."))
-        frappe.logger().info(f"[{timestamp}] Starting DocType structure fixes")
-
-        # Fix BPJS Payment Summary and related
-        results["bpjs_payment_summary"] = fix_bpjs_payment_summary()
-
-        # Fix Employee Tax Summary (with TER fields for PMK-168 compliance)
-        results["employee_tax_summary"] = fix_employee_tax_summary()
-
-        # Set overall success
-        results["success"] = results["bpjs_payment_summary"] and results["employee_tax_summary"]
-
-        frappe.msgprint(
-            _("All Payroll Indonesia DocTypes have been checked and fixed if necessary.")
-        )
-        frappe.logger().info(f"[{timestamp}] DocType structure fixes completed")
-
-        return results
-
-    except Exception as e:
-        log_error(f"Error fixing all DocTypes: {str(e)}", "DocType Fix Error")
-        frappe.msgprint(_("Error fixing all DocTypes: {0}").format(str(e)))
-        results["error"] = str(e)
-        return results
 
 
 def diagnose_doctype_structure():
     """
-    Diagnose structure of key Payroll Indonesia DocTypes
+    Diagnose structure of BPJS-related DocTypes
 
     Returns:
         dict: Diagnostic information about DocType structure
@@ -536,7 +521,10 @@ def diagnose_doctype_structure():
             "missing_fields": [],
             "child_table_status": "Not Found",
         },
-        "employee_tax_summary": {"exists": False, "missing_fields": []},
+        "bpjs_account_mapping": {
+            "exists": False,
+            "missing_fields": [],
+        },
     }
 
     try:
@@ -545,7 +533,10 @@ def diagnose_doctype_structure():
             results["bpjs_payment_summary"]["exists"] = True
 
             # Check required fields
-            bpjs_required_fields = ["month", "year", "month_year", "month_name", "month_year_title"]
+            bpjs_required_fields = [
+                "month", "year", "month_year", "month_name", "month_year_title",
+                "total_employee", "total_employer", "grand_total", "payment_entry"
+            ]
             docfields = frappe.get_meta("BPJS Payment Summary").fields
             existing_fields = [df.fieldname for df in docfields]
 
@@ -559,7 +550,7 @@ def diagnose_doctype_structure():
 
             for field in docfields:
                 if field.fieldtype == "Table" and (
-                    "employee_details" in field.fieldname or "details" in field.fieldname
+                    "summary_details" in field.fieldname or "details" in field.fieldname
                 ):
                     child_table_found = True
                     child_table_name = field.options
@@ -573,53 +564,55 @@ def diagnose_doctype_structure():
             else:
                 results["bpjs_payment_summary"]["child_table_status"] = "Missing"
 
-        # Check Employee Tax Summary
-        if frappe.db.exists("DocType", "Employee Tax Summary"):
-            results["employee_tax_summary"]["exists"] = True
+        # Check BPJS Account Mapping
+        if frappe.db.exists("DocType", "BPJS Account Mapping"):
+            results["bpjs_account_mapping"]["exists"] = True
 
             # Check required fields
-            ter_required_fields = ["year", "ytd_tax", "is_using_ter", "ter_rate"]
-            docfields = frappe.get_meta("Employee Tax Summary").fields
+            required_fields = [
+                "company", "employee_expense_account", "employer_expense_account", "payable_account"
+            ]
+            docfields = frappe.get_meta("BPJS Account Mapping").fields
             existing_fields = [df.fieldname for df in docfields]
 
-            results["employee_tax_summary"]["missing_fields"] = [
-                f for f in ter_required_fields if f not in existing_fields
+            results["bpjs_account_mapping"]["missing_fields"] = [
+                f for f in required_fields if f not in existing_fields
             ]
 
         # Output diagnostic info
-        print("\nPayroll Indonesia DocType Structure Diagnosis:")
-        print("\n1. BPJS Payment Summary:")
+        frappe.logger().info("\nBPJS DocType Structure Diagnosis:")
+        
+        frappe.logger().info("\n1. BPJS Payment Summary:")
         if results["bpjs_payment_summary"]["exists"]:
-            print("   - Status: Exists")
+            frappe.logger().info("   - Status: Exists")
             if results["bpjs_payment_summary"]["missing_fields"]:
-                print(
+                frappe.logger().info(
                     f"   - Missing fields: {', '.join(results['bpjs_payment_summary']['missing_fields'])}"
                 )
             else:
-                print("   - All required fields present")
+                frappe.logger().info("   - All required fields present")
 
-            print(f"   - Child table: {results['bpjs_payment_summary']['child_table_status']}")
+            frappe.logger().info(f"   - Child table: {results['bpjs_payment_summary']['child_table_status']}")
         else:
-            print("   - Status: Not found")
+            frappe.logger().info("   - Status: Not found")
 
-        print("\n2. Employee Tax Summary:")
-        if results["employee_tax_summary"]["exists"]:
-            print("   - Status: Exists")
-            if results["employee_tax_summary"]["missing_fields"]:
-                print(
-                    f"   - Missing fields: {', '.join(results['employee_tax_summary']['missing_fields'])}"
+        frappe.logger().info("\n2. BPJS Account Mapping:")
+        if results["bpjs_account_mapping"]["exists"]:
+            frappe.logger().info("   - Status: Exists")
+            if results["bpjs_account_mapping"]["missing_fields"]:
+                frappe.logger().info(
+                    f"   - Missing fields: {', '.join(results['bpjs_account_mapping']['missing_fields'])}"
                 )
             else:
-                print("   - All required fields present (including TER fields for PMK-168)")
+                frappe.logger().info("   - All required fields present")
         else:
-            print("   - Status: Not found")
+            frappe.logger().info("   - Status: Not found")
 
         return results
 
     except Exception as e:
         error_message = f"Error in diagnose_doctype_structure: {str(e)}"
         log_error(error_message, "DocType Diagnosis Error")
-        print(f"Error diagnosing DocType structure: {str(e)}")
         return {"error": str(e), "timestamp": results["timestamp"]}
 
 
@@ -638,5 +631,5 @@ def log_error(message, title):
 
 
 # Run from bench console:
-# from payroll_indonesia.utilities.fix_doctype_structure import fix_all_doctypes
-# fix_all_doctypes()
+# from payroll_indonesia.utilities.fix_doctype_structure import run
+# run()
