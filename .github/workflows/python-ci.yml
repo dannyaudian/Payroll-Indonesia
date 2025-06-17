@@ -29,7 +29,7 @@ jobs:
 
     - name: Run Black (code formatter)
       run: |
-        black payroll_indonesia
+        black --check payroll_indonesia
 
     - name: Run Flake8 (linter)
       run: |
