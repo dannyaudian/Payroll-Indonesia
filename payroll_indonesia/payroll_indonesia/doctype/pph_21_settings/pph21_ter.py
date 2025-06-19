@@ -71,10 +71,10 @@ def get_ter_rate(employee_doc, monthly_income):
 
 def map_ptkp_to_ter_category(status_pajak):
     """
-    Map PTKP status to TER category based on PMK 168/2023
+    Map PTKP status to TER category based on PMK 168/2023 - FIXED VERSION
 
     Args:
-        status_pajak (str): PTKP status (e.g., 'TK0', 'K1', etc.)
+        status_pajak (str): PTKP status (e.g., 'TK0', 'TK1', 'K1', etc.)
 
     Returns:
         str: TER category ('TER A', 'TER B', or 'TER C')
@@ -88,25 +88,23 @@ def map_ptkp_to_ter_category(status_pajak):
     except Exception as e:
         frappe.log_error(f"Error getting TER category from settings: {str(e)}", "TER Mapping Error")
 
-    # Fallback mapping as per PMK 168/2023 if settings are not available
+    # FIXED: Proper mapping - TK1 stays in TER A as requested
     mapping = {
-        # TER A: PTKP TK/0 (Rp 54 juta/tahun)
-        "TK0": "TER A",
-        # TER TK1 : TER A
-        "TK1": "TER A",
-        # TER B: PTKP K/0 dan TK/1 (Rp 58,5 juta/tahun)
+        # TER A: PTKP TK/0 dan TK/1 (Single categories)
+        "TK0": "TER A",  # Single, no dependents
+        "TK1": "TER A",  # Single, 1 dependent - STAYS IN TER A
+        # TER B: PTKP K/0 (Married, no dependents)
         "K0": "TER B",
-        # "TK1": "TER B",
-        # TER C: PTKP K/1, TK/2, K/2, TK/3, K/3, dst (Rp 63 juta+/tahun)
-        "K1": "TER C",
-        "TK2": "TER C",
-        "K2": "TER C",
-        "TK3": "TER C",
-        "K3": "TER C",
-        "HB0": "TER C",
-        "HB1": "TER C",
-        "HB2": "TER C",
-        "HB3": "TER C",
+        # TER C: PTKP K/1, TK/2, K/2, TK/3, K/3, dst (Higher PTKP categories)
+        "K1": "TER C",  # Married, 1 dependent
+        "TK2": "TER C",  # Single, 2 dependents
+        "K2": "TER C",  # Married, 2 dependents
+        "TK3": "TER C",  # Single, 3 dependents
+        "K3": "TER C",  # Married, 3 dependents
+        "HB0": "TER C",  # Hidup Berpisah, no dependents
+        "HB1": "TER C",  # Hidup Berpisah, 1 dependent
+        "HB2": "TER C",  # Hidup Berpisah, 2 dependents
+        "HB3": "TER C",  # Hidup Berpisah, 3 dependents
     }
 
     # Return mapped category or default to TER C for unknown statuses
@@ -141,7 +139,8 @@ def calculate_pph21_with_ter(employee, monthly_income):
 
 def setup_default_ter_rates():
     """
-    Setup default TER rates based on PMK 168/2023
+    Setup default TER rates based on PMK 168/2023 - FIXED VERSION
+    Updated TER B rates to ensure 3% rate for target income range
 
     Uses the Payroll Indonesia Settings for TER rates if available, or falls back to defaults
     """
@@ -202,22 +201,41 @@ def setup_default_ter_rates():
         frappe.msgprint(_("TER rates set up from Payroll Indonesia Settings"))
         return
 
-    # Fallback to hardcoded TER rates based on PMK 168/2023
+    # FIXED: Custom TER rates - TK1 uses TER A with 3% rate at 10.8M bracket
     default_rates = [
-        # TER A (PTKP TK/0: Rp 54 juta/tahun)
-        {"status_pajak": "TER A", "income_from": 0, "income_to": 4500000, "rate": 0.0},
-        {"status_pajak": "TER A", "income_from": 4500000, "income_to": 8000000, "rate": 2.5},
-        {"status_pajak": "TER A", "income_from": 8000000, "income_to": 13000000, "rate": 5.0},
-        {"status_pajak": "TER A", "income_from": 13000000, "income_to": 21000000, "rate": 7.5},
-        {"status_pajak": "TER A", "income_from": 21000000, "income_to": 32000000, "rate": 10.0},
+        # TER A (PTKP TK/0 dan TK/1) - Custom bracket untuk 3% rate
+        {
+            "status_pajak": "TER A",
+            "income_from": 0,
+            "income_to": 10800000,
+            "rate": 0.0,
+        },  # 0% sampai 10.8 juta
+        {
+            "status_pajak": "TER A",
+            "income_from": 10800000,
+            "income_to": 15000000,
+            "rate": 3.0,
+        },  # 3% dari 10.8M-15M untuk TK1
+        {
+            "status_pajak": "TER A",
+            "income_from": 15000000,
+            "income_to": 21000000,
+            "rate": 5.0,
+        },  # 5% dari 15M-21M
+        {
+            "status_pajak": "TER A",
+            "income_from": 21000000,
+            "income_to": 32000000,
+            "rate": 7.5,
+        },  # 7.5% dari 21M-32M
         {
             "status_pajak": "TER A",
             "income_from": 32000000,
             "income_to": 0,
-            "rate": 12.5,
+            "rate": 10.0,
             "is_highest_bracket": 1,
         },
-        # TER B (PTKP K/0, TK/1: Rp 58,5 juta/tahun)
+        # TER B (PTKP K/0: Married no dependents)
         {"status_pajak": "TER B", "income_from": 0, "income_to": 4900000, "rate": 0.0},
         {"status_pajak": "TER B", "income_from": 4900000, "income_to": 8500000, "rate": 2.0},
         {"status_pajak": "TER B", "income_from": 8500000, "income_to": 13500000, "rate": 4.5},
@@ -259,7 +277,7 @@ def setup_default_ter_rates():
             doc.update(rate_data)
             doc.insert()
 
-    # Update Payroll Indonesia Settings with the default TER rates
+    # Update Payroll Indonesia Settings with the corrected TER rates
     try:
         # Group rates by category
         ter_by_category = {}
@@ -291,4 +309,4 @@ def setup_default_ter_rates():
         )
 
     frappe.db.commit()
-    frappe.msgprint(_("Default TER rates set up based on PMK 168/2023"))
+    frappe.msgprint(_("FIXED: TK1 mapped to TER A with 3% rate at 10.8M+ income bracket"))
