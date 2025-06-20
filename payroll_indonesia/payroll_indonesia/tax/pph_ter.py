@@ -282,36 +282,49 @@ def map_ptkp_to_ter_category(ptkp_status: str) -> str:
         logger.warning(f"Error retrieving TER mapping from settings: {str(e)}")
 
     # Extract prefix and suffix for mapping
-    try:
-        prefix = ptkp_status[:2] if len(ptkp_status) >= 2 else ptkp_status
-        suffix = ptkp_status[2:] if len(ptkp_status) >= 3 else "0"
+    # try:
+    #     prefix = ptkp_status[:2] if len(ptkp_status) >= 2 else ptkp_status
+    #     suffix = ptkp_status[2:] if len(ptkp_status) >= 3 else "0"
 
-        # Try to convert suffix to int if possible (for numeric comparisons)
-        numeric_suffix = None
-        try:
-            numeric_suffix = int(suffix)
-        except (ValueError, TypeError):
-            pass
-    except Exception:
-        raise ValueError(f"Invalid PTKP status format: {ptkp_status}")
+    #     # Try to convert suffix to int if possible (for numeric comparisons)
+    #     numeric_suffix = None
+    #     try:
+    #         numeric_suffix = int(suffix)
+    #     except (ValueError, TypeError):
+    #         pass
+    # except Exception:
+    #     raise ValueError(f"Invalid PTKP status format: {ptkp_status}")
 
     # Apply official mapping rules based on PMK 168/2023
-    if ptkp_status == "TK0":
+    # if ptkp_status == "TK0":
+    #     return TER_CATEGORY_A
+    # elif prefix == "TK" and (suffix in ["1", "2"] or numeric_suffix in [1, 2]):
+    #     return TER_CATEGORY_B
+    # elif prefix == "TK" and (suffix == "3" or numeric_suffix == 3):
+    #     return TER_CATEGORY_C
+    # elif prefix == "K" and (suffix == "0" or numeric_suffix == 0):
+    #     return TER_CATEGORY_B
+    # elif prefix == "K" and (
+    #     suffix in ["1", "2", "3"] or (numeric_suffix is not None and 1 <= numeric_suffix <= 3)
+    # ):
+    #     return TER_CATEGORY_C
+    # elif prefix == "HB":  # Special case for HB (single parent)
+    #     return TER_CATEGORY_C
+    # else:
+    #     raise ValueError(f"Unknown PTKP status: {ptkp_status}")
+
+    if ptkp_status in ["TK0", "TK1", "K0"]:
         return TER_CATEGORY_A
-    elif prefix == "TK" and (suffix in ["1", "2"] or numeric_suffix in [1, 2]):
+    elif ptkp_status in ["TK2", "TK3", "K1", "K2"]:
         return TER_CATEGORY_B
-    elif prefix == "TK" and (suffix == "3" or numeric_suffix == 3):
+    elif ptkp_status in ["K3"]:
         return TER_CATEGORY_C
-    elif prefix == "K" and (suffix == "0" or numeric_suffix == 0):
-        return TER_CATEGORY_B
-    elif prefix == "K" and (
-        suffix in ["1", "2", "3"] or (numeric_suffix is not None and 1 <= numeric_suffix <= 3)
-    ):
-        return TER_CATEGORY_C
-    elif prefix == "HB":  # Special case for HB (single parent)
+    elif ptkp_status.startswith("HB"):  # Hidup Berpisah
         return TER_CATEGORY_C
     else:
-        raise ValueError(f"Unknown PTKP status: {ptkp_status}")
+        # Status tidak dikenal, default ke TER C
+        frappe.log_error(f"Unknown PTKP status: {ptkp_status}", "TER Mapping")
+        return TER_CATEGORY_C
 
 
 def validate_ter_data_availability() -> List[str]:
