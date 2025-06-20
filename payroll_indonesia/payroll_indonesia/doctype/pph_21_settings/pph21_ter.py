@@ -134,6 +134,9 @@ def calculate_pph21_with_ter(employee, monthly_income):
     # Simply multiply income by TER rate
     pph21_amount = monthly_income * ter_rate
 
+    tax = calculate_pph21_with_ter()
+    print(f"PPh 21:{tax} dan PPh amount nya {pph21_amount} serta ter rate {ter_rate}")
+
     return pph21_amount
 
 
