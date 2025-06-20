@@ -16,8 +16,30 @@ import datetime
 class PayrollEntry(Document):
 
     def should_run_as_december(self) -> bool:
-        """Expose checkbox value from field `is_december_run` (default False)."""
-        return bool(self.get("is_december_run"))
+        """
+        Expose checkbox value from field `is_december_run` (default False).
+        This determines if salary slips should use December progressive logic.
+        """
+        return bool(self.get("is_december_run", 0))
+
+    def validate(self):
+        """Add validation to ensure December logic is properly configured"""
+        super().validate() if hasattr(super(), "validate") else None
+
+        if self.should_run_as_december():
+            frappe.logger().info(f"Payroll Entry {self.name} marked for December processing")
+
+            # Optional warning if not December period
+            if self.end_date:
+                end_month = getdate(self.end_date).month
+                if end_month != 12:
+                    frappe.msgprint(
+                        _(
+                            "December Progressive Logic is enabled but payroll period doesn't end in December. "
+                            "Please verify this is intended."
+                        ),
+                        indicator="yellow",
+                    )
 
     def on_submit(self):
         self.create_salary_slips()
@@ -106,14 +128,73 @@ class PayrollEntry(Document):
             if not self.get(fieldname):
                 frappe.throw(_("Please set {0}").format(self.meta.get_label(fieldname)))
 
+    # def create_salary_slips(self):
+    #     """
+    #     Creates salary slip for selected employees if already not created
+    #     """
+    #     self.check_permission("write")
+    #     self.created = 1
+    #     emp_list = self.get_emp_list()
+    #     ss_list = []
+    #     if emp_list:
+    #         for emp in emp_list:
+    #             if not frappe.db.sql(
+    #                 """select
+    #                     name from `tabSalary Slip`
+    #                 where
+    #                     docstatus!= 2 and
+    #                     employee = %s and
+    #                     start_date >= %s and
+    #                     end_date <= %s and
+    #                     company = %s
+    #                     """,
+    #                 (emp["employee"], self.start_date, self.end_date, self.company),
+    #             ):
+    #                 ss = frappe.get_doc(
+    #                     {
+    #                         "doctype": "Salary Slip",
+    #                         "salary_slip_based_on_timesheet": self.salary_slip_based_on_timesheet,
+    #                         "payroll_frequency": self.payroll_frequency,
+    #                         "start_date": self.start_date,
+    #                         "end_date": self.end_date,
+    #                         "employee": emp["employee"],
+    #                         "employee_name": frappe.get_value(
+    #                             "Employee", {"name": emp["employee"]}, "employee_name"
+    #                         ),
+    #                         "company": self.company,
+    #                         "posting_date": self.posting_date,
+    #                         "is_december_override": self.should_run_as_december(),
+    #                     }
+    #                 )
+    #                 ss.insert()
+    #                 ss_dict = {}
+    #                 ss_dict["Employee Name"] = ss.employee_name
+    #                 ss_dict["Total Pay"] = fmt_money(
+    #                     ss.rounded_total, currency=frappe.defaults.get_global_default("currency")
+    #                 )
+    #                 ss_dict["Salary Slip"] = format_as_links(ss.name)[0]
+    #                 ss_list.append(ss_dict)
+    #     return create_log(ss_list)
+
     def create_salary_slips(self):
         """
         Creates salary slip for selected employees if already not created
+        FIXED: Now properly passes December override flag
         """
         self.check_permission("write")
         self.created = 1
         emp_list = self.get_emp_list()
         ss_list = []
+
+        # FIXED: Get December flag consistently
+        is_december_run = self.should_run_as_december()
+
+        # Log December processing
+        if is_december_run:
+            frappe.logger().info(
+                f"Creating salary slips with December override for Payroll Entry {self.name}"
+            )
+
         if emp_list:
             for emp in emp_list:
                 if not frappe.db.sql(
@@ -141,10 +222,19 @@ class PayrollEntry(Document):
                             ),
                             "company": self.company,
                             "posting_date": self.posting_date,
-                            "is_december_override": self.should_run_as_december(),
+                            "payroll_entry": self.name,
+                            # FIXED: Add December override flag
+                            "is_december_override": cint(is_december_run),
                         }
                     )
                     ss.insert()
+
+                    # Log individual salary slip creation with December flag
+                    if is_december_run:
+                        frappe.logger().info(
+                            f"Created salary slip {ss.name} for {emp['employee']} with December override = True"
+                        )
+
                     ss_dict = {}
                     ss_dict["Employee Name"] = ss.employee_name
                     ss_dict["Total Pay"] = fmt_money(
@@ -155,9 +245,7 @@ class PayrollEntry(Document):
         return create_log(ss_list)
 
     def get_sal_slip_list(self, ss_status, as_dict=False):
-        """
-        Returns list of salary slips based on selected criteria
-        """
+        """Returns list of salary slips based on selected criteria"""
         cond = self.get_filter_condition()
 
         ss_list = frappe.db.sql(
@@ -173,12 +261,8 @@ class PayrollEntry(Document):
         return ss_list
 
     def submit_salary_slips(self):
-        """
-        Submit all salary slips based on selected criteria
-        """
+        """Submit all salary slips based on selected criteria"""
         self.check_permission("write")
-
-        # self.create_salary_slips()
 
         jv_name = ""
         ss_list = self.get_sal_slip_list(ss_status=0)

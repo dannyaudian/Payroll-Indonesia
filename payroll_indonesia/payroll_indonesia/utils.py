@@ -1376,14 +1376,12 @@ def get_spt_month() -> int:
 def is_december_run(flag: int) -> bool:
     """
     Check if this is a December run based on provided flag
-
-    Args:
-        flag: Integer flag (0 or 1) indicating if this is a December run
-
-    Returns:
-        bool: True if flag is truthy, False otherwise
+    FIXED: Enhanced with better logging
     """
-    return bool(flag)
+    result = bool(flag)
+    if result:
+        frappe.logger().info(f"December run flag detected: {flag} -> {result}")
+    return result
 
 
 # TER-related functions
@@ -1540,18 +1538,67 @@ def get_ter_rate(status_pajak, penghasilan_bruto):
         return 0
 
 
+# def should_use_ter(salary_slip=None, is_december_override=False):
+#     """
+#     Check if TER method should be used based on Payroll Indonesia Settings
+
+#     Args:
+#         salary_slip (str, optional): Salary slip name (for context, not used)
+#         is_december_override (bool, optional): Flag to override December behavior
+
+#     Returns:
+#         bool: True if TER should be used, False otherwise
+#     """
+#     try:
+#         # Get settings from Payroll Indonesia Settings
+#         settings = get_settings()
+
+#         if not settings:
+#             return False
+
+#         calc_method = getattr(settings, "tax_calculation_method", "Progressive")
+#         use_ter = cint(getattr(settings, "use_ter", 0))
+
+#         # Check if December override is set
+#         if is_december_run(is_december_override):
+#             return False
+
+#         # Check settings
+#         return calc_method == "TER" and use_ter
+#     except Exception as e:
+#         frappe.log_error(f"Error checking TER method settings: {str(e)}", "TER Settings Error")
+#         return False
+
+
 def should_use_ter(salary_slip=None, is_december_override=False):
     """
     Check if TER method should be used based on Payroll Indonesia Settings
-
-    Args:
-        salary_slip (str, optional): Salary slip name (for context, not used)
-        is_december_override (bool, optional): Flag to override December behavior
-
-    Returns:
-        bool: True if TER should be used, False otherwise
+    FIXED: Enhanced December logic - December override FORCES Progressive calculation
     """
     try:
+        # FIXED: December override should ALWAYS force progressive calculation (no TER)
+        if is_december_run(is_december_override):
+            frappe.logger().info(
+                "December override detected - forcing Progressive calculation (no TER)"
+            )
+            return False
+
+        # FIXED: If salary slip provided, check its December override flag too
+        if salary_slip:
+            # Handle both string (salary slip name) and object
+            if isinstance(salary_slip, str):
+                slip_december_flag = frappe.db.get_value(
+                    "Salary Slip", salary_slip, "is_december_override"
+                )
+            else:
+                slip_december_flag = getattr(salary_slip, "is_december_override", 0)
+
+            if slip_december_flag:
+                frappe.logger().info(
+                    "Salary slip has December override flag - forcing Progressive calculation"
+                )
+                return False
+
         # Get settings from Payroll Indonesia Settings
         settings = get_settings()
 
@@ -1561,12 +1608,14 @@ def should_use_ter(salary_slip=None, is_december_override=False):
         calc_method = getattr(settings, "tax_calculation_method", "Progressive")
         use_ter = cint(getattr(settings, "use_ter", 0))
 
-        # Check if December override is set
-        if is_december_run(is_december_override):
-            return False
+        # Return TER setting only if not December
+        result = calc_method == "TER" and use_ter
 
-        # Check settings
-        return calc_method == "TER" and use_ter
+        frappe.logger().info(
+            f"TER check result: {result} (method={calc_method}, use_ter={use_ter})"
+        )
+        return result
+
     except Exception as e:
         frappe.log_error(f"Error checking TER method settings: {str(e)}", "TER Settings Error")
         return False
