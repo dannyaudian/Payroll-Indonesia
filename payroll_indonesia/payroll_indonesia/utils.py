@@ -1594,7 +1594,9 @@ def should_use_ter(salary_slip=None, is_december_override=False):
                 slip_december_flag = getattr(salary_slip, "is_december_override", 0)
 
             if slip_december_flag:
-                frappe.logger().info("Salary slip has December override flag - forcing Progressive calculation")
+                frappe.logger().info(
+                    "Salary slip has December override flag - forcing Progressive calculation"
+                )
                 return False
 
         # Get settings from Payroll Indonesia Settings

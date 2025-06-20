@@ -139,6 +139,7 @@ def calculate_pph21_with_ter(employee, monthly_income):
 
     return pph21_amount
 
+
 def setup_default_ter_rates():
     """
     Setup default TER rates based on PMK 168/2023 - FIXED VERSION
