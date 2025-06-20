@@ -71,6 +71,9 @@ doc_events = {
     },
     "Account": {"on_update": "payroll_indonesia.payroll_indonesia.account_hooks.account_on_update"},
     "Company": {"after_insert": "payroll_indonesia.fixtures.setup.setup_company_accounts"},
+    # "Salary Slip": {
+    #        "before_save": "payroll_indonesia.hooks.before_save_salary_slip"
+    #    }
 }
 
 # Fixtures - dengan filter sesuai dengan kebutuhan

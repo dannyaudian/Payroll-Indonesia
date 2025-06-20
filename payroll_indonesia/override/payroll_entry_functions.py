@@ -43,17 +43,83 @@ def before_validate(doc, method=None):
         frappe.throw(_("Error in payroll entry validation hook: {0}").format(str(e)))
 
 
+# def create_salary_slip(employee, payroll_entry, *, is_december_override=False):
+#     """
+#     Creates a salary slip for an employee based on the payroll entry.
+
+#     Args:
+#         employee: Employee details (dict with employee, employee_name, etc.)
+#         payroll_entry: Payroll Entry document
+#         is_december_override: Boolean flag for December processing (keyword-only argument)
+
+#     Returns:
+#         Salary Slip document
+#     """
+#     # Check if salary slip already exists
+#     existing_salary_slip = frappe.db.sql(
+#         """
+#         select name from `tabSalary Slip`
+#         where docstatus != 2
+#         and employee = %s
+#         and start_date >= %s
+#         and end_date <= %s
+#         and company = %s
+#     """,
+#         (
+#             employee.employee,
+#             payroll_entry.start_date,
+#             payroll_entry.end_date,
+#             payroll_entry.company,
+#         ),
+#     )
+
+#     if existing_salary_slip:
+#         return frappe.get_doc("Salary Slip", existing_salary_slip[0][0])
+
+#     # Create new salary slip
+#     slip = frappe.new_doc("Salary Slip")
+#     slip.salary_slip_based_on_timesheet = payroll_entry.salary_slip_based_on_timesheet
+#     slip.payroll_frequency = payroll_entry.payroll_frequency
+#     slip.start_date = payroll_entry.start_date
+#     slip.end_date = payroll_entry.end_date
+#     slip.employee = employee.employee
+#     slip.employee_name = employee.employee_name
+#     slip.company = payroll_entry.company
+#     slip.posting_date = payroll_entry.posting_date
+#     slip.payroll_entry = payroll_entry.name
+
+#     # Set the December override flag
+#     slip.is_december_override = int(is_december_override)
+
+#     # Get earnings and deductions
+#     get_emp_and_working_day_details(slip)
+
+#     # Set other salary slip fields
+#     if hasattr(payroll_entry, "salary_structure") and payroll_entry.salary_structure:
+#         slip.salary_structure = payroll_entry.salary_structure
+
+#     # Set payment days
+#     if hasattr(payroll_entry, "payment_days") and payroll_entry.payment_days:
+#         slip.payment_days = payroll_entry.payment_days
+
+#     # Set department if available
+#     if hasattr(employee, "department") and employee.department:
+#         slip.department = employee.department
+
+#     # Set designation if available
+#     if hasattr(employee, "designation") and employee.designation:
+#         slip.designation = employee.designation
+
+#     # Save and return the salary slip
+#     slip.insert()
+
+#     return slip
+
+
 def create_salary_slip(employee, payroll_entry, *, is_december_override=False):
     """
     Creates a salary slip for an employee based on the payroll entry.
-
-    Args:
-        employee: Employee details (dict with employee, employee_name, etc.)
-        payroll_entry: Payroll Entry document
-        is_december_override: Boolean flag for December processing (keyword-only argument)
-
-    Returns:
-        Salary Slip document
+    FIXED: Enhanced December override handling
     """
     # Check if salary slip already exists
     existing_salary_slip = frappe.db.sql(
@@ -76,6 +142,10 @@ def create_salary_slip(employee, payroll_entry, *, is_december_override=False):
     if existing_salary_slip:
         return frappe.get_doc("Salary Slip", existing_salary_slip[0][0])
 
+    # FIXED: Get December flag from payroll entry if not provided
+    if not is_december_override and hasattr(payroll_entry, "should_run_as_december"):
+        is_december_override = payroll_entry.should_run_as_december()
+
     # Create new salary slip
     slip = frappe.new_doc("Salary Slip")
     slip.salary_slip_based_on_timesheet = payroll_entry.salary_slip_based_on_timesheet
@@ -88,8 +158,14 @@ def create_salary_slip(employee, payroll_entry, *, is_december_override=False):
     slip.posting_date = payroll_entry.posting_date
     slip.payroll_entry = payroll_entry.name
 
-    # Set the December override flag
-    slip.is_december_override = int(is_december_override)
+    # FIXED: Set the December override flag properly
+    slip.is_december_override = cint(is_december_override)
+
+    # Log for debugging
+    if is_december_override:
+        frappe.logger().info(
+            f"Creating salary slip for {employee.employee} with December override = True"
+        )
 
     # Get earnings and deductions
     get_emp_and_working_day_details(slip)
@@ -98,15 +174,12 @@ def create_salary_slip(employee, payroll_entry, *, is_december_override=False):
     if hasattr(payroll_entry, "salary_structure") and payroll_entry.salary_structure:
         slip.salary_structure = payroll_entry.salary_structure
 
-    # Set payment days
     if hasattr(payroll_entry, "payment_days") and payroll_entry.payment_days:
         slip.payment_days = payroll_entry.payment_days
 
-    # Set department if available
     if hasattr(employee, "department") and employee.department:
         slip.department = employee.department
 
-    # Set designation if available
     if hasattr(employee, "designation") and employee.designation:
         slip.designation = employee.designation
 
@@ -264,25 +337,21 @@ def get_salary_structure(employee, posting_date, payroll_frequency, company):
 def create_salary_slips_for_employees(employees, payroll_entry, publish_progress=True):
     """
     Creates salary slips for a list of employees
-
-    Args:
-        employees: List of employee details
-        payroll_entry: Payroll Entry document
-        publish_progress: Whether to publish progress updates
-
-    Returns:
-        List of created salary slips
+    FIXED: Now properly handles December override logic
     """
     salary_slips = []
 
-    # Get December override from payroll entry
-    # _is_december_override = False
-    # if hasattr(payroll_entry, "should_run_as_december") and callable(
-    #     payroll_entry.should_run_as_december
-    # ):
-    #     _is_december_override = payroll_entry.should_run_as_december()
-    # elif hasattr(payroll_entry, "is_december_run"):
-    #     _is_december_override = bool(payroll_entry.get("is_december_run"))
+    # FIXED: Uncomment and fix December override logic
+    is_december_override = False
+    if hasattr(payroll_entry, "should_run_as_december") and callable(
+        payroll_entry.should_run_as_december
+    ):
+        is_december_override = payroll_entry.should_run_as_december()
+    elif hasattr(payroll_entry, "is_december_run"):
+        is_december_override = bool(payroll_entry.get("is_december_run"))
+
+    # Log December processing
+    frappe.logger().info(f"Creating salary slips with December override: {is_december_override}")
 
     # Create salary slips
     for i, emp in enumerate(employees):
@@ -290,7 +359,7 @@ def create_salary_slips_for_employees(employees, payroll_entry, publish_progress
             frappe.publish_progress(i * 100 / len(employees), title=_("Creating Salary Slips..."))
 
         try:
-            # Create args dict with is_december_override
+            # Create args dict with December override
             args = {
                 "doctype": "Salary Slip",
                 "employee": emp.employee,
@@ -302,7 +371,8 @@ def create_salary_slips_for_employees(employees, payroll_entry, publish_progress
                 "end_date": payroll_entry.end_date,
                 "payroll_entry": payroll_entry.name,
                 "salary_slip_based_on_timesheet": payroll_entry.salary_slip_based_on_timesheet,
-                "is_december_override": cint(payroll_entry.is_december_run),
+                # FIXED: Properly set December override flag
+                "is_december_override": cint(is_december_override),
             }
 
             # Add optional fields if available
@@ -322,7 +392,12 @@ def create_salary_slips_for_employees(employees, payroll_entry, publish_progress
             salary_slip = frappe.get_doc(args).insert()
             salary_slips.append(salary_slip.name)
 
-            # Log creation
+            # Log creation with December flag
+            if is_december_override:
+                frappe.logger().info(
+                    f"Created salary slip {salary_slip.name} for {emp.employee} with December override = True"
+                )
+
             frappe.db.commit()
 
         except Exception as e:
