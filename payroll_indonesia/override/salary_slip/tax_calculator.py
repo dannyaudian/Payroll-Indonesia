@@ -502,18 +502,31 @@ def get_ytd_totals(doc, year):
             if not hasattr(doc, "start_date") or not doc.start_date:
                 return result
 
+            # salary_slips = frappe.db.sql(
+            #     """
+            #     SELECT
+            #         name,
+            #         gross_pay
+            #     FROM
+            #         `tabSalary Slip`
+            #     WHERE
+            #         employee = %s
+            #         AND YEAR(start_date) = %s
+            #         AND start_date < %s
+            #         AND docstatus = 1
+            # """,
+            #     (doc.employee, year, doc.start_date),
+            #     as_dict=1,
+            # )
+
             salary_slips = frappe.db.sql(
                 """
-                SELECT
-                    name,
-                    gross_pay
-                FROM
-                    `tabSalary Slip`
-                WHERE
-                    employee = %s
-                    AND YEAR(start_date) = %s
-                    AND start_date < %s
-                    AND docstatus = 1
+                 SELECT name, gross_pay
+                 FROM `tabSalary Slip`
+                 WHERE employee = %s
+                 AND YEAR(start_date) = %s
+                 AND MONTH(start_date) < 12
+                 AND docstatus = 1
             """,
                 (doc.employee, year, doc.start_date),
                 as_dict=1,
