@@ -731,7 +731,7 @@ class PayrollEntry(Document):
             dict with December tax calculations
         """
         # Get annual salary components
-        annual_gross = employee_data.get("annual_gross_salary", 0)
+        annual_gross = employee_data.get("annual_gross", 0)
         annual_bpjs = employee_data.get("annual_bpjs", 0)
 
         # Calculate Biaya Jabatan (5% dari gaji, maksimal 6 juta setahun)
@@ -810,43 +810,123 @@ class PayrollEntry(Document):
         """
         Get employee's annual salary data for December calculation
         """
-        # Get salary slips for current year (Jan-Nov)
         current_year = getdate(self.end_date).year
+
+        # Try to get data from Employee Tax Summary first
+        tax_summary = frappe.db.get_value(
+            "Employee Tax Summary", {"employee": employee, "year": current_year}, ["name"]
+        )
+
+        if tax_summary:
+            # Get monthly tax data from Employee Tax Summary
+            monthly_data = frappe.db.sql(
+                """
+                SELECT
+                    SUM(gross_pay) as annual_gross,
+                    SUM(tax_amount) as pph21_paid_ytd
+                FROM `tabMonthly Tax Detail`
+                WHERE parent = %s
+                AND month <= 11
+            """,
+                (tax_summary,),
+                as_dict=True,
+            )
+
+            if monthly_data and monthly_data[0]:
+                annual_gross = monthly_data[0].get("annual_gross", 0) or 0
+                pph21_paid_ytd = monthly_data[0].get("pph21_paid_ytd", 0) or 0
+            else:
+                annual_gross = 0
+                pph21_paid_ytd = 0
+        else:
+            # Fallback to Salary Slip data
+            year_start = f"{current_year}-01-01"
+            november_end = f"{current_year}-11-30"
+
+            salary_data = frappe.db.sql(
+                """
+                SELECT
+                    SUM(IFNULL(gross_pay, 0)) as annual_gross,
+                    SUM(IFNULL(total_deduction, 0)) as total_deductions
+                FROM `tabSalary Slip`
+                WHERE employee = %s
+                AND start_date >= %s
+                AND end_date <= %s
+                AND docstatus = 1
+            """,
+                (employee, year_start, november_end),
+                as_dict=True,
+            )
+
+            # Get PPh21 from salary detail
+            pph21_data = frappe.db.sql(
+                """
+                SELECT SUM(IFNULL(sd.amount, 0)) as pph21_paid_ytd
+                FROM `tabSalary Detail` sd
+                INNER JOIN `tabSalary Slip` ss ON sd.parent = ss.name
+                WHERE ss.employee = %s
+                AND ss.start_date >= %s
+                AND ss.end_date <= %s
+                AND ss.docstatus = 1
+                AND sd.salary_component IN (
+                    SELECT name FROM `tabSalary Component`
+                    WHERE component_type = 'Deduction'
+                    AND (salary_component_abbr = 'PPh21' OR name LIKE '%%PPh21%%')
+                )
+            """,
+                (employee, year_start, november_end),
+                as_dict=True,
+            )
+
+            if salary_data and salary_data[0]:
+                annual_gross = salary_data[0].get("annual_gross", 0) or 0
+            else:
+                annual_gross = 0
+
+            if pph21_data and pph21_data[0]:
+                pph21_paid_ytd = pph21_data[0].get("pph21_paid_ytd", 0) or 0
+            else:
+                pph21_paid_ytd = 0
+
+        # Get BPJS data (assuming it's a deduction component)
         year_start = f"{current_year}-01-01"
         november_end = f"{current_year}-11-30"
 
-        # Get YTD salary data
-        ytd_data = frappe.db.sql(
+        bpjs_data = frappe.db.sql(
             """
-            SELECT
-                SUM(gross_pay) as annual_gross,
-                SUM(total_deduction) as total_deductions,
-                SUM(IFNULL(bpjs_amount, 0)) as annual_bpjs,
-                SUM(IFNULL(pph21_amount, 0)) as pph21_paid_ytd
-            FROM `tabSalary Slip`
-            WHERE employee = %s
-            AND start_date >= %s
-            AND end_date <= %s
-            AND docstatus = 1
+            SELECT SUM(IFNULL(sd.amount, 0)) as annual_bpjs
+            FROM `tabSalary Detail` sd
+            INNER JOIN `tabSalary Slip` ss ON sd.parent = ss.name
+            WHERE ss.employee = %s
+            AND ss.start_date >= %s
+            AND ss.end_date <= %s
+            AND ss.docstatus = 1
+            AND sd.salary_component IN (
+                SELECT name FROM `tabSalary Component`
+                WHERE component_type = 'Deduction'
+                AND (name LIKE '%%BPJS%%' OR salary_component_abbr LIKE '%%BPJS%%')
+            )
         """,
             (employee, year_start, november_end),
             as_dict=True,
         )
 
-        if ytd_data and ytd_data[0]:
-            annual_data = ytd_data[0]
-        else:
-            annual_data = {
-                "annual_gross": 0,
-                "total_deductions": 0,
-                "annual_bpjs": 0,
-                "pph21_paid_ytd": 0,
-            }
+        annual_bpjs = 0
+        if bpjs_data and bpjs_data[0]:
+            annual_bpjs = bpjs_data[0].get("annual_bpjs", 0) or 0
 
         # Get employee PTKP
         employee_doc = frappe.get_doc("Employee", employee)
         ptkp_amount = self.get_ptkp_amount(employee_doc)
-        annual_data["ptkp_amount"] = ptkp_amount
+
+        annual_data = {
+            "annual_gross": annual_gross,
+            "annual_bpjs": annual_bpjs,
+            "pph21_paid_ytd": pph21_paid_ytd,
+            "ptkp_amount": ptkp_amount,
+        }
+
+        frappe.logger().info(f"Annual data for {employee}: {annual_data}")
 
         return annual_data
 
@@ -1079,7 +1159,6 @@ class PayrollEntry(Document):
                     ss_list.append(ss_dict)
         return create_log(ss_list)
 
-    # ... rest of the original methods remain the same ...
     def get_sal_slip_list(self, ss_status, as_dict=False):
         """Returns list of salary slips based on selected criteria"""
         cond = self.get_filter_condition()
@@ -1131,8 +1210,6 @@ class PayrollEntry(Document):
             )
 
         return create_submit_log(submitted_ss, not_submitted_ss, jv_name)
-
-    # ... rest of the original methods remain unchanged ...
 
 
 # Utility functions for December tax calculation
