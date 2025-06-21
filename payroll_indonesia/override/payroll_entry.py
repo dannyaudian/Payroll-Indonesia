@@ -709,10 +709,17 @@ class PayrollEntry(Document):
 
     def should_run_as_december(self) -> bool:
         """
-        Expose checkbox value from field `is_december_run` (default False).
-        This determines if salary slips should use December progressive logic.
+        Auto-detect if this is December payroll based on period dates
+        Also check manual override from field `is_december_run` (default False).
         """
-        return bool(self.get("is_december_run", 0))
+        # Auto-detect based on end_date month
+        auto_december = self.is_december_period()
+
+        # Manual override from checkbox
+        manual_override = bool(self.get("is_december_run", 0))
+
+        # Return True if either auto-detected OR manually overridden
+        return auto_december or manual_override
 
     def is_december_period(self) -> bool:
         """
@@ -720,7 +727,23 @@ class PayrollEntry(Document):
         """
         if self.end_date:
             return getdate(self.end_date).month == 12
+        if self.posting_date:
+            return getdate(self.posting_date).month == 12
+        if self.start_date:
+            return getdate(self.start_date).month == 12
         return False
+
+    def get_payroll_month(self) -> int:
+        """
+        Get the month number of current payroll period
+        """
+        if self.end_date:
+            return getdate(self.end_date).month
+        if self.posting_date:
+            return getdate(self.posting_date).month
+        if self.start_date:
+            return getdate(self.start_date).month
+        return 0
 
     def calculate_december_tax_adjustment(self, employee_data):
         """
@@ -962,18 +985,40 @@ class PayrollEntry(Document):
         """Add validation to ensure December logic is properly configured"""
         super().validate() if hasattr(super(), "validate") else None
 
-        if self.should_run_as_december():
-            frappe.logger().info(f"Payroll Entry {self.name} marked for December processing")
+        payroll_month = self.get_payroll_month()
+        is_december = self.is_december_period()
+        manual_override = bool(self.get("is_december_run", 0))
 
-            # Optional warning if not December period
-            if self.end_date and not self.is_december_period():
-                frappe.msgprint(
-                    _(
-                        "December Progressive Logic is enabled but payroll period doesn't end in December. "
-                        "Please verify this is intended."
-                    ),
-                    indicator="yellow",
-                )
+        if is_december:
+            frappe.logger().info(
+                f"Payroll Entry {self.name} auto-detected as December processing (Month: {payroll_month})"
+            )
+
+            # Show info message to user
+            frappe.msgprint(
+                _(
+                    "December period detected! This payroll will use progressive tax calculation "
+                    "based on annual salary (Jan-Nov) and final tax adjustment."
+                ),
+                indicator="blue",
+                title="December Tax Processing",
+            )
+        elif manual_override:
+            frappe.logger().info(f"Payroll Entry {self.name} manually set for December processing")
+
+            # Warning for manual override on non-December period
+            frappe.msgprint(
+                _(
+                    "December Progressive Logic is manually enabled for non-December period (Month: {0}). "
+                    "Please verify this is intended."
+                ).format(payroll_month),
+                indicator="yellow",
+                title="Manual December Override",
+            )
+        else:
+            frappe.logger().info(
+                f"Payroll Entry {self.name} using normal tax calculation (Month: {payroll_month})"
+            )
 
     def on_submit(self):
         self.create_salary_slips()
@@ -1065,21 +1110,31 @@ class PayrollEntry(Document):
     def create_salary_slips(self):
         """
         Creates salary slip for selected employees if already not created
-        Enhanced with December tax calculation logic
+        Enhanced with automatic December tax calculation logic
         """
         self.check_permission("write")
         self.created = 1
         emp_list = self.get_emp_list()
         ss_list = []
 
-        # Get December flag consistently
+        # Auto-detect December period and get processing flags
         is_december_run = self.should_run_as_december()
         is_december_period = self.is_december_period()
+        payroll_month = self.get_payroll_month()
 
-        # Log December processing
+        # Log processing mode
         if is_december_run:
+            if is_december_period:
+                frappe.logger().info(
+                    f"Creating salary slips with AUTO-DETECTED December progressive tax for Payroll Entry {self.name} (Month: {payroll_month})"
+                )
+            else:
+                frappe.logger().info(
+                    f"Creating salary slips with MANUAL December override for Payroll Entry {self.name} (Month: {payroll_month})"
+                )
+        else:
             frappe.logger().info(
-                f"Creating salary slips with December override for Payroll Entry {self.name}"
+                f"Creating salary slips with NORMAL tax calculation for Payroll Entry {self.name} (Month: {payroll_month})"
             )
 
         if emp_list:
@@ -1112,10 +1167,11 @@ class PayrollEntry(Document):
                         "posting_date": self.posting_date,
                         "payroll_entry": self.name,
                         "is_december_override": cint(is_december_run),
+                        "payroll_month": payroll_month,  # Add month information
                     }
 
-                    # Add December tax calculation data if applicable
-                    if is_december_run and is_december_period:
+                    # Add December tax calculation data if December processing
+                    if is_december_run:
                         annual_data = self.get_employee_annual_data(emp["employee"])
                         december_calc = self.calculate_december_tax_adjustment(annual_data)
 
@@ -1136,18 +1192,25 @@ class PayrollEntry(Document):
 
                         frappe.logger().info(
                             f"December tax calculation for {emp['employee']}: "
-                            f"PKP={december_calc['pkp']}, "
-                            f"PPh21 Terutang={december_calc['pph21_terutang']}, "
-                            f"Adjustment={december_calc['december_adjustment']}"
+                            f"Annual Gross={december_calc['annual_gross']:,.0f}, "
+                            f"PKP={december_calc['pkp']:,.0f}, "
+                            f"PPh21 Terutang={december_calc['pph21_terutang']:,.0f}, "
+                            f"PPh21 Paid={december_calc['pph21_paid_before']:,.0f}, "
+                            f"Adjustment={december_calc['december_adjustment']:,.0f}"
                         )
 
                     ss = frappe.get_doc(salary_slip_data)
                     ss.insert()
 
-                    # Log individual salary slip creation with December flag
+                    # Log individual salary slip creation
                     if is_december_run:
+                        mode = "AUTO-DETECTED" if is_december_period else "MANUAL OVERRIDE"
                         frappe.logger().info(
-                            f"Created salary slip {ss.name} for {emp['employee']} with December override = True"
+                            f"Created salary slip {ss.name} for {emp['employee']} with December processing = {mode}"
+                        )
+                    else:
+                        frappe.logger().info(
+                            f"Created salary slip {ss.name} for {emp['employee']} with normal processing"
                         )
 
                     ss_dict = {}
