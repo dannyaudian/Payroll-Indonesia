@@ -707,40 +707,67 @@ import datetime
 
 class PayrollEntry(Document):
 
+    def should_use_ter_method(self, employee_doc) -> bool:
+        """
+        Check if employee should use TER method based on:
+        1. Payroll Entry setting (use_ter_method)
+        2. Employee override (override_tax_method)
+        """
+        # Check employee override first
+        employee_override = employee_doc.get("override_tax_method", "")
+        if employee_override == "TER":
+            return True
+        elif employee_override == "Progressive":
+            return False
+
+        # Check payroll entry setting
+        return bool(self.get("use_ter_method", 0))
+
     def should_run_as_december(self) -> bool:
         """
-        Auto-detect if this is December payroll based on period dates
-        Also check manual override from field `is_december_run` (default False).
+        Auto-detect December payroll based on posting_date, end_date, or start_date
+        Priority: posting_date > end_date > start_date
+        No manual checkbox needed - fully automatic detection
         """
-        # Auto-detect based on end_date month
-        auto_december = self.is_december_period()
-
-        # Manual override from checkbox
-        manual_override = bool(self.get("is_december_run", 0))
-
-        # Return True if either auto-detected OR manually overridden
-        return auto_december or manual_override
+        return self.is_december_period()
 
     def is_december_period(self) -> bool:
         """
         Check if the payroll period is for December month
+        Priority order: posting_date > end_date > start_date
         """
-        if self.end_date:
-            return getdate(self.end_date).month == 12
+        # Priority 1: Check posting_date first (most important)
         if self.posting_date:
-            return getdate(self.posting_date).month == 12
+            month = getdate(self.posting_date).month
+            if month == 12:
+                frappe.logger().info(f"December detected from posting_date: {self.posting_date}")
+                return True
+
+        # Priority 2: Check end_date
+        if self.end_date:
+            month = getdate(self.end_date).month
+            if month == 12:
+                frappe.logger().info(f"December detected from end_date: {self.end_date}")
+                return True
+
+        # Priority 3: Check start_date
         if self.start_date:
-            return getdate(self.start_date).month == 12
+            month = getdate(self.start_date).month
+            if month == 12:
+                frappe.logger().info(f"December detected from start_date: {self.start_date}")
+                return True
+
         return False
 
     def get_payroll_month(self) -> int:
         """
         Get the month number of current payroll period
+        Priority order: posting_date > end_date > start_date
         """
-        if self.end_date:
-            return getdate(self.end_date).month
         if self.posting_date:
             return getdate(self.posting_date).month
+        if self.end_date:
+            return getdate(self.end_date).month
         if self.start_date:
             return getdate(self.start_date).month
         return 0
@@ -767,7 +794,7 @@ class PayrollEntry(Document):
         gaji_netto = annual_gross - biaya_jabatan - iuran_bpjs
 
         # PTKP (assuming TK1 - need to get from employee master)
-        ptkp = employee_data.get("ptkp_amount", 58500000)  # Default TK1
+        ptkp = employee_data.get("ptkp_amount", 58500000)  # Default TK/1
 
         # PKP (Penghasilan Kena Pajak)
         pkp = max(0, gaji_netto - ptkp)
@@ -829,95 +856,118 @@ class PayrollEntry(Document):
 
         return total_tax
 
+    def _get_progressive_tax_breakdown(self, pkp):
+        """
+        Get detailed breakdown of progressive tax calculation for debugging
+        """
+        if pkp <= 0:
+            return {"total_tax": 0, "brackets": []}
+
+        tax_brackets = [
+            (60000000, 0.05, "5% untuk PKP 0-60 juta"),
+            (250000000, 0.15, "15% untuk PKP 60-250 juta"),
+            (500000000, 0.25, "25% untuk PKP 250-500 juta"),
+            (5000000000, 0.30, "30% untuk PKP 500 juta-5 miliar"),
+            (float("inf"), 0.35, "35% untuk PKP >5 miliar"),
+        ]
+
+        total_tax = 0
+        remaining_pkp = pkp
+        previous_bracket = 0
+        breakdown = []
+
+        for bracket_limit, rate, description in tax_brackets:
+            if remaining_pkp <= 0:
+                break
+
+            taxable_in_bracket = min(remaining_pkp, bracket_limit - previous_bracket)
+            tax_in_bracket = taxable_in_bracket * rate
+            total_tax += tax_in_bracket
+
+            if taxable_in_bracket > 0:
+                breakdown.append(
+                    {
+                        "description": description,
+                        "rate": rate * 100,
+                        "taxable_amount": taxable_in_bracket,
+                        "tax_amount": tax_in_bracket,
+                        "bracket_range": "{0:,.0f} - {1:,.0f}".format(
+                            previous_bracket, min(bracket_limit, pkp)
+                        ),
+                    }
+                )
+
+            remaining_pkp -= taxable_in_bracket
+            previous_bracket = bracket_limit
+
+        return {"total_tax": total_tax, "brackets": breakdown, "pkp": pkp}
+
     def get_employee_annual_data(self, employee):
         """
         Get employee's annual salary data for December calculation
         """
         current_year = getdate(self.end_date).year
 
-        # Try to get data from Employee Tax Summary first
+        # Get data from Employee Tax Summary first (if exists)
         tax_summary = frappe.db.get_value(
             "Employee Tax Summary", {"employee": employee, "year": current_year}, ["name"]
         )
 
         if tax_summary:
-            # Get monthly tax data from Employee Tax Summary
+            # Get monthly tax data from Employee Tax Summary (Jan-Nov only for December calc)
             monthly_data = frappe.db.sql(
                 """
                 SELECT
-                    SUM(gross_pay) as annual_gross,
-                    SUM(tax_amount) as pph21_paid_ytd
+                    SUM(CASE WHEN month <= 11 THEN gross_pay ELSE 0 END) as annual_gross,
+                    SUM(CASE WHEN month <= 11 THEN tax_amount ELSE 0 END) as pph21_paid_ytd,
+                    COUNT(CASE WHEN month <= 11 THEN 1 END) as months_count
                 FROM `tabMonthly Tax Detail`
                 WHERE parent = %s
-                AND month <= 11
             """,
                 (tax_summary,),
                 as_dict=True,
             )
 
-            if monthly_data and monthly_data[0]:
+            if monthly_data and monthly_data[0] and monthly_data[0].get("months_count", 0) > 0:
                 annual_gross = monthly_data[0].get("annual_gross", 0) or 0
                 pph21_paid_ytd = monthly_data[0].get("pph21_paid_ytd", 0) or 0
-            else:
-                annual_gross = 0
-                pph21_paid_ytd = 0
-        else:
-            # Fallback to Salary Slip data
-            year_start = f"{current_year}-01-01"
-            november_end = f"{current_year}-11-30"
 
-            salary_data = frappe.db.sql(
-                """
-                SELECT
-                    SUM(IFNULL(gross_pay, 0)) as annual_gross,
-                    SUM(IFNULL(total_deduction, 0)) as total_deductions
-                FROM `tabSalary Slip`
-                WHERE employee = %s
-                AND start_date >= %s
-                AND end_date <= %s
-                AND docstatus = 1
-            """,
-                (employee, year_start, november_end),
-                as_dict=True,
-            )
-
-            # Get PPh21 from salary detail
-            pph21_data = frappe.db.sql(
-                """
-                SELECT SUM(IFNULL(sd.amount, 0)) as pph21_paid_ytd
-                FROM `tabSalary Detail` sd
-                INNER JOIN `tabSalary Slip` ss ON sd.parent = ss.name
-                WHERE ss.employee = %s
-                AND ss.start_date >= %s
-                AND ss.end_date <= %s
-                AND ss.docstatus = 1
-                AND sd.salary_component IN (
-                    SELECT name FROM `tabSalary Component`
-                    WHERE component_type = 'Deduction'
-                    AND (salary_component_abbr = 'PPh21' OR name LIKE '%%PPh21%%')
+                frappe.logger().info(
+                    f"Using Employee Tax Summary data for {employee}: Jan-Nov Gross={annual_gross:,.0f}, Jan-Nov PPh21={pph21_paid_ytd:,.0f}"
                 )
-            """,
-                (employee, year_start, november_end),
-                as_dict=True,
-            )
-
-            if salary_data and salary_data[0]:
-                annual_gross = salary_data[0].get("annual_gross", 0) or 0
             else:
                 annual_gross = 0
-
-            if pph21_data and pph21_data[0]:
-                pph21_paid_ytd = pph21_data[0].get("pph21_paid_ytd", 0) or 0
-            else:
                 pph21_paid_ytd = 0
+                frappe.logger().info(
+                    f"No valid Employee Tax Summary data found for {employee}, using fallback"
+                )
+        else:
+            annual_gross = 0
+            pph21_paid_ytd = 0
+            frappe.logger().info(f"No Employee Tax Summary found for {employee}, using fallback")
 
-        # Get BPJS data (assuming it's a deduction component)
-        year_start = f"{current_year}-01-01"
-        november_end = f"{current_year}-11-30"
+        # Always fallback to Salary Slip data if no Employee Tax Summary or as additional verification
+        year_start = "{0}-01-01".format(current_year)
+        november_end = "{0}-11-30".format(current_year)
 
-        bpjs_data = frappe.db.sql(
+        salary_data = frappe.db.sql(
             """
-            SELECT SUM(IFNULL(sd.amount, 0)) as annual_bpjs
+            SELECT
+                SUM(IFNULL(gross_pay, 0)) as annual_gross_from_slips
+            FROM `tabSalary Slip`
+            WHERE employee = %s
+            AND start_date >= %s
+            AND end_date <= %s
+            AND docstatus = 1
+        """,
+            (employee, year_start, november_end),
+            as_dict=True,
+        )
+
+        # Get PPh21 from salary detail (more accurate)
+        pph21_data = frappe.db.sql(
+            """
+            SELECT SUM(IFNULL(sd.amount, 0)) as pph21_paid_ytd_from_slips
             FROM `tabSalary Detail` sd
             INNER JOIN `tabSalary Slip` ss ON sd.parent = ss.name
             WHERE ss.employee = %s
@@ -927,7 +977,50 @@ class PayrollEntry(Document):
             AND sd.salary_component IN (
                 SELECT name FROM `tabSalary Component`
                 WHERE component_type = 'Deduction'
-                AND (name LIKE '%%BPJS%%' OR salary_component_abbr LIKE '%%BPJS%%')
+                AND (salary_component_abbr LIKE '%%PPh21%%' OR name LIKE '%%PPh21%%'
+                     OR salary_component_abbr LIKE '%%PPH21%%' OR name LIKE '%%PPH21%%'
+                     OR salary_component_abbr LIKE '%%pph21%%' OR name LIKE '%%pph21%%')
+            )
+        """,
+            (employee, year_start, november_end),
+            as_dict=True,
+        )
+
+        # Use salary slip data if more complete or as fallback
+        if salary_data and salary_data[0]:
+            annual_gross_from_slips = salary_data[0].get("annual_gross_from_slips", 0) or 0
+            if annual_gross_from_slips > annual_gross:
+                annual_gross = annual_gross_from_slips
+                frappe.logger().info(
+                    f"Using Salary Slip gross pay data for {employee}: {annual_gross:,.0f}"
+                )
+
+        if pph21_data and pph21_data[0]:
+            pph21_paid_ytd_from_slips = pph21_data[0].get("pph21_paid_ytd_from_slips", 0) or 0
+            if pph21_paid_ytd_from_slips > pph21_paid_ytd:
+                pph21_paid_ytd = pph21_paid_ytd_from_slips
+                frappe.logger().info(
+                    f"Using Salary Slip PPh21 data for {employee}: {pph21_paid_ytd:,.0f}"
+                )
+
+        # Get BPJS data from salary slip custom fields or salary components
+        bpjs_data = frappe.db.sql(
+            """
+            SELECT
+                SUM(IFNULL(ss.total_bpjs, 0)) as annual_bpjs_from_custom,
+                SUM(IFNULL(sd.amount, 0)) as annual_bpjs_from_components
+            FROM `tabSalary Slip` ss
+            LEFT JOIN `tabSalary Detail` sd ON ss.name = sd.parent
+            WHERE ss.employee = %s
+            AND ss.start_date >= %s
+            AND ss.end_date <= %s
+            AND ss.docstatus = 1
+            AND (
+                sd.salary_component IN (
+                    SELECT name FROM `tabSalary Component`
+                    WHERE component_type = 'Deduction'
+                    AND (name LIKE '%%BPJS%%' OR salary_component_abbr LIKE '%%BPJS%%')
+                ) OR sd.salary_component IS NULL
             )
         """,
             (employee, year_start, november_end),
@@ -936,7 +1029,10 @@ class PayrollEntry(Document):
 
         annual_bpjs = 0
         if bpjs_data and bpjs_data[0]:
-            annual_bpjs = bpjs_data[0].get("annual_bpjs", 0) or 0
+            # Prioritize custom field total_bpjs, fallback to components
+            bpjs_from_custom = bpjs_data[0].get("annual_bpjs_from_custom", 0) or 0
+            bpjs_from_components = bpjs_data[0].get("annual_bpjs_from_components", 0) or 0
+            annual_bpjs = max(bpjs_from_custom, bpjs_from_components)
 
         # Get employee PTKP
         employee_doc = frappe.get_doc("Employee", employee)
@@ -949,7 +1045,7 @@ class PayrollEntry(Document):
             "ptkp_amount": ptkp_amount,
         }
 
-        frappe.logger().info(f"Annual data for {employee}: {annual_data}")
+        frappe.logger().info(f"Final annual data for {employee}: {annual_data}")
 
         return annual_data
 
@@ -967,58 +1063,71 @@ class PayrollEntry(Document):
         - K/3: 72,000,000
         """
         ptkp_rates = {
-            "TK/0": 54000000,
-            "TK/1": 58500000,
-            "TK/2": 63000000,
-            "TK/3": 67500000,
-            "K/0": 58500000,
-            "K/1": 63000000,
-            "K/2": 67500000,
-            "K/3": 72000000,
+            "TK0": 54000000,
+            "TK1": 58500000,
+            "TK2": 63000000,
+            "TK3": 67500000,
+            "K0": 58500000,
+            "K1": 63000000,
+            "K2": 67500000,
+            "K3": 72000000,
+            "HB0": 54000000,  # Hidup Berpisah tanpa tanggungan
+            "HB1": 58500000,  # Hidup Berpisah 1 tanggungan
+            "HB2": 63000000,  # Hidup Berpisah 2 tanggungan
+            "HB3": 67500000,  # Hidup Berpisah 3 tanggungan
         }
 
-        # Get PTKP status from employee (you may need to add this field)
-        ptkp_status = employee_doc.get("ptkp_status", "TK/1")
-        return ptkp_rates.get(ptkp_status, 58500000)  # Default TK/1
+        # Get PTKP status from employee custom field 'status_pajak'
+        status_pajak = employee_doc.get("status_pajak", "TK1")
+        return ptkp_rates.get(status_pajak, 58500000)  # Default TK1
 
     def validate(self):
-        """Add validation to ensure December logic is properly configured"""
+        """Auto-detect December logic and show appropriate messages"""
         super().validate() if hasattr(super(), "validate") else None
 
         payroll_month = self.get_payroll_month()
         is_december = self.is_december_period()
-        manual_override = bool(self.get("is_december_run", 0))
 
         if is_december:
             frappe.logger().info(
-                f"Payroll Entry {self.name} auto-detected as December processing (Month: {payroll_month})"
+                f"Payroll Entry {self.name} AUTO-DETECTED as December processing (Month: {payroll_month})"
             )
 
-            # Show info message to user
+            # Show automatic December detection message
             frappe.msgprint(
                 _(
-                    "December period detected! This payroll will use progressive tax calculation "
-                    "based on annual salary (Jan-Nov) and final tax adjustment."
-                ),
-                indicator="blue",
-                title="December Tax Processing",
-            )
-        elif manual_override:
-            frappe.logger().info(f"Payroll Entry {self.name} manually set for December processing")
-
-            # Warning for manual override on non-December period
-            frappe.msgprint(
-                _(
-                    "December Progressive Logic is manually enabled for non-December period (Month: {0}). "
-                    "Please verify this is intended."
+                    "🎄 <strong>December Period Auto-Detected!</strong><br><br>"
+                    "This payroll will automatically use <strong>Progressive Tax Calculation</strong> based on:<br>"
+                    "• Annual salary accumulation (Jan-Nov)<br>"
+                    "• Final tax adjustment for year-end<br>"
+                    "• Indonesian tax brackets (5%, 15%, 25%, 30%, 35%)<br><br>"
+                    "Period: <strong>Month {0}</strong>"
                 ).format(payroll_month),
-                indicator="yellow",
-                title="Manual December Override",
+                indicator="blue",
+                title="December Tax Processing - Auto Mode",
             )
+
+            # Auto-set the December override flag
+            self.is_december_override = 1
         else:
             frappe.logger().info(
                 f"Payroll Entry {self.name} using normal tax calculation (Month: {payroll_month})"
             )
+
+            # Show normal processing message for non-December
+            if payroll_month > 0:
+                frappe.msgprint(
+                    _(
+                        "📊 <strong>Normal Tax Calculation</strong><br><br>"
+                        "Using standard monthly tax calculation for <strong>Month {0}</strong><br>"
+                        "December progressive logic will auto-activate when period = December."
+                    ).format(payroll_month),
+                    indicator="green",
+                    title="Normal Tax Processing",
+                )
+
+            # Reset December override flag
+            self.is_december_override = 0
 
     def on_submit(self):
         self.create_salary_slips()
@@ -1119,22 +1228,23 @@ class PayrollEntry(Document):
 
         # Auto-detect December period and get processing flags
         is_december_run = self.should_run_as_december()
-        is_december_period = self.is_december_period()
         payroll_month = self.get_payroll_month()
 
         # Log processing mode
         if is_december_run:
-            if is_december_period:
-                frappe.logger().info(
-                    f"Creating salary slips with AUTO-DETECTED December progressive tax for Payroll Entry {self.name} (Month: {payroll_month})"
-                )
-            else:
-                frappe.logger().info(
-                    f"Creating salary slips with MANUAL December override for Payroll Entry {self.name} (Month: {payroll_month})"
-                )
+            frappe.logger().info(
+                f"🎄 Creating salary slips with AUTO-DETECTED December progressive tax for Payroll Entry {self.name} (Month: {payroll_month})"
+            )
+
+            # Show progress message for December processing
+            frappe.publish_realtime(
+                event="payroll_progress",
+                message=f"🎄 Processing December Tax Calculation (Month {payroll_month})...",
+                user=frappe.session.user,
+            )
         else:
             frappe.logger().info(
-                f"Creating salary slips with NORMAL tax calculation for Payroll Entry {self.name} (Month: {payroll_month})"
+                f"📊 Creating salary slips with NORMAL tax calculation for Payroll Entry {self.name} (Month: {payroll_month})"
             )
 
         if emp_list:
@@ -1170,33 +1280,69 @@ class PayrollEntry(Document):
                         "payroll_month": payroll_month,  # Add month information
                     }
 
-                    # Add December tax calculation data if December processing
+                    # Auto-detect December and apply appropriate tax calculation
                     if is_december_run:
-                        annual_data = self.get_employee_annual_data(emp["employee"])
-                        december_calc = self.calculate_december_tax_adjustment(annual_data)
+                        employee_doc = frappe.get_doc("Employee", emp["employee"])
 
-                        # Add December calculation fields to salary slip
+                        # Check if employee should use TER or Progressive method
+                        use_ter = self.should_use_ter_method(employee_doc)
+
+                        if not use_ter:  # Progressive method for December
+                            annual_data = self.get_employee_annual_data(emp["employee"])
+                            december_calc = self.calculate_december_tax_adjustment(annual_data)
+
+                            # Add December calculation fields to salary slip
+                            salary_slip_data.update(
+                                {
+                                    "koreksi_pph21": december_calc["december_adjustment"],
+                                    "biaya_jabatan": december_calc["biaya_jabatan"],
+                                    "netto": december_calc["gaji_netto"],
+                                    "annual_taxable_income": december_calc["pkp"],
+                                    "is_using_ter": 0,
+                                    "npwp": employee_doc.get("npwp", ""),
+                                    "ktp": employee_doc.get("ktp", ""),
+                                    "is_final_gabung_suami": employee_doc.get(
+                                        "npwp_gabung_suami", 0
+                                    ),
+                                    "payroll_note": f"🎄 AUTO-DETECTED December Progressive Tax (Month {payroll_month})",
+                                }
+                            )
+
+                            frappe.logger().info(
+                                f"🎄 December progressive tax calculated for {emp['employee']}: "
+                                f"Annual Gross={december_calc['annual_gross']:,.0f}, "
+                                f"PKP={december_calc['pkp']:,.0f}, "
+                                f"PPh21 Terutang={december_calc['pph21_terutang']:,.0f}, "
+                                f"PPh21 Paid={december_calc['pph21_paid_before']:,.0f}, "
+                                f"Adjustment={december_calc['december_adjustment']:,.0f}"
+                            )
+                        else:
+                            # TER method for December
+                            salary_slip_data.update(
+                                {
+                                    "is_using_ter": 1,
+                                    "npwp": employee_doc.get("npwp", ""),
+                                    "ktp": employee_doc.get("ktp", ""),
+                                    "is_final_gabung_suami": employee_doc.get(
+                                        "npwp_gabung_suami", 0
+                                    ),
+                                    "payroll_note": f"🎄 AUTO-DETECTED December TER Method (Month {payroll_month})",
+                                }
+                            )
+
+                            frappe.logger().info(
+                                f"🎄 December TER method applied for {emp['employee']}"
+                            )
+                    else:
+                        # Normal processing for non-December months
+                        employee_doc = frappe.get_doc("Employee", emp["employee"])
                         salary_slip_data.update(
                             {
-                                "december_annual_gross": december_calc["annual_gross"],
-                                "december_biaya_jabatan": december_calc["biaya_jabatan"],
-                                "december_iuran_bpjs": december_calc["iuran_bpjs"],
-                                "december_gaji_netto": december_calc["gaji_netto"],
-                                "december_ptkp": december_calc["ptkp"],
-                                "december_pkp": december_calc["pkp"],
-                                "december_pph21_terutang": december_calc["pph21_terutang"],
-                                "december_pph21_paid_before": december_calc["pph21_paid_before"],
-                                "december_tax_adjustment": december_calc["december_adjustment"],
+                                "npwp": employee_doc.get("npwp", ""),
+                                "ktp": employee_doc.get("ktp", ""),
+                                "is_final_gabung_suami": employee_doc.get("npwp_gabung_suami", 0),
+                                "payroll_note": f"📊 Normal Tax Calculation (Month {payroll_month})",
                             }
-                        )
-
-                        frappe.logger().info(
-                            f"December tax calculation for {emp['employee']}: "
-                            f"Annual Gross={december_calc['annual_gross']:,.0f}, "
-                            f"PKP={december_calc['pkp']:,.0f}, "
-                            f"PPh21 Terutang={december_calc['pph21_terutang']:,.0f}, "
-                            f"PPh21 Paid={december_calc['pph21_paid_before']:,.0f}, "
-                            f"Adjustment={december_calc['december_adjustment']:,.0f}"
                         )
 
                     ss = frappe.get_doc(salary_slip_data)
@@ -1204,13 +1350,12 @@ class PayrollEntry(Document):
 
                     # Log individual salary slip creation
                     if is_december_run:
-                        mode = "AUTO-DETECTED" if is_december_period else "MANUAL OVERRIDE"
                         frappe.logger().info(
-                            f"Created salary slip {ss.name} for {emp['employee']} with December processing = {mode}"
+                            f"✅ Created salary slip {ss.name} for {emp['employee']} with DECEMBER AUTO-PROCESSING"
                         )
                     else:
                         frappe.logger().info(
-                            f"Created salary slip {ss.name} for {emp['employee']} with normal processing"
+                            f"✅ Created salary slip {ss.name} for {emp['employee']} with normal processing"
                         )
 
                     ss_dict = {}
@@ -1292,6 +1437,251 @@ def calculate_employee_december_tax(employee, year=None):
     december_calc = temp_payroll.calculate_december_tax_adjustment(annual_data)
 
     return december_calc
+
+
+@frappe.whitelist()
+def debug_december_calculation(employee, year=None):
+    """
+    Debug function to show detailed December calculation step by step
+    """
+    if not year:
+        year = nowdate()[:4]
+
+    # Create temporary payroll entry for calculation
+    temp_payroll = frappe.new_doc("Payroll Entry")
+    temp_payroll.end_date = "{0}-12-31".format(year)
+
+    # Get annual data
+    annual_data = temp_payroll.get_employee_annual_data(employee)
+
+    # Get calculation
+    december_calc = temp_payroll.calculate_december_tax_adjustment(annual_data)
+
+    # Create detailed breakdown
+    debug_info = {
+        "employee": employee,
+        "year": year,
+        "step_1_annual_data": annual_data,
+        "step_2_calculations": {
+            "annual_gross": december_calc["annual_gross"],
+            "biaya_jabatan_5_persen": december_calc["annual_gross"] * 0.05,
+            "biaya_jabatan_max_6jt": 6000000,
+            "biaya_jabatan_final": december_calc["biaya_jabatan"],
+            "iuran_bpjs": december_calc["iuran_bpjs"],
+            "gaji_netto": december_calc["gaji_netto"],
+            "ptkp": december_calc["ptkp"],
+            "pkp": december_calc["pkp"],
+        },
+        "step_3_tax_calculation": {
+            "pkp_amount": december_calc["pkp"],
+            "pph21_terutang": december_calc["pph21_terutang"],
+            "pph21_paid_jan_nov": december_calc["pph21_paid_before"],
+            "december_adjustment": december_calc["december_adjustment"],
+        },
+        "step_4_progressive_breakdown": temp_payroll._get_progressive_tax_breakdown(
+            december_calc["pkp"]
+        ),
+    }
+
+    return debug_info
+
+
+@frappe.whitelist()
+def test_december_auto_detection():
+    """
+    Test auto-detection of December period without any checkbox
+    """
+    test_scenarios = [
+        # Format: (posting_date, end_date, start_date, expected_result, description)
+        (
+            "2024-12-31",
+            "2024-12-31",
+            "2024-12-01",
+            True,
+            "December posting_date - should auto-detect",
+        ),
+        ("2024-11-30", "2024-12-31", "2024-12-01", True, "December end_date - should auto-detect"),
+        (
+            "2024-11-30",
+            "2024-11-30",
+            "2024-12-01",
+            True,
+            "December start_date - should auto-detect",
+        ),
+        (
+            "2024-11-30",
+            "2024-11-30",
+            "2024-11-30",
+            False,
+            "November period - should NOT auto-detect",
+        ),
+        (
+            "2024-01-31",
+            "2024-01-31",
+            "2024-01-01",
+            False,
+            "January period - should NOT auto-detect",
+        ),
+        ("2024-06-30", "2024-06-30", "2024-06-01", False, "June period - should NOT auto-detect"),
+    ]
+
+    results = []
+
+    for posting_date, end_date, start_date, expected, description in test_scenarios:
+        # Create temporary payroll entry
+        temp_payroll = frappe.new_doc("Payroll Entry")
+        temp_payroll.posting_date = posting_date
+        temp_payroll.end_date = end_date
+        temp_payroll.start_date = start_date
+
+        # Test auto-detection
+        is_december = temp_payroll.is_december_period()
+        should_run_december = temp_payroll.should_run_as_december()
+        payroll_month = temp_payroll.get_payroll_month()
+
+        # Check if result matches expectation
+        test_passed = (is_december == expected) and (should_run_december == expected)
+
+        result = {
+            "scenario": description,
+            "posting_date": posting_date,
+            "end_date": end_date,
+            "start_date": start_date,
+            "detected_month": payroll_month,
+            "is_december_detected": is_december,
+            "should_run_december": should_run_december,
+            "expected": expected,
+            "test_passed": test_passed,
+            "status": "✅ PASS" if test_passed else "❌ FAIL",
+        }
+        results.append(result)
+
+    # Summary
+    passed_tests = sum(1 for r in results if r["test_passed"])
+    total_tests = len(results)
+
+    summary = {
+        "total_tests": total_tests,
+        "passed_tests": passed_tests,
+        "failed_tests": total_tests - passed_tests,
+        "success_rate": f"{(passed_tests / total_tests) * 100:.1f}%",
+        "overall_status": (
+            "✅ ALL TESTS PASSED"
+            if passed_tests == total_tests
+            else f"⚠️ {total_tests - passed_tests} TESTS FAILED"
+        ),
+    }
+
+    return {
+        "summary": summary,
+        "detailed_results": results,
+        "message": "December Auto-Detection Test Completed",
+    }
+
+
+@frappe.whitelist()
+def simulate_december_payroll_creation(posting_date="2024-12-31"):
+    """
+    Simulate creating a payroll entry with December date to test auto-detection
+    This is a dry-run that shows what would happen without actually creating data
+    """
+    try:
+        # Create temporary payroll entry (not saved)
+        temp_payroll = frappe.new_doc("Payroll Entry")
+        temp_payroll.posting_date = posting_date
+        temp_payroll.end_date = posting_date
+        temp_payroll.start_date = (
+            posting_date.replace("-31", "-01") if posting_date.endswith("-31") else posting_date
+        )
+        temp_payroll.company = frappe.defaults.get_defaults().get("company") or "Test Company"
+
+        # Test auto-detection
+        is_december = temp_payroll.is_december_period()
+        should_run_december = temp_payroll.should_run_as_december()
+        payroll_month = temp_payroll.get_payroll_month()
+
+        simulation_result = {
+            "input_posting_date": posting_date,
+            "detected_month": payroll_month,
+            "is_december_detected": is_december,
+            "will_run_december_logic": should_run_december,
+            "processing_mode": (
+                "🎄 DECEMBER AUTO-PROCESSING" if should_run_december else "📊 NORMAL PROCESSING"
+            ),
+            "tax_calculation": (
+                "Progressive Tax with Annual Adjustment"
+                if should_run_december
+                else "Standard Monthly Tax"
+            ),
+            "automatic_fields_set": (
+                [
+                    "koreksi_pph21 (December adjustment)",
+                    "biaya_jabatan (Job allowance)",
+                    "netto (Net income)",
+                    "annual_taxable_income (PKP)",
+                    "is_december_override = 1",
+                    "payroll_note with December indicator",
+                ]
+                if should_run_december
+                else [
+                    "Normal monthly calculation",
+                    "is_december_override = 0",
+                    "Standard payroll_note",
+                ]
+            ),
+            "status": (
+                "✅ December Logic Will Activate"
+                if should_run_december
+                else "ℹ️ Normal Processing Will Apply"
+            ),
+        }
+
+        return {
+            "simulation": simulation_result,
+            "message": f"Simulation completed for posting_date: {posting_date}",
+        }
+
+    except Exception as e:
+        return {"error": str(e), "message": "Simulation failed"}
+
+
+@frappe.whitelist()
+def update_employee_tax_summary_december(employee_tax_summary_name):
+    """
+    Function to update December tax in Employee Tax Summary based on progressive calculation
+    Call this after creating December payroll to update the summary
+    """
+    tax_summary = frappe.get_doc("Employee Tax Summary", employee_tax_summary_name)
+
+    if not tax_summary:
+        return {"error": "Employee Tax Summary not found"}
+
+    # Find December row (month = 12)
+    december_row = None
+    for row in tax_summary.monthly_tax_details:
+        if row.month == 12:
+            december_row = row
+            break
+
+    if not december_row:
+        return {"error": "December row not found in Employee Tax Summary"}
+
+    # Calculate December tax using our logic
+    december_calc = calculate_employee_december_tax(tax_summary.employee, tax_summary.year)
+
+    # Update December row with calculated adjustment
+    old_tax = december_row.tax_amount
+    december_row.tax_amount = december_calc["december_adjustment"]
+
+    # Save the document
+    tax_summary.save()
+
+    return {
+        "employee": tax_summary.employee,
+        "old_december_tax": old_tax,
+        "new_december_tax": december_calc["december_adjustment"],
+        "calculation_details": december_calc,
+    }
 
 
 @frappe.whitelist()
