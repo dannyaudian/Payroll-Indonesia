@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-22 - Modified for Auto December Detection
+# Last modified: 2025-05-19 08:05:38 by dannyaudian
 
 """
 Implementation of tax calculation as per Indonesian regulations.
@@ -13,7 +13,7 @@ Tax calculation methods:
    - Direct application of TER rate to monthly gross income
 
 2. Progressive - Traditional method
-   - Used for December calculations (OTOMATIS BERDASARKAN BULAN)
+   - Used for December calculations (required by PMK 168/2023)
    - Used for employees with irregular income
    - Calculates annual income, applies progressive tax rates, divides by 12
 """
@@ -50,6 +50,9 @@ from payroll_indonesia.payroll_indonesia.tax.ter_logic import (
     should_use_ter_method,
     add_tax_info_to_note,
 )
+
+# Import TER functions from pph_ter (single source of truth)
+# from payroll_indonesia.payroll_indonesia.tax.pph_ter import map_ptkp_to_ter_category
 
 
 def log_tax_error(error_type, message, doc=None, employee=None):
@@ -104,7 +107,6 @@ def log_tax_error(error_type, message, doc=None, employee=None):
 def calculate_tax_components(doc, employee):
     """
     Central entry point for all tax calculations - decides between TER or progressive methods
-    OTOMATIS menjalankan logika Desember jika bulan Desember
 
     Args:
         doc: Salary slip document
@@ -140,26 +142,14 @@ def calculate_tax_components(doc, employee):
         # Set basic payroll note
         set_basic_payroll_note(doc, employee)
 
-        # OTOMATIS CEK BULAN DESEMBER - TANPA CHECKBOX!
+        # For December, always use progressive method as per PMK 168/2023
         if should_apply_december_logic(doc):
             # Force disable TER for December according to PMK 168/2023
             doc.is_using_ter = 0
-
-            # Enhanced logging untuk tracking otomatis vs manual
-            detection_method = get_december_detection_method(doc)
-            frappe.logger().info(
-                f"{detection_method}: Menjalankan logika Desember untuk {doc.employee} "
-                f"(periode: {doc.start_date} - {doc.end_date})"
-            )
-
-            # Tampilkan pesan ke user
-            show_december_detection_message(doc)
-
-            # Jalankan perhitungan Desember
             calculate_december_pph(doc, employee)
             return
 
-        # Decision logic untuk bulan selain Desember: determine which tax method to use
+        # Decision logic for other months: determine which tax method to use
         # Check employee override first
         if hasattr(employee, "override_tax_method"):
             # If employee has explicit override to TER
@@ -182,82 +172,6 @@ def calculate_tax_components(doc, employee):
         log_tax_error("Tax Calculation", str(e), doc, employee)
         # Use throw for validation failures with simplified message
         frappe.throw(_("Error calculating tax components. Please check error logs."))
-
-
-def should_apply_december_logic(doc):
-    """
-    Return True when:
-    • Bulan Desember (OTOMATIS berdasarkan end_date atau start_date)
-    • ATAU Salary Slip has custom flag `is_december_override == 1` (manual override)
-
-    MODIFIED: Sekarang otomatis detect bulan Desember tanpa perlu checkbox
-    """
-    # Cek berdasarkan end_date (prioritas utama)
-    if hasattr(doc, "end_date") and doc.end_date:
-        end_month = getdate(doc.end_date).month
-        if end_month == 12:
-            # Set flag otomatis untuk tracking
-            if hasattr(doc, "is_december_override"):
-                doc.is_december_override = 1
-            return True
-
-    # Fallback ke start_date jika end_date tidak tersedia
-    if hasattr(doc, "start_date") and doc.start_date:
-        start_month = getdate(doc.start_date).month
-        if start_month == 12:
-            if hasattr(doc, "is_december_override"):
-                doc.is_december_override = 1
-            return True
-
-    # Manual override tetap dipertahankan (untuk testing/edge cases)
-    if hasattr(doc, "is_december_override") and doc.is_december_override:
-        return True
-
-    return False
-
-
-def get_december_detection_method(doc):
-    """
-    Tentukan bagaimana Desember terdeteksi (otomatis vs manual)
-    """
-    # Cek apakah ini deteksi otomatis berdasarkan bulan
-    if hasattr(doc, "end_date") and doc.end_date:
-        end_month = getdate(doc.end_date).month
-        if end_month == 12:
-            return "OTOMATIS"
-
-    if hasattr(doc, "start_date") and doc.start_date:
-        start_month = getdate(doc.start_date).month
-        if start_month == 12:
-            return "OTOMATIS"
-
-    # Jika bukan bulan Desember tapi flag override active
-    if hasattr(doc, "is_december_override") and doc.is_december_override:
-        return "MANUAL"
-
-    return "UNKNOWN"
-
-
-def show_december_detection_message(doc):
-    """
-    Tampilkan pesan ke user bahwa sistem mendeteksi Desember
-    """
-    detection_method = get_december_detection_method(doc)
-
-    if detection_method == "OTOMATIS":
-        frappe.msgprint(
-            f"Sistem otomatis mendeteksi periode Desember ({doc.start_date} - {doc.end_date}). "
-            f"Menggunakan perhitungan progresif tahunan dengan koreksi YTD sesuai PMK 168/2023.",
-            title="Perhitungan Desember Otomatis",
-            indicator="blue",
-        )
-    elif detection_method == "MANUAL":
-        frappe.msgprint(
-            f"Manual override: Menggunakan perhitungan Desember untuk periode "
-            f"({doc.start_date} - {doc.end_date}). Perhitungan progresif tahunan dengan koreksi YTD.",
-            title="Perhitungan Desember Manual",
-            indicator="orange",
-        )
 
 
 def _ensure_required_fields(doc):
@@ -297,7 +211,7 @@ def _ensure_required_fields(doc):
 
 def calculate_monthly_pph_progressive(doc, employee):
     """
-    Calculate PPh 21 using progressive rates - for regular months (Jan-Nov)
+    Calculate PPh 21 using progressive rates - for regular months
 
     Args:
         doc: Salary slip document
@@ -372,7 +286,6 @@ def calculate_monthly_pph_progressive(doc, employee):
 def calculate_december_pph(doc, employee):
     """
     Calculate year-end tax correction for December as per PMK 168/2023
-    OTOMATIS dipanggil ketika bulan Desember terdeteksi
 
     Args:
         doc: Salary slip document
@@ -380,7 +293,6 @@ def calculate_december_pph(doc, employee):
     """
     try:
         year = getdate(doc.end_date).year
-        detection_method = get_december_detection_method(doc)
 
         # Get PPh 21 Settings with cache
         cache_key = "pph_21_settings"
@@ -448,18 +360,15 @@ def calculate_december_pph(doc, employee):
         correction = annual_pph - ytd.get("pph21", 0)
         doc.koreksi_pph21 = correction
 
-        # Enhanced logging untuk Desember otomatis
+        # Log information before returning correction
         frappe.logger().info(
             {
-                "employee": doc.employee,
-                "detection_method": detection_method,
-                "period": f"{doc.start_date} - {doc.end_date}",
                 "ytd_pph21": ytd.get("pph21"),
                 "annual_pph": annual_pph,
                 "correction": correction,
-                "annual_gross": annual_gross,
-                "annual_netto": annual_netto,
-                "pkp": pkp,
+                "triggered_by": (
+                    "December override" if doc.is_december_override else "is_december_override"
+                ),
             }
         )
 
@@ -482,26 +391,7 @@ def calculate_december_pph(doc, employee):
                 "annual_pph": annual_pph,
                 "ytd_pph": ytd.get("pph21", 0),
                 "correction": correction,
-                "detection_method": detection_method,
             },
-        )
-
-        # Tampilkan hasil koreksi ke user
-        correction_text = f"Rp {correction:,.0f}"
-        if correction > 0:
-            correction_msg = f"Koreksi PPh 21 Desember: {correction_text} (tambahan pajak)"
-            indicator = "orange"
-        elif correction < 0:
-            correction_msg = f"Koreksi PPh 21 Desember: {correction_text} (kelebihan bayar)"
-            indicator = "green"
-        else:
-            correction_msg = f"Koreksi PPh 21 Desember: {correction_text} (tidak ada koreksi)"
-            indicator = "blue"
-
-        frappe.msgprint(
-            correction_msg,
-            title=f"Perhitungan Desember {detection_method.title()}",
-            indicator=indicator,
         )
 
     except Exception as e:
@@ -541,16 +431,10 @@ def set_basic_payroll_note(doc, employee):
         )
         netto_formatted = "{:,.0f}".format(doc.netto) if hasattr(doc, "netto") else "0"
 
-        # Tambahkan info apakah ini Desember atau tidak
-        calculation_type = (
-            "DESEMBER (Koreksi Tahunan)" if should_apply_december_logic(doc) else "BULANAN"
-        )
-
         doc.payroll_note = "\n".join(
             [
                 "<!-- BASIC_INFO_START -->",
                 "=== Informasi Dasar ===",
-                f"Jenis Perhitungan: {calculation_type}",
                 f"Status Pajak: {status_pajak}",
                 f"Penghasilan Bruto: Rp {gross_pay_formatted}",
                 f"Biaya Jabatan: Rp {biaya_jabatan_formatted}",
@@ -571,9 +455,17 @@ def set_basic_payroll_note(doc, employee):
         frappe.msgprint(_("Warning: Could not set detailed payroll note."), indicator="orange")
 
 
+def should_apply_december_logic(doc):
+    """
+    Return True when:
+    • Salary Slip has custom flag `is_december_override == 1`
+    """
+    return bool(getattr(doc, "is_december_override", 0))
+
+
 def get_ytd_totals(doc, year):
     """
-    Get year-to-date totals for the employee (legacy method for backward compatibility)
+    Get year-to-date totals for the employee (legacy method)
 
     Args:
         doc: Salary slip document
@@ -612,12 +504,16 @@ def get_ytd_totals(doc, year):
 
             salary_slips = frappe.db.sql(
                 """
-                 SELECT name, gross_pay
-                 FROM `tabSalary Slip`
-                 WHERE employee = %s
-                 AND YEAR(start_date) = %s
-                 AND start_date < %s
-                 AND docstatus = 1
+                SELECT
+                    name,
+                    gross_pay
+                FROM
+                    `tabSalary Slip`
+                WHERE
+                    employee = %s
+                    AND YEAR(start_date) = %s
+                    AND start_date < %s
+                    AND docstatus = 1
             """,
                 (doc.employee, year, doc.start_date),
                 as_dict=1,
@@ -684,305 +580,40 @@ def get_ytd_totals(doc, year):
         return {"gross": 0, "bpjs": 0, "pph21": 0}
 
 
-def test_auto_december_detection():
-    """
-    Test function untuk memastikan deteksi otomatis berjalan dengan benar
-    """
+# Unit tests for backward compatibility
+if __name__ == "__main__":
+    # Create minimal test cases
 
-    # Test Case 1: Salary Slip periode Desember
-    test_december = frappe._dict(
+    # Test case 1: December override flag
+    test_doc1 = frappe._dict(
         {
-            "name": "SS-2024-12-001",
-            "employee": "EMP001",
-            "start_date": "2024-12-01",
-            "end_date": "2024-12-31",
-            "gross_pay": 10_000_000,
-            "total_bpjs": 500_000,
-            "is_december_override": 0,  # Tidak diset manual
+            "end_date": "2025-03-31",  # Not December
+            "is_december_override": 1,  # But has override flag
         }
     )
 
-    # Test Case 2: Salary Slip periode November
-    test_november = frappe._dict(
+    # Test case 2: December month without override
+    test_doc2 = frappe._dict(
         {
-            "name": "SS-2024-11-001",
-            "employee": "EMP001",
-            "start_date": "2024-11-01",
-            "end_date": "2024-11-30",
-            "gross_pay": 10_000_000,
-            "total_bpjs": 500_000,
-            "is_december_override": 0,
+            "end_date": "2025-12-15",  # December month
+            "is_december_override": 0,  # No override needed
         }
     )
 
-    # Test Case 3: Manual override di bulan Maret
-    test_manual = frappe._dict(
-        {
-            "name": "SS-2024-03-001",
-            "employee": "EMP001",
-            "start_date": "2024-03-01",
-            "end_date": "2024-03-31",
-            "gross_pay": 10_000_000,
-            "total_bpjs": 500_000,
-            "is_december_override": 1,  # Manual override
-        }
+    # Test case 3: Not December, no override
+    test_doc3 = frappe._dict(
+        {"end_date": "2025-11-30", "is_december_override": 0}  # Not December  # No override
     )
 
     # Run tests
-    result1 = should_apply_december_logic(test_december)
-    result2 = should_apply_december_logic(test_november)
-    result3 = should_apply_december_logic(test_manual)
+    assert (
+        should_apply_december_logic(test_doc1) is True
+    ), "Test 1 failed: Override flag should trigger December logic"
+    assert (
+        should_apply_december_logic(test_doc2) is False
+    ), "Test 2 failed: December month should no longer trigger December logic"
+    assert (
+        should_apply_december_logic(test_doc3) is False
+    ), "Test 3 failed: Non-December without override should not trigger December logic"
 
-    print("=== HASIL TEST AUTO DECEMBER DETECTION ===")
-    print(f"Desember 2024: {result1} (Expected: True)")
-    print(f"November 2024: {result2} (Expected: False)")
-    print(f"Maret 2024 + Manual: {result3} (Expected: True)")
-
-    # Test detection method
-    method1 = get_december_detection_method(test_december)
-    method2 = get_december_detection_method(test_november)
-    method3 = get_december_detection_method(test_manual)
-
-    print(f"Detection Method - Desember: {method1} (Expected: OTOMATIS)")
-    print(f"Detection Method - November: {method2} (Expected: UNKNOWN)")
-    print(f"Detection Method - Manual: {method3} (Expected: MANUAL)")
-
-    # Verify results
-    assert result1 is True, "Desember harus return True"
-    assert result2 is False, "November harus return False"
-    assert result3 is True, "Manual override harus return True"
-    assert method1 == "OTOMATIS", "Desember detection method harus OTOMATIS"
-    assert method3 == "MANUAL", "Manual override detection method harus MANUAL"
-
-    print("✅ Semua test passed!")
-
-    return {
-        "december_result": result1,
-        "november_result": result2,
-        "manual_result": result3,
-        "detection_methods": {"december": method1, "november": method2, "manual": method3},
-    }
-
-
-def example_december_calculation():
-    """
-    Contoh perhitungan Desember berdasarkan tabel yang ditunjukkan user
-    """
-    print("=== CONTOH PERHITUNGAN DESEMBER ===")
-
-    # Data sesuai tabel user
-    annual_gross = 129_600_000  # Gaji 1 tahun
-    annual_bpjs = 6_000_000  # BPJS maksimal
-    annual_biaya_jabatan = 6_000_000  # Biaya Jabatan (5% dari gaji, max 6jt)
-
-    # Penghasilan Netto
-    annual_netto = annual_gross - annual_biaya_jabatan - annual_bpjs
-    print(f"Annual Netto: Rp {annual_netto:,}")
-
-    # PTKP TK0 (sesuai tabel)
-    ptkp = 58_500_000
-    pkp = annual_netto - ptkp
-    print(f"PKP: Rp {pkp:,}")
-
-    # Pajak progresif bracket pertama (5%)
-    annual_pph = pkp * 0.05
-    print(f"Pajak Annual: Rp {annual_pph:,}")
-
-    # Simulasi pajak yang sudah dibayar 11 bulan
-    monthly_pph = annual_pph / 12
-    ytd_pph = monthly_pph * 11
-    print(f"Pajak Bulanan: Rp {monthly_pph:,.0f}")
-    print(f"YTD Pajak (11 bulan): Rp {ytd_pph:,.0f}")
-
-    # Koreksi Desember
-    december_correction = annual_pph - ytd_pph
-    print(f"Koreksi Desember: Rp {december_correction:,.0f}")
-
-    print("\n✅ Hasil sesuai dengan tabel: Desember = Rp 201,000")
-
-    return {
-        "annual_gross": annual_gross,
-        "annual_netto": annual_netto,
-        "pkp": pkp,
-        "annual_pph": annual_pph,
-        "monthly_pph": monthly_pph,
-        "ytd_pph": ytd_pph,
-        "december_correction": december_correction,
-    }
-
-
-def validate_december_logic_settings():
-    """
-    Validasi bahwa semua setting yang diperlukan untuk logika Desember sudah benar
-    """
-    try:
-        print("=== VALIDASI SETTING DESEMBER ===")
-
-        # 1. Cek PPh 21 Settings
-        try:
-            frappe.get_single("PPh 21 Settings")
-            print("✅ PPh 21 Settings ditemukan")
-        except Exception as e:
-            print(f"❌ PPh 21 Settings tidak ditemukan: {e}")
-            return False
-
-        # 2. Cek apakah field-field yang diperlukan ada di Salary Slip
-        required_fields = [
-            "is_december_override",
-            "koreksi_pph21",
-            "biaya_jabatan",
-            "netto",
-            "total_bpjs",
-        ]
-
-        missing_fields = []
-        for field in required_fields:
-            # Simulasi pengecekan field (dalam implementasi nyata, gunakan frappe.get_meta)
-            print(f"  Checking field: {field}")
-
-        if not missing_fields:
-            print("✅ Semua field yang diperlukan tersedia")
-        else:
-            print(f"❌ Field yang kurang: {missing_fields}")
-            return False
-
-        # 3. Cek komponen gaji yang diperlukan
-        required_components = [
-            "PPh 21",
-            "BPJS JHT Employee",
-            "BPJS JP Employee",
-            "BPJS Kesehatan Employee",
-        ]
-        print("  Checking salary components...")
-        for component in required_components:
-            print(f"    - {component}")
-        print("✅ Komponen gaji yang diperlukan tersedia")
-
-        print("\n✅ Semua validasi passed! Sistem siap untuk logika Desember otomatis.")
-        return True
-
-    except Exception as e:
-        print(f"❌ Error during validation: {e}")
-        return False
-
-
-def get_december_summary_report(employee_id, year):
-    """
-    Generate summary report untuk perhitungan Desember
-    """
-    try:
-        summary = {
-            "employee": employee_id,
-            "year": year,
-            "calculation_method": "Progressive (PMK 168/2023)",
-            "detection": "Otomatis berdasarkan bulan",
-            "ytd_data": {},
-            "annual_calculation": {},
-            "final_correction": 0,
-        }
-
-        # Simulasi pengambilan data YTD
-        print("=== DESEMBER SUMMARY REPORT ===")
-        print(f"Employee: {employee_id}")
-        print(f"Year: {year}")
-        print(f"Method: {summary['calculation_method']}")
-        print(f"Detection: {summary['detection']}")
-
-        return summary
-
-    except Exception as e:
-        print(f"Error generating December summary: {e}")
-        return None
-
-
-if __name__ == "__main__":
-    """
-    Unit tests dan contoh penggunaan
-    """
-
-    print("🚀 TESTING AUTO DECEMBER LOGIC")
-    print("=" * 50)
-
-    # Test 1: Auto detection
-    test_results = test_auto_december_detection()
-    print("\n")
-
-    # Test 2: Calculation example
-    calc_results = example_december_calculation()
-    print("\n")
-
-    # Test 3: Validation
-    validation_passed = validate_december_logic_settings()
-    print("\n")
-
-    # Summary
-    print("🎯 SUMMARY")
-    print("=" * 50)
-    print("✅ Auto December Detection: IMPLEMENTED")
-    print("✅ Progressive Calculation: READY")
-    print("✅ YTD Integration: READY")
-    print("✅ Error Handling: IMPROVED")
-    print("✅ User Notifications: ADDED")
-
-    print("\n📋 CARA PENGGUNAAN:")
-    print("1. Copy kode ini ke file tax calculation Anda")
-    print("2. Replace fungsi yang sudah ada")
-    print("3. Buat salary slip dengan periode Desember")
-    print("4. Sistem otomatis akan mendeteksi dan menjalankan logika Desember")
-    print("5. Tidak perlu checkbox is_december_run lagi!")
-
-    print("\n🎉 SISTEM SIAP DIGUNAKAN!")
-
-
-# ===== BACKWARD COMPATIBILITY NOTES =====
-
-"""
-CATATAN PENTING UNTUK IMPLEMENTASI:
-
-1. BACKWARD COMPATIBILITY:
-   - Fungsi lama tetap bekerja jika ada manual override
-   - Checkbox is_december_run masih bisa digunakan
-   - Tidak mempengaruhi perhitungan bulan lain
-
-2. PERUBAHAN UTAMA:
-   - should_apply_december_logic() sekarang auto-detect bulan Desember
-   - calculate_tax_components() otomatis panggil logika Desember
-   - User mendapat notifikasi otomatis
-   - Enhanced logging untuk tracking
-
-3. FIELD YANG DIPERLUKAN DI SALARY SLIP:
-   - is_december_override (Check field)
-   - koreksi_pph21 (Currency field)
-   - biaya_jabatan (Currency field)
-   - netto (Currency field)
-   - total_bpjs (Currency field)
-
-4. KOMPONEN GAJI YANG DIPERLUKAN:
-   - PPh 21 (Deduction)
-   - BPJS JHT Employee (Deduction)
-   - BPJS JP Employee (Deduction)
-   - BPJS Kesehatan Employee (Deduction)
-
-5. TESTING:
-   - Jalankan test_auto_december_detection() untuk memastikan logic bekerja
-   - Test dengan data periode Desember dan non-Desember
-   - Verifikasi hasil perhitungan sesuai dengan tabel user
-
-6. DEPLOYMENT:
-   - Backup file original sebelum replace
-   - Test di development environment dulu
-   - Monitor error logs setelah deployment
-   - Train user bahwa tidak perlu checkbox lagi
-
-FLAKE8 FIXES APPLIED:
-- Removed trailing whitespace
-- Fixed blank line issues
-- Changed == True/False to is True/is False
-- Fixed f-string without placeholders
-- Added newline at end of file
-- Fixed inline comment spacing
-- Removed unused variables
-
-CONTACT: Jika ada error atau pertanyaan implementasi,
-silakan cek error logs atau hubungi developer.
-"""
+    print("All tests passed!")
