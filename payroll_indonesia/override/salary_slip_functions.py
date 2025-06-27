@@ -1,7 +1,8 @@
+# path: payroll_indonesia/payroll_indonesia/salary_slip_functions.py
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-05-23 04:35:12 by dannyaudian
+# Last modified: 2025-06-27 09:42:27 by dannyaudian
 
 from typing import Any, Dict, Optional
 import logging
@@ -29,6 +30,7 @@ __all__ = [
     "on_cancel_salary_slip",
     "after_insert_salary_slip",
     "clear_caches",
+    "has_bpjs_component",
 ]
 
 # Type aliases
@@ -77,6 +79,32 @@ def validate_salary_slip(doc: SalarySlipDoc, method: Optional[str] = None) -> No
         frappe.throw(_("Could not validate salary slip: {0}").format(str(e)))
 
 
+def has_bpjs_component(doc: SalarySlipDoc) -> bool:
+    """
+    Check if the salary slip has any BPJS component in its deductions.
+    
+    Args:
+        doc: The Salary Slip document
+        
+    Returns:
+        bool: True if any BPJS component is found, False otherwise
+    """
+    if not hasattr(doc, "deductions") or not doc.deductions:
+        return False
+        
+    bpjs_components = [
+        "BPJS JHT Employee",
+        "BPJS JP Employee",
+        "BPJS Kesehatan Employee"
+    ]
+    
+    for deduction in doc.deductions:
+        if hasattr(deduction, "salary_component") and deduction.salary_component in bpjs_components:
+            return True
+            
+    return False
+
+
 def on_submit_salary_slip(doc: SalarySlipDoc, method: Optional[str] = None) -> None:
     """
     Event hook for Salary Slip submission.
@@ -103,10 +131,12 @@ def on_submit_salary_slip(doc: SalarySlipDoc, method: Optional[str] = None) -> N
                 get_logger().warning(f"Using TER but no rate set for {doc.name}")
                 frappe.msgprint(_("Warning: Using TER but no rate set"), indicator="orange")
 
-        # Check if the salary slip has PPh 21 component
-        # Only process tax summary updates for salary slips with PPh 21 component
-        if has_pph21_component(doc):
-            get_logger().info(f"Salary slip {doc.name} has PPh 21 component, updating tax summary")
+        # Check if the salary slip has PPh 21 component or BPJS component
+        # Only process tax summary updates for salary slips with PPh 21 or BPJS component
+        if has_pph21_component(doc) or has_bpjs_component(doc):
+            get_logger().info(
+                f"Salary slip {doc.name} has PPh 21 or BPJS component, updating tax summary"
+            )
 
             # Enqueue tax summary creation/update job
             frappe.enqueue(
@@ -135,7 +165,8 @@ def on_submit_salary_slip(doc: SalarySlipDoc, method: Optional[str] = None) -> N
                     get_logger().warning(f"Could not update payroll note: {e}")
         else:
             get_logger().info(
-                f"Salary slip {doc.name} doesn't have PPh 21 component, skipping tax summary update"
+                f"Salary slip {doc.name} doesn't have PPh 21 or BPJS component, "
+                f"skipping tax summary update"
             )
 
     except Exception as e:
