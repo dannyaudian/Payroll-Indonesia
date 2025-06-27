@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-05-23 05:15:32 by dannyaudian
+# Last modified: 2025-06-27 09:33:08 by dannyaudian
 
 from __future__ import unicode_literals
 import frappe
@@ -53,7 +53,7 @@ class EmployeeTaxSummary(Document):
             self.set_title()
 
             # Calculate YTD from monthly entries
-            self.calculate_ytd_from_monthly()
+            self.calculate_ytd()
 
             # Validate monthly details
             self.validate_monthly_details()
@@ -190,26 +190,31 @@ class EmployeeTaxSummary(Document):
             )
             frappe.throw(_("Error validating monthly details: {0}").format(str(e)))
 
-    def calculate_ytd_from_monthly(self):
-        """Calculate YTD tax amount from monthly details"""
+    def calculate_ytd(self):
+        """Calculate YTD tax and BPJS amounts from monthly details"""
         try:
             if not self.monthly_details:
                 self.ytd_tax = 0
+                self.ytd_bpjs = 0
                 return
 
             total_tax = 0
+            total_bpjs = 0
             for monthly in self.monthly_details:
                 if hasattr(monthly, "tax_amount"):
                     total_tax += flt(monthly.tax_amount)
+                if hasattr(monthly, "bpjs_deductions"):
+                    total_bpjs += flt(monthly.bpjs_deductions)
 
             self.ytd_tax = total_tax
+            self.ytd_bpjs = total_bpjs
 
         except Exception as e:
             frappe.log_error(
                 f"Error calculating YTD from monthly for {self.name}: {str(e)}",
                 "YTD Calculation Error",
             )
-            frappe.throw(_("Error calculating year-to-date tax amount: {0}").format(str(e)))
+            frappe.throw(_("Error calculating year-to-date amounts: {0}").format(str(e)))
 
     def add_monthly_data(self, salary_slip):
         """
@@ -252,7 +257,7 @@ class EmployeeTaxSummary(Document):
                 self._add_new_month(month, salary_slip.name, tax_data)
 
             # Recalculate YTD
-            self.calculate_ytd_from_monthly()
+            self.calculate_ytd()
 
             # Save document with error handling
             self._save_with_error_handling()
@@ -819,7 +824,7 @@ def update_on_salary_slip_cancel(salary_slip, year):
         # Recalculate YTD if changes were made
         if changed:
             debug_log(f"Recalculating YTD tax for Employee Tax Summary {tax_summary_name}")
-            tax_doc.calculate_ytd_from_monthly()
+            tax_doc.calculate_ytd()
 
             # Save the document
             tax_doc.flags.ignore_validate_update_after_submit = True
@@ -975,10 +980,14 @@ def get_tax_summary_stats(employee=None, year=None):
 
         # Get total tax paid
         total_tax = 0
+        total_bpjs = 0
         if total_summaries > 0:
-            summaries = frappe.get_all("Employee Tax Summary", filters=filters, fields=["ytd_tax"])
+            summaries = frappe.get_all(
+                "Employee Tax Summary", filters=filters, fields=["ytd_tax", "ytd_bpjs"]
+            )
             for summary in summaries:
                 total_tax += flt(summary.ytd_tax)
+                total_bpjs += flt(summary.ytd_bpjs)
 
         # Get stats by year if no specific year was requested
         year_stats = []
@@ -1003,6 +1012,7 @@ def get_tax_summary_stats(employee=None, year=None):
             "status": "success",
             "total_summaries": total_summaries,
             "total_tax": total_tax,
+            "total_bpjs": total_bpjs,
             "years": year_stats,
         }
 
