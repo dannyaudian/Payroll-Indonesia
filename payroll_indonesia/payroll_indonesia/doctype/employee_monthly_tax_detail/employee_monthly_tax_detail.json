@@ -8,6 +8,7 @@
         "salary_slip",
         "column_break_1",
         "gross_pay",
+        "bpjs_deductions_employee",
         "bpjs_deductions",
         "other_deductions",
         "section_break_1",
@@ -40,6 +41,14 @@
             "in_list_view": 1,
             "label": "Gross Pay",
             "options": "Company:company:default_currency"
+        },
+        {
+            "default": "0",
+            "fieldname": "bpjs_deductions_employee",
+            "fieldtype": "Currency",
+            "label": "BPJS Deductions (Employee)",
+            "options": "Company:company:default_currency",
+            "read_only": 1
         },
         {
             "default": "0",
