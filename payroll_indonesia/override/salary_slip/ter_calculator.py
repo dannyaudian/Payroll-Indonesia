@@ -728,6 +728,11 @@ def get_ytd_totals_from_tax_summary(
     # Check cache first
     cached_result = get_cached_value(cache_key)
     if cached_result is not None:
+        # Add fallback for YTD gross and BPJS if missing
+        if "gross" not in cached_result and hasattr(doc, "ytd_gross_pay"):
+            cached_result["gross"] = flt(doc.ytd_gross_pay)
+        if "bpjs" not in cached_result and hasattr(doc, "ytd_bpjs_deductions"):
+            cached_result["bpjs"] = flt(doc.ytd_bpjs_deductions)
         return cached_result
 
     try:
@@ -762,10 +767,24 @@ def get_ytd_totals_from_tax_summary(
 
             # Cache the result (for 1 hour)
             cache_value(cache_key, result, CACHE_MEDIUM)
+            
+            # Add fallback for YTD gross and BPJS if missing
+            if "gross" not in result and hasattr(doc, "ytd_gross_pay"):
+                result["gross"] = flt(doc.ytd_gross_pay)
+            if "bpjs" not in result and hasattr(doc, "ytd_bpjs_deductions"):
+                result["bpjs"] = flt(doc.ytd_bpjs_deductions)
+                
             return result
         else:
             # No data found, return zeros
             result = {"gross": 0, "pph21": 0, "bpjs": 0}
+            
+            # Add fallback for YTD gross and BPJS if missing
+            if "gross" not in result and hasattr(doc, "ytd_gross_pay"):
+                result["gross"] = flt(doc.ytd_gross_pay)
+            if "bpjs" not in result and hasattr(doc, "ytd_bpjs_deductions"):
+                result["bpjs"] = flt(doc.ytd_bpjs_deductions)
+                
             cache_value(cache_key, result, CACHE_MEDIUM)
             return result
 
@@ -783,7 +802,15 @@ def get_ytd_totals_from_tax_summary(
             )
 
         # Fallback to the older method
-        return get_ytd_totals_from_tax_summary_legacy(employee, year, month)
+        result = get_ytd_totals_from_tax_summary_legacy(employee, year, month)
+        
+        # Add fallback for YTD gross and BPJS if missing
+        if "gross" not in result and hasattr(doc, "ytd_gross_pay"):
+            result["gross"] = flt(doc.ytd_gross_pay)
+        if "bpjs" not in result and hasattr(doc, "ytd_bpjs_deductions"):
+            result["bpjs"] = flt(doc.ytd_bpjs_deductions)
+            
+        return result
 
 
 def get_ytd_totals_from_tax_summary_legacy(
