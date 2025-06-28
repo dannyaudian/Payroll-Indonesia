@@ -14,15 +14,11 @@ app_license = "GPL-3"
 app_version = "0.1.0"
 required_apps = ["erpnext", "hrms"]
 
-# Setup functions
+# Setup functions - consolidated install hooks
 before_install = "payroll_indonesia.install.before_install"
 after_install = "payroll_indonesia.install.after_install"
-# before_migrate = "payroll_indonesia.install.create_required_doctypes"
-after_migrate = [
-    "payroll_indonesia.install.after_migrate",
-    # Panggil fungsi yang tidak memerlukan parameter
-    "payroll_indonesia.fixtures.setup.setup_all_accounts",
-]
+after_migrate = "payroll_indonesia.install.after_migrate"
+
 # List view JS
 doctype_list_js = {
     "BPJS Payment Summary": "payroll_indonesia/doctype/bpjs_payment_summary/bpjs_payment_summary_list.js",
@@ -56,10 +52,6 @@ doc_events = {
         "validate": "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.validate",
         "on_update": "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.on_update",
     },
-    # "BPJS Payment Component": {
-    #     "validate": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_component.bpjs_payment_component.validate",
-    #     "on_submit": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_component.bpjs_payment_component.on_submit",
-    # },
     "BPJS Payment Summary": {
         "validate": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.validate",
         "on_submit": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.on_submit",
@@ -70,9 +62,6 @@ doc_events = {
         "on_cancel": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_hooks.payment_entry_on_cancel",
     },
     "Company": {"after_insert": "payroll_indonesia.fixtures.setup.setup_company_accounts"},
-    # "Salary Slip": {
-    #        "before_save": "payroll_indonesia.hooks.before_save_salary_slip"
-    #    }
 }
 
 # Fixtures - dengan filter sesuai dengan kebutuhan
@@ -83,7 +72,6 @@ fixtures = [
     {"doctype": "Workspace", "filters": [["module", "=", "Payroll Indonesia"]]},
     {"doctype": "Report", "filters": [["module", "=", "Payroll Indonesia"]]},
     {"doctype": "Print Format", "filters": [["name", "in", ["BPJS Payment Summary Report"]]]},
-    # {"doctype": "Doctype",  "filters": [["name", "in", ["BPJS Payment Summary","BPJS Payment Summary Detail"]]]},
     # Master Data
     {"doctype": "Supplier Group", "filters": [["name", "in", ["BPJS Provider", "Tax Authority"]]]},
     {
@@ -202,7 +190,8 @@ whitelist_methods = [
 
 # Override whitelisted methods
 override_whitelisted_methods = {
-    "hrms.payroll.doctype.salary_slip.salary_slip.make_salary_slip_from_timesheet": "payroll_indonesia.override.salary_slip.make_salary_slip_from_timesheet"
+    "hrms.payroll.doctype.salary_slip.salary_slip.make_salary_slip_from_timesheet":
+        "payroll_indonesia.override.salary_slip.make_salary_slip_from_timesheet"
 }
 
 # Module Category - for Desk
