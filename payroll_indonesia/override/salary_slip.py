@@ -90,6 +90,10 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             
             # Calculate total BPJS deductions for Employee Tax Summary
             self._calculate_total_bpjs()
+            
+            # Calculate and set YTD values for gross pay and BPJS deductions
+            ytd_vals = calculate_ytd_and_ytm(self)
+            self._set_ytd_fields(ytd_vals)
 
             # Calculate tax components using centralized function
             calculate_tax_components(self, employee)
@@ -179,6 +183,42 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             except Exception as e:
                 # Non-critical error - log but continue
                 get_logger().warning(f"Error saving bpjs_deductions for {self.name}: {e}")
+
+    def _set_ytd_fields(self, values: Dict[str, float]) -> None:
+        """
+        Set YTD fields on the salary slip and persist to database.
+        
+        Args:
+            values: Dictionary containing YTD values including ytd_gross and ytd_bpjs
+        """
+        try:
+            # Set ytd_gross_pay from ytd_gross in values
+            self.ytd_gross_pay = values.get("ytd_gross", 0.0)
+            
+            # Set ytd_bpjs_deductions from ytd_bpjs in values
+            self.ytd_bpjs_deductions = values.get("ytd_bpjs", 0.0)
+            
+            # Persist to database if document has a name
+            if hasattr(self, "name") and self.name:
+                self.db_set("ytd_gross_pay", self.ytd_gross_pay, update_modified=False)
+                self.db_set("ytd_bpjs_deductions", self.ytd_bpjs_deductions, 
+                           update_modified=False)
+                
+            # Log success
+            get_logger().debug(
+                f"YTD fields set for {self.name if hasattr(self, 'name') else 'New'}: "
+                f"gross={self.ytd_gross_pay}, bpjs={self.ytd_bpjs_deductions}"
+            )
+        except Exception as e:
+            # Non-critical error - log and continue
+            get_logger().warning(
+                f"Error setting YTD fields for "
+                f"{self.name if hasattr(self, 'name') else 'New'}: {e}"
+            )
+            # Add to payroll notes for visibility
+            self.add_payroll_note(
+                f"Warning: Could not update YTD fields: {str(e)}"
+            )
 
     def _validate_input_data(self) -> None:
         """
@@ -307,6 +347,8 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
                 "ktp": "",
                 "is_final_gabung_suami": 0,
                 "bpjs_deductions": 0,
+                "ytd_gross_pay": 0.0,
+                "ytd_bpjs_deductions": 0.0,
             }
 
             # Set defaults for fields that don't exist or are None
@@ -750,7 +792,7 @@ def calculate_ytd_and_ytm(slip: Any, date: Optional[str] = None) -> Dict[str, fl
         date: Optional date to use instead of slip's end_date
         
     Returns:
-        Dict with YTD and YTM values for earnings, deductions, and gross pay
+        Dict with YTD and YTM values for earnings, deductions, gross pay, and BPJS
     """
     result = {
         "ytd_gross": 0.0,
@@ -759,6 +801,8 @@ def calculate_ytd_and_ytm(slip: Any, date: Optional[str] = None) -> Dict[str, fl
         "ytm_gross": 0.0,
         "ytm_earnings": 0.0,
         "ytm_deductions": 0.0,
+        "ytd_bpjs": 0.0,
+        "ytm_bpjs": 0.0,
     }
     
     if not hasattr(slip, "employee") or not slip.employee:
@@ -782,6 +826,13 @@ def calculate_ytd_and_ytm(slip: Any, date: Optional[str] = None) -> Dict[str, fl
             ORDER BY end_date
         """, (slip.employee, year), as_dict=True)
         
+        # BPJS component list to search for
+        bpjs_components = [
+            "BPJS Kesehatan Employee",
+            "BPJS JHT Employee",
+            "BPJS JP Employee"
+        ]
+        
         # Calculate YTD and YTM values
         for s in slips:
             slip_month = getdate(s.end_date).month
@@ -791,16 +842,42 @@ def calculate_ytd_and_ytm(slip: Any, date: Optional[str] = None) -> Dict[str, fl
             result["ytd_earnings"] += flt(s.gross_pay)
             result["ytd_deductions"] += flt(s.total_deduction)
             
-            # Add to YTM if slip is in or before the current month
-            if slip_month <= month:
-                result["ytm_gross"] += flt(s.gross_pay)
-                result["ytm_earnings"] += flt(s.gross_pay)
-                result["ytm_deductions"] += flt(s.total_deduction)
+            # Calculate BPJS components for this slip
+            try:
+                # Get the deduction components for this slip
+                slip_deductions = frappe.db.sql("""
+                    SELECT salary_component, amount
+                    FROM `tabSalary Detail`
+                    WHERE parent = %s
+                    AND parentfield = 'deductions'
+                """, s.name, as_dict=True)
+                
+                # Sum up BPJS components
+                bpjs_sum = 0.0
+                for deduction in slip_deductions:
+                    if deduction.salary_component in bpjs_components:
+                        bpjs_sum += flt(deduction.amount)
+                
+                # Add to YTD BPJS
+                result["ytd_bpjs"] += bpjs_sum
+                
+                # Add to YTM if slip is in or before the current month
+                if slip_month <= month:
+                    result["ytm_gross"] += flt(s.gross_pay)
+                    result["ytm_earnings"] += flt(s.gross_pay)
+                    result["ytm_deductions"] += flt(s.total_deduction)
+                    result["ytm_bpjs"] += bpjs_sum
+            except Exception as e:
+                # Non-critical error - log and continue
+                get_logger().warning(
+                    f"Error calculating BPJS for slip {s.name}: {e}"
+                )
                 
         # Log calculation results
         get_logger().debug(
             f"YTD/YTM calculation for {slip.employee} ({end_date}): "
-            f"YTD Gross: {result['ytd_gross']}, YTM Gross: {result['ytm_gross']}"
+            f"YTD Gross: {result['ytd_gross']}, YTD BPJS: {result['ytd_bpjs']}, "
+            f"YTM Gross: {result['ytm_gross']}, YTM BPJS: {result['ytm_bpjs']}"
         )
         
         return result
@@ -1098,6 +1175,8 @@ def _initialize_payroll_fields_standalone(doc: Any) -> Dict[str, Any]:
             "ktp": "",
             "is_final_gabung_suami": 0,
             "bpjs_deductions": 0,
+            "ytd_gross_pay": 0.0,
+            "ytd_bpjs_deductions": 0.0,
         }
 
         # Set defaults for fields that don't exist or are None
@@ -1148,6 +1227,10 @@ def _enhance_validate(doc: Any, *args, **kwargs) -> None:
         
         # Calculate total BPJS deductions
         _calculate_total_bpjs_standalone(doc)
+        
+        # Calculate and set YTD values
+        ytd_vals = calculate_ytd_and_ytm(doc)
+        _set_ytd_fields_standalone(doc, ytd_vals)
 
         # Calculate tax components using centralized function
         calculate_tax_components(doc, employee)
@@ -1172,6 +1255,8 @@ def _enhance_validate(doc: Any, *args, **kwargs) -> None:
             "ktp",
             "is_final_gabung_suami",
             "bpjs_deductions",
+            "ytd_gross_pay",
+            "ytd_bpjs_deductions",
         ]
 
         # Update each field using both attribute and db_set if possible
@@ -1208,6 +1293,51 @@ def _enhance_validate(doc: Any, *args, **kwargs) -> None:
                 "Warning: Error enhancing salary slip validation. Some features may not be available."
             ),
             indicator="orange",
+        )
+
+
+def _set_ytd_fields_standalone(doc: Any, values: Dict[str, float]) -> None:
+    """
+    Set YTD fields on the salary slip document and persist to database.
+    Standalone version for use with enhanced methods.
+    
+    Args:
+        doc: Salary slip document
+        values: Dictionary containing YTD values including ytd_gross and ytd_bpjs
+    """
+    try:
+        # Set ytd_gross_pay from ytd_gross in values
+        if hasattr(doc, "ytd_gross_pay"):
+            doc.ytd_gross_pay = values.get("ytd_gross", 0.0)
+        else:
+            setattr(doc, "ytd_gross_pay", values.get("ytd_gross", 0.0))
+        
+        # Set ytd_bpjs_deductions from ytd_bpjs in values
+        if hasattr(doc, "ytd_bpjs_deductions"):
+            doc.ytd_bpjs_deductions = values.get("ytd_bpjs", 0.0)
+        else:
+            setattr(doc, "ytd_bpjs_deductions", values.get("ytd_bpjs", 0.0))
+        
+        # Persist to database if document has a name
+        if hasattr(doc, "name") and doc.name:
+            try:
+                doc.db_set("ytd_gross_pay", doc.ytd_gross_pay, update_modified=False)
+                doc.db_set("ytd_bpjs_deductions", doc.ytd_bpjs_deductions, 
+                          update_modified=False)
+                
+                # Log success
+                get_logger().debug(
+                    f"YTD fields set for {doc.name}: "
+                    f"gross={doc.ytd_gross_pay}, bpjs={doc.ytd_bpjs_deductions}"
+                )
+            except Exception as e:
+                # Non-critical error - log and continue
+                get_logger().warning(f"Error persisting YTD fields for {doc.name}: {e}")
+    except Exception as e:
+        # Non-critical error - log and continue
+        get_logger().warning(
+            f"Error setting YTD fields for "
+            f"{doc.name if hasattr(doc, 'name') else 'New'}: {e}"
         )
 
 
@@ -1459,54 +1589,4 @@ def setup_fiscal_year_if_missing(date_str: Optional[str] = None) -> Dict[str, An
             # Custom fiscal year
             start_date = getdate(f"{year}-{fy_start_month:02d}-01")
             if start_date > test_date:
-                start_date = add_to_date(start_date, years=-1)
-            end_date = add_to_date(start_date, days=-1, years=1)
-
-        # Create the fiscal year
-        new_fy = frappe.new_doc("Fiscal Year")
-        new_fy.year = f"{start_date.year}"
-        if start_date.year != end_date.year:
-            new_fy.year += f"-{end_date.year}"
-        new_fy.year_start_date = start_date
-        new_fy.year_end_date = end_date
-        new_fy.save()
-
-        result = {
-            "status": "created",
-            "fiscal_year": new_fy.name,
-            "year": new_fy.year,
-            "start_date": start_date.strftime("%Y-%m-%d"),
-            "end_date": end_date.strftime("%Y-%m-%d"),
-        }
-
-        # Cache result for 24 hours
-        cache_value(cache_key, result, CACHE_LONG)
-        return result
-
-    except Exception as e:
-        # This is a critical operation for payroll - throw if user invoked
-        # but just return error if called programmatically
-        get_logger().exception(f"Error setting up fiscal year: {e}")
-        if (
-            frappe.local.form_dict.cmd
-            == "payroll_indonesia.payroll_indonesia.salary_slip.setup_fiscal_year_if_missing"
-        ):
-            frappe.throw(
-                _("Failed to set up fiscal year: {0}").format(str(e)),
-                title=_("Fiscal Year Setup Failed"),
-            )
-        return {"status": "error", "message": str(e)}
-
-
-# Hook to apply our extensions when the module is loaded
-def setup_hooks() -> None:
-    """Set up our hooks and monkey patches when the module is loaded"""
-    try:
-        extend_salary_slip_functionality()
-    except Exception as e:
-        # Non-critical error during setup - log but continue
-        get_logger().exception(f"Error setting up hooks for salary slip: {e}")
-
-
-# Apply extensions
-setup_hooks()
+                start_date = add_to_date(start
