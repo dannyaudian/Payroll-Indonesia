@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-27 09:42:27 by dannyaudian
+# Last modified: 2025-06-28 03:12:38 by dannyaudian
 
 from typing import Any, Dict, Optional
 import logging
@@ -17,6 +17,9 @@ from payroll_indonesia.override.salary_slip.bpjs_calculator import calculate_bpj
 
 # Import centralized tax calculation function
 from payroll_indonesia.override.salary_slip.tax_calculator import calculate_tax_components
+
+# Import YTD calculation function
+from payroll_indonesia.payroll_indonesia.salary_slip import calculate_ytd_and_ytm
 
 # Import standardized error logging and cache utilities
 from payroll_indonesia.utilities.cache_utils import clear_all_caches, schedule_cache_clearing
@@ -65,6 +68,11 @@ def validate_salary_slip(doc: SalarySlipDoc, method: Optional[str] = None) -> No
 
         # Verify BPJS fields are set properly
         _verify_bpjs_fields(doc)
+        
+        # Calculate and set YTD values
+        ytd_vals = calculate_ytd_and_ytm(doc)
+        doc.db_set("ytd_gross_pay", ytd_vals["ytd_gross"], update_modified=False)
+        doc.db_set("ytd_bpjs_deductions", ytd_vals["ytd_bpjs"], update_modified=False)
 
         # Calculate tax components using centralized function
         calculate_tax_components(doc, employee)
@@ -327,6 +335,8 @@ def _initialize_payroll_fields(doc: SalarySlipDoc) -> Dict[str, Any]:
             "npwp": "",
             "ktp": "",
             "is_final_gabung_suami": 0,
+            "ytd_gross_pay": 0.0,
+            "ytd_bpjs_deductions": 0.0,
         }
 
         # Set defaults for fields that don't exist or are None
