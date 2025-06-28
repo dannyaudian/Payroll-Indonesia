@@ -13,7 +13,7 @@ from frappe.utils import flt, getdate
 from payroll_indonesia.utilities.cache_utils import clear_all_caches, schedule_cache_clearing
 from payroll_indonesia.utilities.salary_slip_validator import has_pph21_component
 from payroll_indonesia.payroll_indonesia.bpjs.bpjs_calculation import hitung_bpjs
-from payroll_indonesia.override.salary_utils import calculate_ytd_and_ytm
+from payroll_indonesia.override.salary_slip.salary_utils import calculate_ytd_and_ytm
 
 __all__ = [
     "validate_salary_slip",
