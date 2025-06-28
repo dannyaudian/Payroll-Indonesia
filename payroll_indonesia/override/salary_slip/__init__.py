@@ -1,28 +1,15 @@
-# -*- coding: utf-8 -*-
-# Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
-# For license information, please see license.txt
-# Last modified: 2025-05-01 11:08:53 by dannyaudian
+# File: payroll_indonesia/override/salary_slip/__init__.py
 
-# Import directly from the controller module
-from .controller import (
-    IndonesiaPayrollSalarySlip,
-    setup_fiscal_year_if_missing,
-    process_salary_slips_batch,
-    check_fiscal_year_setup,
-    clear_caches,
-    get_component,
-    set_component,
-)
+from __future__ import unicode_literals
 
-# Export for direct imports
+# Import functions that need to be accessible from outside
+from payroll_indonesia.override.salary_slip.salary_slip import calculate_ytd_and_ytm
+from payroll_indonesia.override.salary_slip.bpjs_calculator import calculate_bpjs_components
+from payroll_indonesia.override.salary_slip.tax_calculator import calculate_tax_components
+
+# Define what should be accessible when importing from this module
 __all__ = [
-    "IndonesiaPayrollSalarySlip",
-    "setup_fiscal_year_if_missing",
-    "process_salary_slips_batch",
-    "check_fiscal_year_setup",
-    "clear_caches",
-    "get_component",
-    "set_component",
+    'calculate_ytd_and_ytm',
+    'calculate_bpjs_components',
+    'calculate_tax_components'
 ]
-
-# Note: This module is used to initialize the Payroll Indonesia salary slip processing components
