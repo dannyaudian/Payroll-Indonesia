@@ -1589,4 +1589,54 @@ def setup_fiscal_year_if_missing(date_str: Optional[str] = None) -> Dict[str, An
             # Custom fiscal year
             start_date = getdate(f"{year}-{fy_start_month:02d}-01")
             if start_date > test_date:
-                start_date = add_to_date(start
+                start_date = add_to_date(start_date, years=-1)
+            end_date = add_to_date(start_date, days=-1, years=1)
+
+        # Create the fiscal year
+        new_fy = frappe.new_doc("Fiscal Year")
+        new_fy.year = f"{start_date.year}"
+        if start_date.year != end_date.year:
+            new_fy.year += f"-{end_date.year}"
+        new_fy.year_start_date = start_date
+        new_fy.year_end_date = end_date
+        new_fy.save()
+
+        result = {
+            "status": "created",
+            "fiscal_year": new_fy.name,
+            "year": new_fy.year,
+            "start_date": start_date.strftime("%Y-%m-%d"),
+            "end_date": end_date.strftime("%Y-%m-%d"),
+        }
+
+        # Cache result for 24 hours
+        cache_value(cache_key, result, CACHE_LONG)
+        return result
+
+    except Exception as e:
+        # This is a critical operation for payroll - throw if user invoked
+        # but just return error if called programmatically
+        get_logger().exception(f"Error setting up fiscal year: {e}")
+        if (
+            frappe.local.form_dict.cmd
+            == "payroll_indonesia.payroll_indonesia.salary_slip.setup_fiscal_year_if_missing"
+        ):
+            frappe.throw(
+                _("Failed to set up fiscal year: {0}").format(str(e)),
+                title=_("Fiscal Year Setup Failed"),
+            )
+        return {"status": "error", "message": str(e)}
+
+
+# Hook to apply our extensions when the module is loaded
+def setup_hooks() -> None:
+    """Set up our hooks and monkey patches when the module is loaded"""
+    try:
+        extend_salary_slip_functionality()
+    except Exception as e:
+        # Non-critical error during setup - log but continue
+        get_logger().exception(f"Error setting up hooks for salary slip: {e}")
+
+
+# Apply extensions
+setup_hooks()
