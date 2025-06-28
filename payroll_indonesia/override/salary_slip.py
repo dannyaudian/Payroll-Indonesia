@@ -869,12 +869,12 @@ def calculate_ytd_and_ytm(slip: Any, date: Optional[str] = None) -> Dict[str, fl
                     result["ytm_bpjs"] += bpjs_sum
             except Exception as e:
                 # Non-critical error - log and continue
-                get_logger().warning(
+                frappe.logger("salary_slip").warning(
                     f"Error calculating BPJS for slip {s.name}: {e}"
                 )
                 
         # Log calculation results
-        get_logger().debug(
+        frappe.logger("salary_slip").debug(
             f"YTD/YTM calculation for {slip.employee} ({end_date}): "
             f"YTD Gross: {result['ytd_gross']}, YTD BPJS: {result['ytd_bpjs']}, "
             f"YTM Gross: {result['ytm_gross']}, YTM BPJS: {result['ytm_bpjs']}"
@@ -884,7 +884,7 @@ def calculate_ytd_and_ytm(slip: Any, date: Optional[str] = None) -> Dict[str, fl
         
     except Exception as e:
         # Non-critical error - log and return default result
-        get_logger().warning(f"Error calculating YTD/YTM values: {e}")
+        frappe.logger("salary_slip").warning(f"Error calculating YTD/YTM values: {e}")
         return result
 
 
