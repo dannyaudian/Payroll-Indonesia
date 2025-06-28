@@ -325,6 +325,12 @@ def calculate_december_pph(doc, employee):
         # Initialize ytd with default values if not found
         ytd = ytd or {"gross": 0, "bpjs": 0, "pph21": 0}
 
+        # Add fallback using ytd_gross_pay and ytd_bpjs_deductions if available
+        if "gross" not in ytd and hasattr(doc, "ytd_gross_pay"):
+            ytd["gross"] = flt(doc.ytd_gross_pay)
+        if "bpjs" not in ytd and hasattr(doc, "ytd_bpjs_deductions"):
+            ytd["bpjs"] = flt(doc.ytd_bpjs_deductions)
+
         # Calculate annual totals
         annual_gross = ytd.get("gross", 0) + doc.gross_pay
         annual_bpjs = ytd.get("bpjs", 0) + doc.total_bpjs
