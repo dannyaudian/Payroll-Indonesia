@@ -181,7 +181,7 @@ jinja = {
 }
 
 # Hook to initialize module functionality after app startup
-# after_app_init = "payroll_indonesia.override.salary_slip.setup_hooks"
+after_app_init = "payroll_indonesia.override.salary_slip.setup_hooks"
 
 # Whitelist for client-side API calls
 whitelist_methods = [
