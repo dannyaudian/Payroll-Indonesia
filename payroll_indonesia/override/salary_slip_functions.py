@@ -19,7 +19,7 @@ from payroll_indonesia.override.salary_slip.bpjs_calculator import calculate_bpj
 from payroll_indonesia.override.salary_slip.tax_calculator import calculate_tax_components
 
 # Import YTD calculation function
-from payroll_indonesia.payroll_indonesia.salary_slip import calculate_ytd_and_ytm
+from payroll_indonesia.override.salary_slip import calculate_ytd_and_ytm
 
 # Import standardized error logging and cache utilities
 from payroll_indonesia.utilities.cache_utils import clear_all_caches, schedule_cache_clearing
