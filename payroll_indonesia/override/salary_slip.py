@@ -12,6 +12,7 @@ from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
 
 from payroll_indonesia.utilities.cache_utils import get_cached_value, cache_value
 from payroll_indonesia.constants import CACHE_MEDIUM, CACHE_LONG, VALID_TAX_STATUS
+from payroll_indonesia.override.salary_slip.salary_utils import calculate_ytd_and_ytm
 
 __all__ = ["IndonesiaPayrollSalarySlip", "setup_fiscal_year_if_missing"]
 
@@ -160,8 +161,7 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
 
     def _calculate_ytd_values(self) -> None:
         """Calculate YTD values for gross pay and BPJS deductions."""
-        from payroll_indonesia.payroll_indonesia.salary_slip import calculate_ytd_and_ytm
-        
+        # Use the centralized implementation from salary_utils
         ytd_vals = calculate_ytd_and_ytm(self)
         self.ytd_gross_pay = ytd_vals["ytd_gross"]
         self.ytd_bpjs_deductions = ytd_vals["ytd_bpjs"]
@@ -220,14 +220,14 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         """Check and create fiscal year if missing."""
         try:
             if hasattr(self, "start_date"):
-                from payroll_indonesia.payroll_indonesia.salary_slip import (
-                    check_fiscal_year_setup, setup_fiscal_year_if_missing
+                from payroll_indonesia.payroll_indonesia.utils import (
+                    check_fiscal_year_setup, setup_fiscal_year_if_missing as setup_fy
                 )
                 
                 fiscal_year = check_fiscal_year_setup(self.start_date)
                 
                 if fiscal_year.get("status") == "error":
-                    setup_result = setup_fiscal_year_if_missing(self.start_date)
+                    setup_result = setup_fy(self.start_date)
                     self.add_payroll_note(
                         f"Fiscal year setup: {setup_result.get('status', 'unknown')}"
                     )
@@ -314,12 +314,6 @@ def setup_fiscal_year_if_missing(date_str: Optional[str] = None) -> Dict[str, An
     """Create fiscal year if missing for the given date."""
     from payroll_indonesia.payroll_indonesia.utils import setup_fiscal_year_if_missing as setup_fy
     return setup_fy(date_str)
-
-
-def calculate_ytd_and_ytm(slip: Any, date: Optional[str] = None) -> Dict[str, float]:
-    """Calculate YTD and YTM values for salary slip components."""
-    from payroll_indonesia.override.salary_slip_functions import calculate_ytd_and_ytm as calc_ytd
-    return calc_ytd(slip, date)
 
 
 def apply_hooks() -> None:
