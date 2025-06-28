@@ -1,20 +1,30 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-17 07:09:57 by dannyaudian
+# Last modified: 2025-06-28 23:52:11 by dannyaudian
+
+import logging
+from typing import Dict, Any, List, Optional, Union
 
 import frappe
 from frappe import _
 
+from payroll_indonesia.config import get_live_config
+from payroll_indonesia.frappe_helpers import safe_execute
+
+# Configure logger
+logger = logging.getLogger(__name__)
+
 
 @frappe.whitelist()
-def validate_employee_golongan(jabatan, golongan):
+@safe_execute(log_exception=True)
+def validate_employee_golongan(jabatan: str, golongan: str) -> None:
     """
-    Validate that employee's golongan level does not exceed the maximum allowed for their jabatan
+    Validate that employee's golongan level does not exceed the maximum allowed for jabatan.
 
     Args:
-        jabatan (str): The jabatan (position) code
-        golongan (str): The golongan (grade) code
+        jabatan: The jabatan (position) code
+        golongan: The golongan (grade) code
 
     Raises:
         frappe.ValidationError: If golongan level exceeds maximum allowed level
@@ -25,34 +35,58 @@ def validate_employee_golongan(jabatan, golongan):
     if not golongan:
         frappe.throw(_("Golongan is required"))
 
+    # Get validation rules from config
+    config = get_live_config()
+    validation_rules = config.get("validation_rules", {})
+    
+    # Log the validation attempt
+    logger.info(f"Validating golongan '{golongan}' for jabatan '{jabatan}'")
+
     max_golongan = frappe.db.get_value("Jabatan", jabatan, "max_golongan")
     if not max_golongan:
+        logger.warning(f"Maximum Golongan not set for Jabatan {jabatan}")
         frappe.throw(_("Maximum Golongan not set for Jabatan {0}").format(jabatan))
 
     max_level = frappe.db.get_value("Golongan", max_golongan, "level")
     if not max_level:
+        logger.warning(f"Level not set for Golongan {max_golongan}")
         frappe.throw(_("Level not set for Golongan {0}").format(max_golongan))
 
     current_level = frappe.db.get_value("Golongan", golongan, "level")
     if not current_level:
+        logger.warning(f"Level not set for Golongan {golongan}")
         frappe.throw(_("Level not set for Golongan {0}").format(golongan))
 
-    if current_level > max_level:
+    # Check if enforcing max level is enabled in config
+    enforce_max_level = validation_rules.get("enforce_golongan_max_level", True)
+    
+    if current_level > max_level and enforce_max_level:
+        logger.warning(
+            f"Golongan validation failed: level {current_level} exceeds max {max_level} "
+            f"for jabatan '{jabatan}'"
+        )
         frappe.throw(
             _(
                 "Employee's Golongan level ({0}) cannot be higher than "
                 "the maximum allowed level ({1}) for the selected Jabatan"
             ).format(current_level, max_level)
         )
+    elif current_level > max_level and not enforce_max_level:
+        # Soft notice without throwing error when enforcement is disabled
+        logger.info(
+            f"Notice: Golongan level {current_level} exceeds max {max_level} "
+            f"for jabatan '{jabatan}', but enforcement is disabled"
+        )
 
 
 @frappe.whitelist()
-def validate_bpjs_account_mapping(company):
+@safe_execute(log_exception=True)
+def validate_bpjs_account_mapping(company: str) -> Dict[str, Any]:
     """
-    Validate that a BPJS Account Mapping exists for the given company
+    Validate that a BPJS Account Mapping exists for the given company.
 
     Args:
-        company (str): Company name
+        company: Company name
 
     Returns:
         dict: BPJS Account Mapping details if valid
@@ -63,20 +97,41 @@ def validate_bpjs_account_mapping(company):
     if not company:
         frappe.throw(_("Company is required to validate BPJS Account Mapping"))
 
+    # Get validation rules from config
+    config = get_live_config()
+    validation_rules = config.get("bpjs_settings", {}).get("validation_rules", {})
+    
+    # Check if validation is enabled
+    enforce_mapping = validation_rules.get("enforce_account_mapping", True)
+    
+    logger.info(f"Validating BPJS Account Mapping for company '{company}'")
+
     # Check if mapping exists
     mapping_name = frappe.db.get_value("BPJS Account Mapping", {"company": company}, "name")
     if not mapping_name:
-        frappe.throw(
-            _("BPJS Account Mapping not found for company {0}. Please create one first.").format(
-                company
+        if enforce_mapping:
+            logger.warning(f"BPJS Account Mapping not found for company {company}")
+            frappe.throw(
+                _("BPJS Account Mapping not found for company {0}. Please create one first.").format(
+                    company
+                )
             )
-        )
+        else:
+            logger.info(
+                f"BPJS Account Mapping not found for company {company}, "
+                "but enforcement is disabled"
+            )
+            return {"status": "warning", "message": "BPJS Account Mapping missing but not enforced"}
 
     # Get the mapping document
     mapping = frappe.get_doc("BPJS Account Mapping", mapping_name)
 
-    # Validate required accounts
-    required_fields = ["employee_expense_account", "employer_expense_account", "payable_account"]
+    # Get required fields from config
+    required_fields = validation_rules.get("required_accounts", [
+        "employee_expense_account", 
+        "employer_expense_account", 
+        "payable_account"
+    ])
 
     missing_fields = []
     for field in required_fields:
@@ -84,14 +139,29 @@ def validate_bpjs_account_mapping(company):
             missing_fields.append(frappe.unscrub(field))
 
     if missing_fields:
-        frappe.throw(
-            _("The following required accounts are missing in BPJS Account Mapping: {0}").format(
-                ", ".join(missing_fields)
+        if enforce_mapping:
+            logger.warning(
+                f"Missing required accounts in BPJS Account Mapping: {', '.join(missing_fields)}"
             )
-        )
+            frappe.throw(
+                _("The following required accounts are missing in BPJS Account Mapping: {0}").format(
+                    ", ".join(missing_fields)
+                )
+            )
+        else:
+            logger.info(
+                f"Missing required accounts in BPJS Account Mapping: {', '.join(missing_fields)}, "
+                "but enforcement is disabled"
+            )
+            return {
+                "status": "warning", 
+                "message": "Some required accounts are missing but not enforced",
+                "missing_fields": missing_fields
+            }
 
     # Return the mapping if all validations pass
     return {
+        "status": "success",
         "name": mapping.name,
         "employee_expense_account": mapping.employee_expense_account,
         "employer_expense_account": mapping.employer_expense_account,
@@ -100,13 +170,17 @@ def validate_bpjs_account_mapping(company):
 
 
 @frappe.whitelist()
-def validate_bpjs_components(company, salary_structure=None):
+@safe_execute(log_exception=True)
+def validate_bpjs_components(
+    company: str, 
+    salary_structure: Optional[str] = None
+) -> Dict[str, Any]:
     """
-    Validate that all required BPJS components exist in the salary structure
+    Validate that all required BPJS components exist in the salary structure.
 
     Args:
-        company (str): Company name
-        salary_structure (str, optional): Salary Structure name to validate
+        company: Company name
+        salary_structure: Salary Structure name to validate (optional)
 
     Returns:
         dict: Validation results
@@ -116,18 +190,37 @@ def validate_bpjs_components(company, salary_structure=None):
     """
     # First validate BPJS Account Mapping
     mapping = validate_bpjs_account_mapping(company)
-
-    # Required BPJS components
-    required_components = [
-        "BPJS Kesehatan Employee",
-        "BPJS JHT Employee",
-        "BPJS JP Employee",
-        "BPJS Kesehatan Employer",
-        "BPJS JHT Employer",
-        "BPJS JP Employer",
-        "BPJS JKK",
-        "BPJS JKM",
-    ]
+    
+    # Get validation rules and component list from config
+    config = get_live_config()
+    validation_rules = config.get("bpjs_settings", {}).get("validation_rules", {})
+    components_config = config.get("salary_components", {})
+    
+    # Check if validation is enabled
+    enforce_components = validation_rules.get("enforce_components", True)
+    
+    # Get required BPJS components from config or use defaults
+    required_components = []
+    
+    # Extract BPJS components from config
+    for component in components_config.get("deductions", []):
+        if component.get("name", "").startswith("BPJS"):
+            required_components.append(component.get("name"))
+    
+    # Use defaults if not found in config
+    if not required_components:
+        required_components = [
+            "BPJS Kesehatan Employee",
+            "BPJS JHT Employee",
+            "BPJS JP Employee",
+            "BPJS Kesehatan Employer",
+            "BPJS JHT Employer",
+            "BPJS JP Employer",
+            "BPJS JKK",
+            "BPJS JKM",
+        ]
+    
+    logger.info(f"Validating BPJS components for company '{company}'")
 
     # Check if all components exist
     missing_components = []
@@ -136,34 +229,61 @@ def validate_bpjs_components(company, salary_structure=None):
             missing_components.append(component)
 
     if missing_components:
-        frappe.throw(
-            _("The following BPJS components are missing: {0}").format(
-                ", ".join(missing_components)
+        if enforce_components:
+            logger.warning(
+                f"Missing BPJS components: {', '.join(missing_components)}"
             )
-        )
+            frappe.throw(
+                _("The following BPJS components are missing: {0}").format(
+                    ", ".join(missing_components)
+                )
+            )
+        else:
+            logger.info(
+                f"Missing BPJS components: {', '.join(missing_components)}, "
+                "but enforcement is disabled"
+            )
+            return {
+                "status": "warning",
+                "message": "Some BPJS components are missing but not enforced",
+                "missing_components": missing_components
+            }
 
     # If salary structure is provided, validate components in structure
     if salary_structure:
-        return validate_structure_components(salary_structure, required_components)
+        return validate_structure_components(
+            salary_structure, 
+            required_components, 
+            enforce_components
+        )
 
     return {"status": "success", "message": _("All BPJS components exist"), "mapping": mapping}
 
 
-def validate_structure_components(salary_structure, required_components):
+@safe_execute(log_exception=True)
+def validate_structure_components(
+    salary_structure: str, 
+    required_components: List[str],
+    enforce_components: bool = True
+) -> Dict[str, Any]:
     """
-    Validate that all required components exist in the given salary structure
+    Validate that all required components exist in the given salary structure.
 
     Args:
-        salary_structure (str): Salary Structure name
-        required_components (list): List of required component names
+        salary_structure: Salary Structure name
+        required_components: List of required component names
+        enforce_components: Whether to enforce component validation
 
     Returns:
         dict: Validation results with missing components if any
     """
     if not frappe.db.exists("Salary Structure", salary_structure):
+        logger.warning(f"Salary Structure {salary_structure} does not exist")
         frappe.throw(_("Salary Structure {0} does not exist").format(salary_structure))
 
     structure = frappe.get_doc("Salary Structure", salary_structure)
+    
+    logger.info(f"Validating components in salary structure '{salary_structure}'")
 
     # Get all components in the structure
     structure_components = []
@@ -179,12 +299,24 @@ def validate_structure_components(salary_structure, required_components):
             missing_in_structure.append(component)
 
     if missing_in_structure:
+        message = _("Some BPJS components are missing in the salary structure")
+        if enforce_components:
+            logger.warning(
+                f"Missing components in salary structure: {', '.join(missing_in_structure)}"
+            )
+        else:
+            logger.info(
+                f"Missing components in salary structure: {', '.join(missing_in_structure)}, "
+                "but enforcement is disabled"
+            )
+            
         return {
             "status": "warning",
-            "message": _("Some BPJS components are missing in the salary structure"),
+            "message": message,
             "missing_components": missing_in_structure,
         }
 
+    logger.info(f"All required components found in salary structure '{salary_structure}'")
     return {
         "status": "success",
         "message": _("All required BPJS components exist in the salary structure"),
