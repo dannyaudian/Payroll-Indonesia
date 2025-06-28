@@ -3,7 +3,7 @@
 from __future__ import unicode_literals
 
 # Import functions that need to be accessible from outside
-from payroll_indonesia.override.salary_slip.salary_slip import calculate_ytd_and_ytm
+from payroll_indonesia.override.salary_slip import calculate_ytd_and_ytm
 from payroll_indonesia.override.salary_slip.bpjs_calculator import calculate_bpjs_components
 from payroll_indonesia.override.salary_slip.tax_calculator import calculate_tax_components
 
