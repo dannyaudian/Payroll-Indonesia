@@ -383,3 +383,9 @@ def get_formatted_currency(value, currency=None):
 
     # Format as money with currency symbol
     return fmt_money(flt(value), currency=currency)
+
+
+def get_formatted_currency_idr(value):
+    """Format numeric value as Indonesian Rupiah currency string."""
+    from frappe.utils import flt, fmt_money
+    return fmt_money(flt(value), currency="IDR")
