@@ -322,6 +322,14 @@ class EmployeeTaxSummary(Document):
         if hasattr(salary_slip, "monthly_gross_for_ter"):
             monthly_gross_for_ter = flt(salary_slip.monthly_gross_for_ter)
 
+        # Get YTD values from salary slip
+        ytd_gross_pay = 0
+        ytd_bpjs = 0
+        if hasattr(salary_slip, "ytd_gross_pay"):
+            ytd_gross_pay = flt(salary_slip.ytd_gross_pay)
+        if hasattr(salary_slip, "ytd_bpjs"):
+            ytd_bpjs = flt(salary_slip.ytd_bpjs)
+
         # Return extracted data
         return {
             "pph21_amount": pph21_amount,
@@ -335,6 +343,8 @@ class EmployeeTaxSummary(Document):
             "netto": netto,
             "annual_taxable_income": annual_taxable_income,
             "monthly_gross_for_ter": monthly_gross_for_ter,
+            "ytd_gross_pay": ytd_gross_pay,
+            "ytd_bpjs": ytd_bpjs,
         }
 
     def _update_existing_month(self, month_index, salary_slip_name, tax_data):
@@ -358,6 +368,13 @@ class EmployeeTaxSummary(Document):
         # Update TER information
         self.monthly_details[month_index].is_using_ter = tax_data["is_using_ter"]
         self.monthly_details[month_index].ter_rate = tax_data["ter_rate"]
+
+        # Update YTD fields from salary slip
+        if hasattr(self.monthly_details[month_index], "ytd_gross_pay"):
+            self.monthly_details[month_index].ytd_gross_pay = tax_data["ytd_gross_pay"]
+        
+        if hasattr(self.monthly_details[month_index], "ytd_bpjs"):
+            self.monthly_details[month_index].ytd_bpjs = tax_data["ytd_bpjs"]
 
         # Update additional calculation fields if they exist
         for field in ["ter_category", "biaya_jabatan", "netto", "annual_taxable_income"]:
@@ -384,6 +401,10 @@ class EmployeeTaxSummary(Document):
             "is_using_ter": tax_data["is_using_ter"],
             "ter_rate": tax_data["ter_rate"],
         }
+
+        # Add YTD fields from salary slip
+        monthly_data["ytd_gross_pay"] = tax_data["ytd_gross_pay"]
+        monthly_data["ytd_bpjs"] = tax_data["ytd_bpjs"]
 
         # Add additional calculation fields if available
         for field in ["ter_category", "biaya_jabatan", "netto", "annual_taxable_income"]:
@@ -431,6 +452,12 @@ class EmployeeTaxSummary(Document):
                 d.salary_slip = None
                 d.is_using_ter = 0
                 d.ter_rate = 0
+
+                # Reset YTD fields if they exist
+                if hasattr(d, "ytd_gross_pay"):
+                    d.ytd_gross_pay = 0
+                if hasattr(d, "ytd_bpjs"):
+                    d.ytd_bpjs = 0
 
                 # Reset additional fields if they exist
                 for field in ["ter_category", "biaya_jabatan", "netto", "annual_taxable_income"]:
@@ -484,6 +511,8 @@ class EmployeeTaxSummary(Document):
                             "gross": flt(monthly.gross_pay),
                             "tax": flt(monthly.tax_amount),
                             "bpjs": flt(monthly.bpjs_deductions_employee),
+                            "ytd_gross": flt(getattr(monthly, "ytd_gross_pay", 0)),
+                            "ytd_bpjs": flt(getattr(monthly, "ytd_bpjs", 0)),
                         }
                     )
 
@@ -734,6 +763,8 @@ def _create_new_tax_summary(employee, year):
                 "tax_amount": 0,
                 "is_using_ter": 0,
                 "ter_rate": 0,
+                "ytd_gross_pay": 0,
+                "ytd_bpjs": 0,
                 "salary_slip": None,  # Explicitly initialize salary_slip reference
             },
         )
