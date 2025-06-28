@@ -1,3 +1,4 @@
+# path: payroll_indonesia/payroll_indonesia/doctype/employee_tax_summary/employee_tax_summary.py
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
@@ -53,7 +54,7 @@ class EmployeeTaxSummary(Document):
             self.set_title()
 
             # Calculate YTD from monthly entries
-            self.calculate_ytd()
+            self.calculate_ytd_summary()
 
             # Validate monthly details
             self.validate_monthly_details()
@@ -65,6 +66,17 @@ class EmployeeTaxSummary(Document):
             )
             # Re-throw with user-friendly message
             frappe.throw(_("Error validating tax summary: {0}").format(str(e)))
+
+    def calculate_ytd_summary(self):
+        """Calculate YTD summary amounts from monthly details"""
+        total_gross, total_tax, total_bpjs = 0, 0, 0
+        for md in (self.monthly_details or []):
+            total_gross += flt(getattr(md, "gross_pay", 0))
+            total_tax   += flt(getattr(md, "tax_amount", 0))
+            total_bpjs  += flt(getattr(md, "bpjs_deductions_employee", 0))
+        self.ytd_gross_pay = total_gross
+        self.ytd_tax       = total_tax
+        self.ytd_bpjs      = total_bpjs
 
     def validate_required_fields(self):
         """Validate that all required fields are present"""
@@ -190,32 +202,6 @@ class EmployeeTaxSummary(Document):
             )
             frappe.throw(_("Error validating monthly details: {0}").format(str(e)))
 
-    def calculate_ytd(self):
-        """Calculate YTD tax and BPJS amounts from monthly details"""
-        try:
-            if not self.monthly_details:
-                self.ytd_tax = 0
-                self.ytd_bpjs = 0
-                return
-
-            total_tax = 0
-            total_bpjs = 0
-            for monthly in self.monthly_details:
-                if hasattr(monthly, "tax_amount"):
-                    total_tax += flt(monthly.tax_amount)
-                if hasattr(monthly, "bpjs_deductions"):
-                    total_bpjs += flt(monthly.bpjs_deductions)
-
-            self.ytd_tax = total_tax
-            self.ytd_bpjs = total_bpjs
-
-        except Exception as e:
-            frappe.log_error(
-                f"Error calculating YTD from monthly for {self.name}: {str(e)}",
-                "YTD Calculation Error",
-            )
-            frappe.throw(_("Error calculating year-to-date amounts: {0}").format(str(e)))
-
     def add_monthly_data(self, salary_slip):
         """
         Add or update monthly tax data from salary slip with improved error handling
@@ -257,7 +243,7 @@ class EmployeeTaxSummary(Document):
                 self._add_new_month(month, salary_slip.name, tax_data)
 
             # Recalculate YTD
-            self.calculate_ytd()
+            self.calculate_ytd_summary()
 
             # Save document with error handling
             self._save_with_error_handling()
@@ -365,7 +351,7 @@ class EmployeeTaxSummary(Document):
 
         # Update basic fields
         self.monthly_details[month_index].gross_pay = tax_data["gross_pay"]
-        self.monthly_details[month_index].bpjs_deductions = tax_data["bpjs_deductions"]
+        self.monthly_details[month_index].bpjs_deductions_employee = tax_data["bpjs_deductions"]
         self.monthly_details[month_index].other_deductions = tax_data["other_deductions"]
         self.monthly_details[month_index].tax_amount = tax_data["pph21_amount"]
 
@@ -392,7 +378,7 @@ class EmployeeTaxSummary(Document):
             "month": month,
             "salary_slip": salary_slip_name,  # Store salary slip reference
             "gross_pay": tax_data["gross_pay"],
-            "bpjs_deductions": tax_data["bpjs_deductions"],
+            "bpjs_deductions_employee": tax_data["bpjs_deductions"],
             "other_deductions": tax_data["other_deductions"],
             "tax_amount": tax_data["pph21_amount"],
             "is_using_ter": tax_data["is_using_ter"],
@@ -439,7 +425,7 @@ class EmployeeTaxSummary(Document):
 
                 # Reset values for this month
                 d.gross_pay = 0
-                d.bpjs_deductions = 0
+                d.bpjs_deductions_employee = 0
                 d.other_deductions = 0
                 d.tax_amount = 0
                 d.salary_slip = None
@@ -484,7 +470,7 @@ class EmployeeTaxSummary(Document):
             for monthly in self.monthly_details:
                 if hasattr(monthly, "month") and monthly.month <= month:
                     result["gross"] += flt(monthly.gross_pay)
-                    result["bpjs"] += flt(monthly.bpjs_deductions)
+                    result["bpjs"] += flt(monthly.bpjs_deductions_employee)
                     result["pph21"] += flt(monthly.tax_amount)
 
                     # Get net amount if available
@@ -497,7 +483,7 @@ class EmployeeTaxSummary(Document):
                             "month": monthly.month,
                             "gross": flt(monthly.gross_pay),
                             "tax": flt(monthly.tax_amount),
-                            "bpjs": flt(monthly.bpjs_deductions),
+                            "bpjs": flt(monthly.bpjs_deductions_employee),
                         }
                     )
 
@@ -744,7 +730,7 @@ def _create_new_tax_summary(employee, year):
             {
                 "month": i,
                 "gross_pay": 0,
-                "bpjs_deductions": 0,
+                "bpjs_deductions_employee": 0,
                 "tax_amount": 0,
                 "is_using_ter": 0,
                 "ter_rate": 0,
@@ -824,7 +810,7 @@ def update_on_salary_slip_cancel(salary_slip, year):
         # Recalculate YTD if changes were made
         if changed:
             debug_log(f"Recalculating YTD tax for Employee Tax Summary {tax_summary_name}")
-            tax_doc.calculate_ytd()
+            tax_doc.calculate_ytd_summary()
 
             # Save the document
             tax_doc.flags.ignore_validate_update_after_submit = True
