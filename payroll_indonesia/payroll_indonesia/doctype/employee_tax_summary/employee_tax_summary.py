@@ -72,11 +72,11 @@ class EmployeeTaxSummary(Document):
         total_gross, total_tax, total_bpjs = 0, 0, 0
         for md in (self.monthly_details or []):
             total_gross += flt(getattr(md, "gross_pay", 0))
-            total_tax   += flt(getattr(md, "tax_amount", 0))
-            total_bpjs  += flt(getattr(md, "bpjs_deductions_employee", 0))
+            total_tax += flt(getattr(md, "tax_amount", 0))
+            total_bpjs += flt(getattr(md, "bpjs_deductions_employee", 0))
         self.ytd_gross_pay = total_gross
-        self.ytd_tax       = total_tax
-        self.ytd_bpjs      = total_bpjs
+        self.ytd_tax = total_tax
+        self.ytd_bpjs = total_bpjs
 
     def validate_required_fields(self):
         """Validate that all required fields are present"""
@@ -322,6 +322,14 @@ class EmployeeTaxSummary(Document):
         if hasattr(salary_slip, "monthly_gross_for_ter"):
             monthly_gross_for_ter = flt(salary_slip.monthly_gross_for_ter)
 
+        # Get YTD values from salary slip
+        ytd_gross_pay = 0
+        ytd_bpjs = 0
+        if hasattr(salary_slip, "ytd_gross_pay"):
+            ytd_gross_pay = flt(salary_slip.ytd_gross_pay)
+        if hasattr(salary_slip, "ytd_bpjs_deductions"):
+            ytd_bpjs = flt(salary_slip.ytd_bpjs_deductions)
+
         # Return extracted data
         return {
             "pph21_amount": pph21_amount,
@@ -335,6 +343,8 @@ class EmployeeTaxSummary(Document):
             "netto": netto,
             "annual_taxable_income": annual_taxable_income,
             "monthly_gross_for_ter": monthly_gross_for_ter,
+            "ytd_gross_pay": ytd_gross_pay,
+            "ytd_bpjs": ytd_bpjs,
         }
 
     def _update_existing_month(self, month_index, salary_slip_name, tax_data):
@@ -359,8 +369,14 @@ class EmployeeTaxSummary(Document):
         self.monthly_details[month_index].is_using_ter = tax_data["is_using_ter"]
         self.monthly_details[month_index].ter_rate = tax_data["ter_rate"]
 
+        # Update YTD values if available
+        if "ytd_gross_pay" in tax_data:
+            self.monthly_details[month_index].ytd_gross_pay = tax_data["ytd_gross_pay"]
+        if "ytd_bpjs" in tax_data:
+            self.monthly_details[month_index].ytd_bpjs = tax_data["ytd_bpjs"]
+
         # Update additional calculation fields if they exist
-        for field in ["ter_category", "biaya_jabatan", "netto", "annual_taxable_income"]:
+        for field in ["ter_category", "biaya_jabatan", "netto", "annual_taxable_income", "ytd_gross_pay", "ytd_bpjs"]:
             if hasattr(self.monthly_details[month_index], field) and field in tax_data:
                 setattr(self.monthly_details[month_index], field, tax_data[field])
 
@@ -385,8 +401,14 @@ class EmployeeTaxSummary(Document):
             "ter_rate": tax_data["ter_rate"],
         }
 
+        # Add YTD values if available
+        if "ytd_gross_pay" in tax_data:
+            monthly_data["ytd_gross_pay"] = tax_data["ytd_gross_pay"]
+        if "ytd_bpjs" in tax_data:
+            monthly_data["ytd_bpjs"] = tax_data["ytd_bpjs"]
+
         # Add additional calculation fields if available
-        for field in ["ter_category", "biaya_jabatan", "netto", "annual_taxable_income"]:
+        for field in ["ter_category", "biaya_jabatan", "netto", "annual_taxable_income", "ytd_gross_pay", "ytd_bpjs"]:
             if field in tax_data:
                 monthly_data[field] = tax_data[field]
 
@@ -433,7 +455,7 @@ class EmployeeTaxSummary(Document):
                 d.ter_rate = 0
 
                 # Reset additional fields if they exist
-                for field in ["ter_category", "biaya_jabatan", "netto", "annual_taxable_income"]:
+                for field in ["ter_category", "biaya_jabatan", "netto", "annual_taxable_income", "ytd_gross_pay", "ytd_bpjs"]:
                     if hasattr(d, field):
                         setattr(d, field, "" if field == "ter_category" else 0)
 
@@ -735,6 +757,8 @@ def _create_new_tax_summary(employee, year):
                 "is_using_ter": 0,
                 "ter_rate": 0,
                 "salary_slip": None,  # Explicitly initialize salary_slip reference
+                "ytd_gross_pay": 0,  # Initialize YTD gross pay
+                "ytd_bpjs": 0,  # Initialize YTD BPJS
             },
         )
 

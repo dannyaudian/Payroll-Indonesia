@@ -14,7 +14,10 @@
         "section_break_1",
         "tax_amount",
         "is_using_ter",
-        "ter_rate"
+        "ter_rate",
+        "ytd_section",
+        "ytd_gross_pay",
+        "ytd_bpjs"
     ],
     "fields": [
         {
@@ -88,6 +91,28 @@
             "label": "TER Rate (%)",
             "depends_on": "is_using_ter",
             "precision": 2
+        },
+        {
+            "fieldname": "ytd_section",
+            "fieldtype": "Section Break",
+            "label": "YTD Values",
+            "collapsible": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "ytd_gross_pay",
+            "fieldtype": "Currency",
+            "label": "YTD Gross Pay",
+            "options": "Company:company:default_currency",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "ytd_bpjs",
+            "fieldtype": "Currency",
+            "label": "YTD BPJS",
+            "options": "Company:company:default_currency",
+            "read_only": 1
         }
     ],
     "istable": 1,
