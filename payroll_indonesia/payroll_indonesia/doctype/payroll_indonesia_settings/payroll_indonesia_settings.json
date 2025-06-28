@@ -5,8 +5,8 @@
   "issingle": 1,
   "editable_grid": 1,
   "custom": 0,
-  "modified": "2023-05-11 09:24:57",
-  "modified_by": "Administrator",
+  "modified": "2025-06-28 23:56:13",
+  "modified_by": "dannyaudian",
   "owner": "Administrator",
   "creation": "2023-05-11 09:24:57",
   "idx": 0,
@@ -36,9 +36,22 @@
       "fieldname": "app_updated_by",
       "fieldtype": "Data",
       "label": "Updated By",
-      "default": "Administrator",
+      "default": "dannyaudian",
       "reqd": 1,
       "read_only": 1
+    },
+    {
+      "fieldname": "sync_settings_section",
+      "fieldtype": "Section Break",
+      "label": "Sync Settings",
+      "collapsible": 1
+    },
+    {
+      "fieldname": "sync_to_defaults",
+      "fieldtype": "Check",
+      "label": "Sync to defaults.json",
+      "default": 0,
+      "description": "If enabled, settings will be synchronized to defaults.json on save"
     },
     {
       "fieldname": "bpjs_section",
