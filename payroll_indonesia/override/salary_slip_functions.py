@@ -527,3 +527,77 @@ def calculate_bpjs_for_employee(
     except Exception as e:
         get_logger().exception(f"Error calculating BPJS for employee {employee_id}: {e}")
         frappe.throw(_("Error calculating BPJS: {0}").format(str(e)))
+
+def calculate_total_bpjs(doc):
+    """
+    Calculate and set total BPJS deductions
+    
+    Args:
+        doc: Salary slip document
+    """
+    bpjs_total = 0
+    
+    # Sum up all BPJS components from deductions
+    if hasattr(doc, "deductions") and doc.deductions:
+        for deduction in doc.deductions:
+            component_name = deduction.salary_component
+            if any(bpjs_type in component_name for bpjs_type in 
+                  ["BPJS Kesehatan", "BPJS JHT", "BPJS JP", "BPJS JKK", "BPJS JKM"]):
+                bpjs_total += flt(deduction.amount)
+    
+    # Store total in bpjs_deductions field
+    if hasattr(doc, "bpjs_deductions"):
+        doc.bpjs_deductions = bpjs_total
+    else:
+        setattr(doc, "bpjs_deductions", bpjs_total)
+    
+    # Update database field directly to avoid another save
+    if hasattr(doc, "name") and doc.name:
+        try:
+            doc.db_set("bpjs_deductions", bpjs_total, update_modified=False)
+        except Exception as e:
+            # Non-critical error - log but continue
+            frappe.logger("salary_slip").warning(f"Error saving bpjs_deductions for {doc.name}: {e}")
+
+def set_ytd_fields(doc, values):
+    """
+    Set YTD fields on the salary slip document and persist to database.
+    
+    Args:
+        doc: Salary slip document
+        values: Dictionary containing YTD values including ytd_gross and ytd_bpjs
+    """
+    try:
+        # Set ytd_gross_pay from ytd_gross in values
+        if hasattr(doc, "ytd_gross_pay"):
+            doc.ytd_gross_pay = values.get("ytd_gross", 0.0)
+        else:
+            setattr(doc, "ytd_gross_pay", values.get("ytd_gross", 0.0))
+        
+        # Set ytd_bpjs_deductions from ytd_bpjs in values
+        if hasattr(doc, "ytd_bpjs_deductions"):
+            doc.ytd_bpjs_deductions = values.get("ytd_bpjs", 0.0)
+        else:
+            setattr(doc, "ytd_bpjs_deductions", values.get("ytd_bpjs", 0.0))
+        
+        # Persist to database if document has a name
+        if hasattr(doc, "name") and doc.name:
+            try:
+                doc.db_set("ytd_gross_pay", doc.ytd_gross_pay, update_modified=False)
+                doc.db_set("ytd_bpjs_deductions", doc.ytd_bpjs_deductions, 
+                          update_modified=False)
+                
+                # Log success
+                frappe.logger("salary_slip").debug(
+                    f"YTD fields set for {doc.name}: "
+                    f"gross={doc.ytd_gross_pay}, bpjs={doc.ytd_bpjs_deductions}"
+                )
+            except Exception as e:
+                # Non-critical error - log and continue
+                frappe.logger("salary_slip").warning(f"Error persisting YTD fields for {doc.name}: {e}")
+    except Exception as e:
+        # Non-critical error - log and continue
+        frappe.logger("salary_slip").warning(
+            f"Error setting YTD fields for "
+            f"{doc.name if hasattr(doc, 'name') else 'New'}: {e}"
+        )
