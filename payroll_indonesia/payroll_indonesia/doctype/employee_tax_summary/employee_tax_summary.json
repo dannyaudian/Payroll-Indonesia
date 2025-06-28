@@ -9,8 +9,9 @@
         "employee_name",
         "tax_information_section",
         "year",
+        "ytd_summary_section",
+        "ytd_gross_pay",
         "ytd_tax",
-        "bpjs_section",
         "ytd_bpjs",
         "ter_section",
         "is_using_ter",
@@ -56,25 +57,34 @@
             "reqd": 1
         },
         {
+            "fieldname": "ytd_summary_section",
+            "fieldtype": "Section Break",
+            "label": "Year-to-Date Summary",
+            "collapsible": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "ytd_gross_pay",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "YTD Gross Pay",
+            "options": "Company:company:default_currency",
+            "read_only": 1
+        },
+        {
             "default": "0",
             "fieldname": "ytd_tax",
             "fieldtype": "Currency",
             "in_list_view": 1,
-            "label": "Year-to-Date Tax Paid",
+            "label": "YTD PPh 21",
             "options": "Company:company:default_currency"
-        },
-        {
-            "fieldname": "bpjs_section",
-            "fieldtype": "Section Break",
-            "label": "BPJS Contributions",
-            "collapsible": 1
         },
         {
             "default": "0",
             "fieldname": "ytd_bpjs",
             "fieldtype": "Currency",
             "in_list_view": 1,
-            "label": "YTD BPJS Employee",
+            "label": "YTD BPJS Deduction",
             "options": "Company:company:default_currency",
             "read_only": 1
         },
