@@ -321,3 +321,75 @@ def validate_structure_components(
         "status": "success",
         "message": _("All required BPJS components exist in the salary structure"),
     }
+
+# Add this function to existing validations.py
+
+@safe_execute(log_exception=True)
+def validate_pph21_settings(doc) -> None:
+    """
+    Validate PPh 21 Settings document.
+    
+    Args:
+        doc: PPh 21 Settings document
+    """
+    logger.info("Validating PPh 21 Settings")
+    
+    # Get validation rules from config
+    config = get_live_config()
+    tax_limits = config.get("tax", {}).get("limits", {})
+    
+    # Validate TER settings
+    if doc.calculation_method == "TER" and not doc.use_ter:
+        # Auto-set use_ter if calculation method is TER but use_ter isn't checked
+        logger.info("Auto-enabling TER since calculation method is TER")
+        doc.use_ter = 1
+    
+    # Validate biaya jabatan limits
+    min_biaya_jabatan = tax_limits.get("min_biaya_jabatan_percent", 0)
+    max_biaya_jabatan = tax_limits.get("max_biaya_jabatan_percent", 10)
+    
+    if hasattr(doc, "biaya_jabatan_percent"):
+        if (doc.biaya_jabatan_percent < min_biaya_jabatan or 
+            doc.biaya_jabatan_percent > max_biaya_jabatan):
+            logger.warning(
+                f"Biaya Jabatan percentage {doc.biaya_jabatan_percent} outside of "
+                f"allowed range ({min_biaya_jabatan}%-{max_biaya_jabatan}%)"
+            )
+            frappe.msgprint(
+                _("Biaya Jabatan percentage must be between {0}% and {1}%").format(
+                    min_biaya_jabatan, max_biaya_jabatan
+                ),
+                indicator="orange"
+            )
+    
+    # Validate tax brackets
+    if doc.bracket_table and len(doc.bracket_table) > 0:
+        # Sort by income_from
+        sorted_brackets = sorted(doc.bracket_table, key=lambda x: flt(x.income_from))
+        
+        # Check for gaps or overlaps
+        for i in range(len(sorted_brackets) - 1):
+            current = sorted_brackets[i]
+            next_bracket = sorted_brackets[i + 1]
+            
+            if flt(current.income_to) != flt(next_bracket.income_from):
+                logger.warning(
+                    f"Tax bracket gap found: {current.income_to} to {next_bracket.income_from}"
+                )
+                frappe.msgprint(
+                    _("Warning: Tax brackets should be continuous. Gap found between {0} and {1}")
+                    .format(current.income_to, next_bracket.income_from),
+                    indicator="orange"
+                )
+    
+    # Validate TER configuration if TER is enabled
+    if doc.use_ter:
+        # Check if TER table exists and has entries
+        ter_count = frappe.db.count("PPh 21 TER Table")
+        if ter_count == 0:
+            logger.warning("TER is enabled but no TER rates defined")
+            frappe.msgprint(
+                _("TER is enabled but no rates are defined in PPh 21 TER Table. "
+                  "Please define rates before using this method."),
+                indicator="orange"
+            )
