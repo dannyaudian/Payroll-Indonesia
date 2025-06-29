@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-29 01:15:16 by dannyaudian
+# Last modified: 2025-06-29 02:30:12 by dannyaudian
 
 """
-Tax calculator module - PPh 21 (progressive & annual)
+Tax calculator module - PPh 21 (progresif & tahunan)
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple, cast, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from payroll_indonesia.config import get_live_config
 from payroll_indonesia.constants import (
@@ -23,14 +23,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger("tax_calc")
 
 
-def get_tax_brackets(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _get_tax_brackets() -> List[Dict[str, Any]]:
     """
     Get progressive tax brackets from config.
+    Returns sorted list of brackets by income_from.
     """
-    brackets = cfg.get("tax_brackets", [])
+    cfg = get_live_config()
+    brackets = cfg.get("tax", {}).get("brackets", [])
+    
     if brackets:
-        # Sort by income_from to ensure proper order
-        return sorted(brackets, key=lambda x: x.get("income_from", 0))
+        return sorted(brackets, key=lambda x: float(x.get("income_from", 0)))
     
     # Default tax brackets (as of 2025)
     return [
@@ -42,13 +44,13 @@ def get_tax_brackets(cfg: Dict[str, Any]) -> List[Dict[str, Any]]:
     ]
 
 
-def get_ptkp_value(tax_status: str, cfg: Dict[str, Any]) -> float:
+def _get_ptkp_value(tax_status: str) -> float:
     """
     Get annual PTKP (non-taxable income) value based on tax status.
     """
+    cfg = get_live_config()
     ptkp_values = cfg.get("ptkp", {})
     
-    # If tax status exists in configuration, use that value
     if tax_status in ptkp_values:
         return float(ptkp_values[tax_status])
     
@@ -62,7 +64,7 @@ def get_ptkp_value(tax_status: str, cfg: Dict[str, Any]) -> float:
     return float(default_values.get(tax_status, 54000000))
 
 
-def calculate_progressive_tax(pkp: float, brackets: List[Dict[str, Any]]) -> Tuple[float, List[Dict[str, Any]]]:
+def _calculate_progressive_tax(pkp: float) -> Tuple[float, List[Dict[str, Any]]]:
     """
     Calculate PPh 21 using progressive method.
     Returns total tax and detailed breakdown per bracket.
@@ -70,6 +72,7 @@ def calculate_progressive_tax(pkp: float, brackets: List[Dict[str, Any]]) -> Tup
     if pkp <= 0:
         return 0.0, []
     
+    brackets = _get_tax_brackets()
     tax = 0.0
     details = []
     remaining = pkp
@@ -80,7 +83,7 @@ def calculate_progressive_tax(pkp: float, brackets: List[Dict[str, Any]]) -> Tup
         rate = float(bracket.get("tax_rate", 0)) / 100.0
         
         # Handle top bracket (no upper limit)
-        if income_to == 0 or income_to > remaining:
+        if income_to == 0 or income_to > remaining + income_from:
             tax_in_bracket = remaining * rate
             tax += tax_in_bracket
             details.append({
@@ -120,17 +123,32 @@ def calculate_progressive_tax(pkp: float, brackets: List[Dict[str, Any]]) -> Tup
     return tax, details
 
 
-def get_ytd_totals(slip: Any, year: int, month: int) -> Dict[str, float]:
+def _get_tax_status(slip: Any) -> str:
+    """Extract tax status from employee document or return default."""
+    employee = getattr(slip, "employee_doc", None)
+    default_status = "TK0"
+    
+    if not employee:
+        return default_status
+    
+    if hasattr(employee, "status_pajak") and employee.status_pajak:
+        return employee.status_pajak
+    
+    return default_status
+
+
+def _get_ytd_totals(slip: Any) -> Dict[str, float]:
     """
     Get year-to-date totals for gross pay, BPJS, and PPh 21.
     """
-    # In a real implementation, this would query the database for YTD values
-    # Simplified for demonstration purposes
-    employee = getattr(slip, "employee", "")
+    # Extract year and month from slip start date
+    year, month = _get_slip_year_month(slip)
+    employee = getattr(slip, "employee", "unknown")
     
     logger.info(f"Fetching YTD totals for employee {employee}, {year}-{month}")
     
-    # Return default values for demonstration
+    # In a real implementation, this would query the database for YTD values
+    # Simplified implementation for demonstration
     return {
         "gross": 0.0,
         "bpjs": 0.0,
@@ -138,25 +156,47 @@ def get_ytd_totals(slip: Any, year: int, month: int) -> Dict[str, float]:
     }
 
 
-def should_run_as_december(slip: Any) -> bool:
+def _get_slip_year_month(slip: Any) -> Tuple[int, int]:
+    """Extract year and month from salary slip start date."""
+    from datetime import datetime
+    
+    if hasattr(slip, "start_date"):
+        date_parts = getattr(slip, "start_date", "").split("-")
+        if len(date_parts) >= 2:
+            return int(date_parts[0]), int(date_parts[1])
+    
+    # Default to current year and month if not found
+    now = datetime.now()
+    return now.year, now.month
+
+
+def _is_december_calculation(slip: Any) -> bool:
     """
-    Determine if a salary slip should use December calculation logic.
-    Returns True if is_december_override flag is set to 1.
+    Determine if this slip should use December calculation logic.
+    Returns True if month is December or is_december_override flag is set.
     """
-    return bool(getattr(slip, "is_december_override", 0))
+    # Check explicit override flag
+    if getattr(slip, "is_december_override", 0):
+        return True
+    
+    # Check if month is December
+    _, month = _get_slip_year_month(slip)
+    return month == 12
+
+
+def _update_slip_fields(slip: Any, values: Dict[str, Any]) -> None:
+    """Update salary slip fields with calculated values."""
+    for field, value in values.items():
+        if hasattr(slip, field):
+            setattr(slip, field, value)
 
 
 def calculate_monthly_pph_progressive(slip: Any) -> Dict[str, Any]:
     """
     Calculate PPh 21 using progressive rates for non-December months.
     """
-    cfg = get_live_config()
-    
     # Get employee tax status
-    employee = getattr(slip, "employee_doc", None)
-    tax_status = "TK0"  # Default
-    if employee and hasattr(employee, "status_pajak") and employee.status_pajak:
-        tax_status = employee.status_pajak
+    tax_status = _get_tax_status(slip)
     
     # Get income values
     gross_pay = float(getattr(slip, "gross_pay", 0))
@@ -167,24 +207,24 @@ def calculate_monthly_pph_progressive(slip: Any) -> Dict[str, Any]:
     netto = gross_pay - biaya_jabatan - total_bpjs
     
     # Get PTKP value (annual)
-    ptkp = get_ptkp_value(tax_status, cfg)
+    ptkp = _get_ptkp_value(tax_status)
     
     # Annualize income for tax calculation
     annual_netto = netto * MONTHS_PER_YEAR
     pkp = max(0, annual_netto - ptkp)
     
     # Calculate annual tax
-    tax_brackets = get_tax_brackets(cfg)
-    annual_tax, tax_details = calculate_progressive_tax(pkp, tax_brackets)
+    annual_tax, tax_details = _calculate_progressive_tax(pkp)
     
     # Calculate monthly tax
     monthly_tax = annual_tax / MONTHS_PER_YEAR
     
-    # Store values in salary slip
-    if hasattr(slip, "biaya_jabatan"):
-        slip.biaya_jabatan = biaya_jabatan
-    if hasattr(slip, "netto"):
-        slip.netto = netto
+    # Update slip fields
+    _update_slip_fields(slip, {
+        "biaya_jabatan": biaya_jabatan,
+        "netto": netto,
+        "pph21": monthly_tax
+    })
     
     # Prepare result for reporting
     result = {
@@ -202,49 +242,31 @@ def calculate_monthly_pph_progressive(slip: Any) -> Dict[str, Any]:
         "tax_details": tax_details
     }
     
-    logger.debug(f"Monthly PPh calculation for {getattr(slip, 'employee', '')}: {result}")
+    employee_id = getattr(slip, "employee", "unknown")
+    logger.debug(f"Monthly PPh calculation for {employee_id}: {result}")
     return result
 
 
 def calculate_december_pph(slip: Any) -> Dict[str, Any]:
     """
-    Calculate year-end tax correction for December as per PMK 168/2023.
-    Uses is_december_override flag to handle non-December months that need
-    December correction calculation.
+    Calculate year-end tax correction for December.
+    Uses actual YTD income for more accurate annual tax calculation.
     """
-    cfg = get_live_config()
-    
-    # Check if running as December (based on is_december_override flag)
-    is_dec_override = should_run_as_december(slip)
-    if is_dec_override:
-        logger.info(f"Running December PPh calculation for {getattr(slip, 'employee', '')} (is_december_override=1)")
+    # Check if running as December (based on month or override flag)
+    is_december = _is_december_calculation(slip)
+    if not is_december:
+        logger.info(f"Non-December month detected for {getattr(slip, 'employee', 'unknown')}, using monthly calculation")
+        return calculate_monthly_pph_progressive(slip)
     
     # Get employee tax status
-    employee = getattr(slip, "employee_doc", None)
-    tax_status = "TK0"  # Default
-    if employee and hasattr(employee, "status_pajak") and employee.status_pajak:
-        tax_status = employee.status_pajak
+    tax_status = _get_tax_status(slip)
     
     # Get current income values
     current_gross = float(getattr(slip, "gross_pay", 0))
     current_bpjs = float(getattr(slip, "total_bpjs", 0))
     
-    # Get start date details to determine year and month
-    from datetime import datetime
-    if hasattr(slip, "start_date"):
-        date_parts = getattr(slip, "start_date", "").split("-")
-        if len(date_parts) >= 2:
-            year = int(date_parts[0])
-            month = int(date_parts[1])
-        else:
-            year = datetime.now().year
-            month = 12
-    else:
-        year = datetime.now().year
-        month = 12
-    
     # Get YTD totals excluding current month
-    ytd = get_ytd_totals(slip, year, month)
+    ytd = _get_ytd_totals(slip)
     
     # Calculate annual totals including current month
     annual_gross = ytd.get("gross", 0) + current_gross
@@ -260,26 +282,28 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
     annual_netto = annual_gross - annual_biaya_jabatan - annual_bpjs
     
     # Get PTKP value
-    ptkp = get_ptkp_value(tax_status, cfg)
+    ptkp = _get_ptkp_value(tax_status)
     
     # Calculate PKP
     pkp = max(0, annual_netto - ptkp)
     
     # Calculate annual tax
-    tax_brackets = get_tax_brackets(cfg)
-    annual_tax, tax_details = calculate_progressive_tax(pkp, tax_brackets)
+    annual_tax, tax_details = _calculate_progressive_tax(pkp)
     
     # Calculate correction (annual tax minus YTD tax paid)
     ytd_tax_paid = ytd.get("pph21", 0)
     correction = annual_tax - ytd_tax_paid
     
-    # Store values in salary slip
-    if hasattr(slip, "biaya_jabatan"):
-        slip.biaya_jabatan = annual_biaya_jabatan / 12  # Monthly value
-    if hasattr(slip, "netto"):
-        slip.netto = annual_netto / 12  # Monthly value
-    if hasattr(slip, "koreksi_pph21"):
-        slip.koreksi_pph21 = correction
+    # Update slip fields
+    monthly_biaya_jabatan = annual_biaya_jabatan / 12
+    monthly_netto = annual_netto / 12
+    
+    _update_slip_fields(slip, {
+        "biaya_jabatan": monthly_biaya_jabatan,
+        "netto": monthly_netto,
+        "koreksi_pph21": correction,
+        "pph21": correction  # December tax is the correction amount
+    })
     
     # Prepare result for reporting
     result = {
@@ -299,8 +323,9 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
         "annual_tax": annual_tax,
         "correction": correction,
         "tax_details": tax_details,
-        "is_december_override": is_dec_override
+        "is_december_override": getattr(slip, "is_december_override", 0)
     }
     
-    logger.debug(f"December PPh calculation for {getattr(slip, 'employee', '')}: {result}")
+    employee_id = getattr(slip, "employee", "unknown")
+    logger.debug(f"December PPh calculation for {employee_id}: {result}")
     return result
