@@ -360,3 +360,30 @@ def validate_npwp_format(npwp: str) -> bool:
     )
     
     return bool(re.match(npwp_format, npwp))
+
+def validate_bpjs_components():
+    """
+    Validasi bahwa semua komponen BPJS wajib (Employee dan Employer) sudah ada di sistem.
+    Raise error jika ada yang belum dibuat.
+    """
+    required_components = [
+        "BPJS Kesehatan Employee",
+        "BPJS Kesehatan Employer",
+        "BPJS JHT Employee",
+        "BPJS JHT Employer",
+        "BPJS JP Employee",
+        "BPJS JP Employer",
+        "BPJS JKK",
+        "BPJS JKM",
+    ]
+
+    missing = []
+    for comp in required_components:
+        if not frappe.db.exists("Salary Component", comp):
+            missing.append(comp)
+
+    if missing:
+        frappe.throw(
+            _("Komponen BPJS berikut belum dibuat: {0}").format(", ".join(missing)),
+            title="Validasi Komponen BPJS"
+        )
