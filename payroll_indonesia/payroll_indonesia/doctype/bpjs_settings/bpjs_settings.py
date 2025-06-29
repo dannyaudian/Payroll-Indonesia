@@ -1,34 +1,25 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-29 00:10:21 by dannyaudian
+# Last modified: 2025-06-29 03:44:29 by dannyaudian
 
 """
 BPJS Settings DocType controller.
 
-Handles validation and synchronization of BPJS (social security) settings
-using centralized validation and configuration management.
+Handles validation and setup of BPJS (social security) settings
+using configuration from defaults.json.
 """
 
-import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional, Union, Tuple
 
-import frappe
 from frappe import _
+import frappe
 from frappe.model.document import Document
-from frappe.utils import flt, now_datetime
 
-from payroll_indonesia.config.config import get_live_config
-from payroll_indonesia.frappe_helpers import safe_execute
-import payroll_indonesia.payroll_indonesia.validations as validations
+from payroll_indonesia.config import get_config as get_default_config
 from payroll_indonesia.payroll_indonesia.utils import (
-    create_parent_liability_account,
-    create_parent_expense_account,
-    retry_bpjs_mapping,
+    get_or_create_account, debug_log
 )
-
-# Configure logger
-logger = logging.getLogger("payroll_indonesia.bpjs")
 
 
 class BPJSSettings(Document):
@@ -37,370 +28,501 @@ class BPJSSettings(Document):
     
     Manages Indonesian social security contribution settings, account configuration,
     and synchronization with central configuration.
+    
+    Attributes:
+        kesehatan_employee_percent (float): Health insurance employee contribution rate
+        kesehatan_employer_percent (float): Health insurance employer contribution rate 
+        kesehatan_max_salary (float): Maximum salary for health insurance calculation
+        jht_employee_percent (float): Old age employee contribution rate
+        jht_employer_percent (float): Old age employer contribution rate
+        jp_employee_percent (float): Pension plan employee contribution rate
+        jp_employer_percent (float): Pension plan employer contribution rate
+        jp_max_salary (float): Maximum salary for pension calculation
+        jkk_percent (float): Work accident insurance employer contribution rate
+        jkm_percent (float): Death insurance employer contribution rate
     """
     
-    def validate(self):
+    def onload(self) -> None:
+        """Load additional data when document is loaded."""
+        self._sync_from_defaults()
+    
+    def validate(self) -> None:
         """
-        Validate BPJS settings using centralized validation logic.
+        Validate BPJS settings using rules from defaults.json.
         
-        Delegates to the validation module for all validation rules.
+        Raises:
+            frappe.ValidationError: If any percentage or salary threshold is invalid
         """
-        # Skip validation if explicitly ignored
-        if getattr(self, "flags", {}).get("ignore_validate"):
-            return
-            
         try:
-            # Delegate validation to central validation module
-            validations.validate_bpjs_settings(self)
-            
-            # Sync from Payroll Indonesia Settings if needed
-            self._sync_from_payroll_settings()
-            
-            logger.info(f"BPJS Settings validated successfully by {frappe.session.user}")
+            self._validate_percentages()
+            self._validate_salary_thresholds()
+            debug_log("BPJS Settings validated successfully", "BPJS Settings")
         except Exception as e:
-            logger.error(f"Error validating BPJS Settings: {str(e)}")
+            debug_log(f"Error validating BPJS Settings: {str(e)}", "BPJS Settings", trace=True)
             frappe.log_error(f"Error validating BPJS Settings: {str(e)}")
+            raise
     
-    def before_save(self):
+    def on_update(self) -> None:
         """
-        Optionally sync settings to defaults.json before saving.
+        Set up accounts and update related settings after saving.
         
-        Only runs if sync_to_defaults is enabled in configuration.
-        """
-        config = get_live_config()
-        sync_to_defaults = config.get("settings", {}).get("sync_to_defaults", False)
-        
-        if sync_to_defaults:
-            try:
-                validations.sync_bpjs_to_defaults(self)
-                logger.info("BPJS Settings synced to defaults.json")
-            except Exception as e:
-                logger.warning(f"Could not sync BPJS settings to defaults: {str(e)}")
-    
-    def on_update(self):
-        """
-        Update related documents when settings change.
-        
-        Ensures BPJS mappings exist for all companies and updates salary structures.
+        Creates/updates BPJS accounts for all companies based on defaults.json.
         """
         try:
-            # Update salary structure assignments if needed
-            self._update_salary_structures()
-
-            # Ensure all companies have BPJS mapping
-            self._ensure_bpjs_mapping_for_all_companies()
-
-            # Sync changes back to Payroll Indonesia Settings
-            self._sync_to_payroll_settings()
+            # Ensure accounts are created for all companies
+            self._setup_accounts_for_all_companies()
             
-            logger.info(f"BPJS Settings updated by {frappe.session.user}")
+            # Update dependent documents
+            self._update_salary_components()
+            
+            debug_log("BPJS Settings updated successfully", "BPJS Settings")
         except Exception as e:
-            logger.error(f"Error in BPJS Settings on_update: {str(e)}")
+            debug_log(f"Error in BPJS Settings on_update: {str(e)}", "BPJS Settings", trace=True)
             frappe.log_error(f"Error in BPJS Settings on_update: {str(e)}")
     
-    @safe_execute(log_exception=True)
-    def setup_accounts(self):
+    def _validate_percentages(self) -> None:
         """
-        Setup GL accounts for BPJS components for all companies.
+        Validate all percentage fields against configuration rules.
         
-        Creates standardized account structure for BPJS payments and expenses.
+        Raises:
+            frappe.ValidationError: If any percentage is outside allowed range
         """
-        # Get companies to process
-        default_company = frappe.defaults.get_defaults().get("company")
-        if not default_company:
-            companies = frappe.get_all("Company", pluck="name")
-            if not companies:
-                logger.warning("No companies found to setup BPJS accounts")
-                return
-        else:
-            companies = [default_company]
+        # Get validation rules from config
+        config = get_default_config()
+        percentage_ranges = config.get("bpjs_settings", {}).get(
+            "validation_rules", {}).get("percentage_ranges", [])
         
-        logger.info(f"Setting up BPJS accounts for companies: {', '.join(companies)}")
+        if not percentage_ranges:
+            debug_log("No percentage validation rules found in config", "BPJS Settings")
+            return
         
-        # Track results for summary
-        results = {"success": [], "failed": [], "skipped": []}
+        # Check each rule
+        for rule in percentage_ranges:
+            field = rule.get("field")
+            min_val = rule.get("min", 0)
+            max_val = rule.get("max", 100)
+            error_msg = rule.get("error_msg", f"{field} must be between {min_val} and {max_val}%")
+            
+            if hasattr(self, field):
+                value = float(self.get(field) or 0)
+                if value < min_val or value > max_val:
+                    frappe.throw(_(error_msg))
+    
+    def _validate_salary_thresholds(self) -> None:
+        """
+        Validate salary threshold fields against configuration rules.
         
-        # Get configuration
-        config = get_live_config()
+        Raises:
+            frappe.ValidationError: If any threshold is below minimum
+        """
+        # Get validation rules from config
+        config = get_default_config()
+        salary_thresholds = config.get("bpjs_settings", {}).get(
+            "validation_rules", {}).get("salary_thresholds", [])
         
-        # Process each company
+        if not salary_thresholds:
+            debug_log("No salary threshold validation rules found in config", "BPJS Settings")
+            return
+        
+        # Check each rule
+        for rule in salary_thresholds:
+            field = rule.get("field")
+            min_val = rule.get("min", 0)
+            error_msg = rule.get("error_msg", f"{field} must be greater than {min_val}")
+            
+            if hasattr(self, field):
+                value = float(self.get(field) or 0)
+                if value < min_val:
+                    frappe.throw(_(error_msg))
+    
+    def _sync_from_defaults(self) -> None:
+        """Load default values from defaults.json if document is new."""
+        if not self.is_new():
+            return
+            
+        config = get_default_config()
+        bpjs_config = config.get("bpjs", {})
+        
+        if not bpjs_config:
+            debug_log("No BPJS configuration found in defaults.json", "BPJS Settings")
+            return
+        
+        # Set default values from config
+        for field in [
+            "kesehatan_employee_percent",
+            "kesehatan_employer_percent",
+            "kesehatan_max_salary",
+            "jht_employee_percent", 
+            "jht_employer_percent",
+            "jp_employee_percent",
+            "jp_employer_percent",
+            "jp_max_salary",
+            "jkk_percent",
+            "jkm_percent"
+        ]:
+            if field in bpjs_config and hasattr(self, field):
+                self.set(field, bpjs_config.get(field))
+        
+        debug_log("Default BPJS values loaded from configuration", "BPJS Settings")
+    
+    def _setup_accounts_for_all_companies(self) -> None:
+        """Set up BPJS accounts for all active companies."""
+        # Get all active companies
+        companies = frappe.get_all("Company", pluck="name")
+        
+        if not companies:
+            debug_log("No companies found for BPJS account setup", "BPJS Settings")
+            return
+        
+        debug_log(f"Setting up BPJS accounts for {len(companies)} companies", "BPJS Settings")
+        
+        # Track results
+        results = {"success": [], "failed": []}
+        
+        # Set up accounts for each company
         for company in companies:
             try:
-                # Create parent accounts
-                liability_parent = create_parent_liability_account(company)
-                if not liability_parent:
-                    results["failed"].append(f"{company} (liability parent)")
-                    continue
+                liability_parent, expense_parent = self._ensure_parent_accounts(company)
+                
+                if liability_parent and expense_parent:
+                    # Create payable accounts
+                    self._create_bpjs_payable_accounts(company, liability_parent)
                     
-                expense_parent = create_parent_expense_account(company)
-                if not expense_parent:
-                    results["failed"].append(f"{company} (expense parent)")
-                    continue
-                
-                # Get account information from configuration
-                gl_accounts = config.get("gl_accounts", {})
-                
-                # Create BPJS mapping
-                mapping_result = self._create_bpjs_mapping(company)
-                if mapping_result:
+                    # Create expense accounts
+                    self._create_bpjs_expense_accounts(company, expense_parent)
+                    
                     results["success"].append(company)
                 else:
                     results["failed"].append(company)
             except Exception as e:
-                logger.error(f"Error setting up BPJS accounts for {company}: {str(e)}")
+                debug_log(
+                    f"Error setting up BPJS accounts for {company}: {str(e)}",
+                    "BPJS Settings",
+                    trace=True
+                )
                 results["failed"].append(company)
         
         # Log summary
         if results["success"]:
-            logger.info(f"BPJS accounts setup completed for: {', '.join(results['success'])}")
+            debug_log(
+                f"Successfully set up BPJS accounts for: {', '.join(results['success'])}",
+                "BPJS Settings"
+            )
+        
         if results["failed"]:
-            logger.error(f"BPJS accounts setup failed for: {', '.join(results['failed'])}")
+            debug_log(
+                f"Failed to set up BPJS accounts for: {', '.join(results['failed'])}",
+                "BPJS Settings"
+            )
     
-    @safe_execute(log_exception=True)
-    def _sync_from_payroll_settings(self):
-        """Load settings from Payroll Indonesia Settings if they exist."""
-        # Get central settings
-        config = get_live_config()
-        bpjs_config = config.get("bpjs", {})
-        
-        # Fields to sync from central config
-        fields = [
-            "kesehatan_employee_percent",
-            "kesehatan_employer_percent",
-            "kesehatan_max_salary",
-            "jht_employee_percent",
-            "jht_employer_percent",
-            "jp_employee_percent",
-            "jp_employer_percent",
-            "jp_max_salary",
-            "jkk_percent",
-            "jkm_percent",
-        ]
-        
-        # Only sync if this is a new document
-        if self.is_new():
-            for field in fields:
-                if hasattr(self, field) and field in bpjs_config:
-                    self.set(field, bpjs_config.get(field))
-            logger.info("BPJS Settings loaded from central configuration")
-    
-    @safe_execute(log_exception=True)
-    def _sync_to_payroll_settings(self):
-        """Sync changes to Payroll Indonesia Settings."""
-        if not frappe.db.exists("DocType", "Payroll Indonesia Settings"):
-            return
-            
-        # Get Payroll Indonesia Settings
-        pi_settings = frappe.get_doc("Payroll Indonesia Settings", "Payroll Indonesia Settings")
-        
-        # Fields to sync
-        fields = [
-            "kesehatan_employee_percent",
-            "kesehatan_employer_percent",
-            "kesehatan_max_salary",
-            "jht_employee_percent",
-            "jht_employer_percent",
-            "jp_employee_percent",
-            "jp_employer_percent",
-            "jp_max_salary",
-            "jkk_percent",
-            "jkm_percent",
-        ]
-        
-        # Check which fields need updating
-        needs_update = False
-        for field in fields:
-            if hasattr(pi_settings, field) and hasattr(self, field):
-                if pi_settings.get(field) != self.get(field):
-                    pi_settings.set(field, self.get(field))
-                    needs_update = True
-        
-        # Save if changes were made
-        if needs_update:
-            pi_settings.app_last_updated = now_datetime()
-            pi_settings.app_updated_by = frappe.session.user
-            pi_settings.flags.ignore_validate = True
-            pi_settings.save(ignore_permissions=True)
-            logger.info("Payroll Indonesia Settings updated from BPJS Settings")
-    
-    @safe_execute(log_exception=True)
-    def _create_bpjs_mapping(self, company: str) -> Optional[str]:
+    def _ensure_parent_accounts(self, company: str) -> Tuple[Optional[str], Optional[str]]:
         """
-        Create BPJS mapping for company.
+        Create or get parent accounts for BPJS.
         
         Args:
             company: Company name
             
         Returns:
-            str: Mapping name if created, None otherwise
+            tuple: (liability_parent_account, expense_parent_account)
         """
-        # Check if mapping already exists
-        existing_mapping = frappe.db.exists("BPJS Account Mapping", {"company": company})
-        if existing_mapping:
-            logger.info(f"BPJS Account Mapping already exists for {company}: {existing_mapping}")
-            return existing_mapping
+        # Create liability parent
+        liability_parent = get_or_create_account(
+            company=company,
+            account_name="BPJS Liabilities",
+            account_type="Tax",
+            is_group=1,
+            root_type="Liability"
+        )
         
-        # Import create_default_mapping function
-        try:
-            module_path = "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping"
-            module = frappe.get_module(module_path)
-            create_default_mapping = getattr(module, "create_default_mapping", None)
-            
-            if not create_default_mapping:
-                logger.error("create_default_mapping function not found")
-                return None
-            
-            # Get account mapping from configuration
-            config = get_live_config()
-            account_mapping = config.get("gl_accounts", {}).get("bpjs_account_mapping", {})
-            
-            # Create mapping
-            logger.info(f"Creating new BPJS Account Mapping for {company}")
-            mapping_name = create_default_mapping(company, account_mapping)
-            
-            if mapping_name:
-                logger.info(f"Created BPJS mapping: {mapping_name} for {company}")
-                return mapping_name
-            else:
-                logger.warning(f"Failed to create BPJS mapping for {company}")
-                return None
-        except Exception as e:
-            logger.error(f"Error creating BPJS mapping for {company}: {str(e)}")
-            return None
+        if not liability_parent:
+            debug_log(f"Failed to create BPJS liability parent for {company}", "BPJS Settings")
+        
+        # Create expense parent
+        expense_parent = get_or_create_account(
+            company=company,
+            account_name="BPJS Expenses",
+            account_type="Expense Account",
+            is_group=1,
+            root_type="Expense"
+        )
+        
+        if not expense_parent:
+            debug_log(f"Failed to create BPJS expense parent for {company}", "BPJS Settings")
+        
+        return liability_parent, expense_parent
     
-    @safe_execute(log_exception=True)
-    def _update_salary_structures(self):
+    def _create_bpjs_payable_accounts(self, company: str, parent: str) -> List[str]:
         """
-        Update BPJS components in active salary structures.
+        Create BPJS payable accounts from configuration.
         
-        Updates salary structures with current BPJS percentages.
+        Args:
+            company: Company name
+            parent: Parent account name
+            
+        Returns:
+            list: Created account names
         """
-        # Find active salary structures
+        config = get_default_config()
+        payable_accounts = config.get("gl_accounts", {}).get("bpjs_payable_accounts", {})
+        
+        if not payable_accounts:
+            debug_log("No BPJS payable accounts defined in configuration", "BPJS Settings")
+            return []
+        
+        created_accounts = []
+        
+        for key, account_data in payable_accounts.items():
+            try:
+                account_name = account_data.get("account_name")
+                account_type = account_data.get("account_type", "Payable")
+                root_type = account_data.get("root_type", "Liability")
+                
+                if not account_name:
+                    continue
+                
+                account = get_or_create_account(
+                    company=company,
+                    account_name=account_name,
+                    account_type=account_type,
+                    is_group=0,
+                    root_type=root_type
+                )
+                
+                if account:
+                    created_accounts.append(account)
+                    debug_log(f"Created BPJS payable account: {account}", "BPJS Settings")
+            except Exception as e:
+                debug_log(
+                    f"Error creating BPJS payable account {account_data.get('account_name')}: {str(e)}",
+                    "BPJS Settings",
+                    trace=True
+                )
+        
+        return created_accounts
+    
+    def _create_bpjs_expense_accounts(self, company: str, parent: str) -> List[str]:
+        """
+        Create BPJS expense accounts from configuration.
+        
+        Args:
+            company: Company name
+            parent: Parent account name
+            
+        Returns:
+            list: Created account names
+        """
+        config = get_default_config()
+        expense_accounts = config.get("gl_accounts", {}).get("bpjs_expense_accounts", {})
+        
+        if not expense_accounts:
+            debug_log("No BPJS expense accounts defined in configuration", "BPJS Settings")
+            return []
+        
+        created_accounts = []
+        
+        for key, account_data in expense_accounts.items():
+            try:
+                account_name = account_data.get("account_name")
+                account_type = account_data.get("account_type", "Expense Account")
+                root_type = account_data.get("root_type", "Expense")
+                
+                if not account_name:
+                    continue
+                
+                account = get_or_create_account(
+                    company=company,
+                    account_name=account_name,
+                    account_type=account_type,
+                    is_group=0,
+                    root_type=root_type
+                )
+                
+                if account:
+                    created_accounts.append(account)
+                    debug_log(f"Created BPJS expense account: {account}", "BPJS Settings")
+            except Exception as e:
+                debug_log(
+                    f"Error creating BPJS expense account {account_data.get('account_name')}: {str(e)}",
+                    "BPJS Settings",
+                    trace=True
+                )
+        
+        return created_accounts
+    
+    def _update_salary_components(self) -> None:
+        """Update BPJS components in active salary structures."""
+        # Get component map from configuration
+        config = get_default_config()
+        component_map = config.get("bpjs_settings", {}).get("bpjs_components", {})
+        
+        if not component_map:
+            debug_log("No BPJS component mapping found in configuration", "BPJS Settings")
+            return
+        
+        # Get active salary structures
         salary_structures = frappe.get_all(
             "Salary Structure",
-            filters={"is_active": "Yes", "docstatus": 0},  # Only draft structures
-            fields=["name"],
+            filters={"is_active": "Yes", "docstatus": 1},
+            fields=["name"]
         )
         
         if not salary_structures:
-            logger.info("No active draft salary structures found to update")
+            debug_log("No active salary structures found", "BPJS Settings")
             return
         
-        # Get component map from configuration
-        config = get_live_config()
-        component_map = config.get("bpjs_settings", {}).get("bpjs_components", {})
-        
-        # Fallback to direct mapping if not configured
-        if not component_map:
-            component_map = {
-                "BPJS Kesehatan Employee": "kesehatan_employee_percent",
-                "BPJS Kesehatan Employer": "kesehatan_employer_percent",
-                "BPJS JHT Employee": "jht_employee_percent",
-                "BPJS JHT Employer": "jht_employer_percent",
-                "BPJS JP Employee": "jp_employee_percent",
-                "BPJS JP Employer": "jp_employer_percent",
-                "BPJS JKK": "jkk_percent",
-                "BPJS JKM": "jkm_percent",
-            }
-        
-        # Build components to update
-        bpjs_components = {}
-        for component_name, field_name in component_map.items():
-            if hasattr(self, field_name):
-                bpjs_components[component_name] = self.get(field_name)
-        
-        # Track statistics
         updated_count = 0
         
-        # Update each salary structure
+        # For each structure, find and update BPJS components
         for structure in salary_structures:
             try:
                 ss = frappe.get_doc("Salary Structure", structure.name)
-                changes_made = False
                 
-                # Update components in both earnings and deductions
-                for table_name in ["earnings", "deductions"]:
-                    if not hasattr(ss, table_name):
+                # Check earnings and deductions for BPJS components
+                for component_list in ["earnings", "deductions"]:
+                    if not hasattr(ss, component_list):
                         continue
-                        
-                    for detail in getattr(ss, table_name):
-                        if detail.salary_component in bpjs_components:
-                            # Skip if uses formula
-                            if detail.amount_based_on_formula and detail.formula:
-                                continue
-                                
-                            # Update amount if needed
-                            new_amount = bpjs_components[detail.salary_component]
-                            if flt(detail.amount) != flt(new_amount):
-                                detail.amount = new_amount
-                                changes_made = True
+                    
+                    for component in getattr(ss, component_list):
+                        if component.salary_component in component_map:
+                            # Get corresponding field from component map
+                            field_name = component_map[component.salary_component]
+                            
+                            # Update formula or amount if component found
+                            if hasattr(self, field_name):
+                                # Only update if not using formula
+                                if not component.amount_based_on_formula:
+                                    component.amount = self.get(field_name)
+                                    updated_count += 1
                 
                 # Save if changes were made
-                if changes_made:
+                if updated_count > 0:
                     ss.flags.ignore_validate = True
                     ss.save(ignore_permissions=True)
-                    updated_count += 1
             except Exception as e:
-                logger.error(f"Error updating salary structure {structure.name}: {str(e)}")
+                debug_log(
+                    f"Error updating salary structure {structure.name}: {str(e)}",
+                    "BPJS Settings",
+                    trace=True
+                )
         
         if updated_count > 0:
-            logger.info(f"Updated {updated_count} salary structures with BPJS rates")
-    
-    @safe_execute(log_exception=True)
-    def _ensure_bpjs_mapping_for_all_companies(self):
-        """Ensure all companies have BPJS mapping."""
-        companies = frappe.get_all("Company", pluck="name")
-        failed_companies = []
-        
-        for company in companies:
-            # Check if mapping exists
-            if not frappe.db.exists("BPJS Account Mapping", {"company": company}):
-                mapping_name = self._create_bpjs_mapping(company)
-                if not mapping_name:
-                    failed_companies.append(company)
-        
-        # Schedule retry for failed companies
-        if failed_companies:
-            logger.info(f"Scheduling retry for BPJS mapping: {', '.join(failed_companies)}")
-            frappe.enqueue(
-                method="payroll_indonesia.payroll_indonesia.utils.retry_bpjs_mapping",
-                companies=failed_companies,
-                queue="long",
-                timeout=1500,
+            debug_log(
+                f"Updated {updated_count} BPJS components in salary structures",
+                "BPJS Settings"
             )
+
+
+def setup_bpjs_settings() -> bool:
+    """
+    Create default BPJS Settings if they don't exist.
     
-    @frappe.whitelist()
-    def export_settings(self) -> Dict[str, Any]:
-        """
-        Export BPJS settings for import in other instances.
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        if frappe.db.exists("BPJS Settings", "BPJS Settings"):
+            debug_log("BPJS Settings already exist", "BPJS Settings")
+            return True
         
-        Returns:
-            dict: Dictionary of exportable settings
-        """
-        # Get fields to export from configuration
-        config = get_live_config()
-        export_fields = config.get("bpjs_settings", {}).get("export_fields", [
+        # Get default values from config
+        config = get_default_config()
+        bpjs_config = config.get("bpjs", {})
+        
+        if not bpjs_config:
+            debug_log("No BPJS configuration found in defaults.json", "BPJS Settings")
+            return False
+        
+        # Create new settings
+        bpjs_settings = frappe.new_doc("BPJS Settings")
+        
+        # Set basic fields
+        for field in [
             "kesehatan_employee_percent",
             "kesehatan_employer_percent",
             "kesehatan_max_salary",
-            "jht_employee_percent",
+            "jht_employee_percent", 
             "jht_employer_percent",
             "jp_employee_percent",
             "jp_employer_percent",
             "jp_max_salary",
             "jkk_percent",
-            "jkm_percent",
-        ])
+            "jkm_percent"
+        ]:
+            if field in bpjs_config:
+                bpjs_settings.set(field, bpjs_config.get(field))
         
-        # Build export data
-        result = {
-            "export_date": now_datetime().strftime("%Y-%m-%d %H:%M:%S"),
-            "export_user": frappe.session.user,
-            "settings": {},
-        }
+        # Save settings
+        bpjs_settings.flags.ignore_validate = True
+        bpjs_settings.insert(ignore_permissions=True)
         
-        for field in export_fields:
-            if hasattr(self, field):
-                result["settings"][field] = flt(self.get(field))
+        # Create accounts for all companies
+        bpjs_settings._setup_accounts_for_all_companies()
         
-        return result
+        debug_log("BPJS Settings created successfully", "BPJS Settings")
+        return True
+    except Exception as e:
+        debug_log(f"Error setting up BPJS Settings: {str(e)}", "BPJS Settings", trace=True)
+        frappe.log_error(f"Error setting up BPJS Settings: {str(e)}")
+        return False
+
+
+def update_bpjs_settings() -> bool:
+    """
+    Update BPJS Settings from defaults.json.
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        if not frappe.db.exists("BPJS Settings", "BPJS Settings"):
+            return setup_bpjs_settings()
+        
+        # Get BPJS Settings
+        bpjs_settings = frappe.get_doc("BPJS Settings", "BPJS Settings")
+        
+        # Get default values from config
+        config = get_default_config()
+        bpjs_config = config.get("bpjs", {})
+        
+        if not bpjs_config:
+            debug_log("No BPJS configuration found in defaults.json", "BPJS Settings")
+            return False
+        
+        # Track if any changes were made
+        changes_made = False
+        
+        # Update fields
+        for field in [
+            "kesehatan_employee_percent",
+            "kesehatan_employer_percent",
+            "kesehatan_max_salary",
+            "jht_employee_percent", 
+            "jht_employer_percent",
+            "jp_employee_percent",
+            "jp_employer_percent",
+            "jp_max_salary",
+            "jkk_percent",
+            "jkm_percent"
+        ]:
+            if field in bpjs_config and hasattr(bpjs_settings, field):
+                current_value = float(bpjs_settings.get(field) or 0)
+                new_value = float(bpjs_config.get(field) or 0)
+                
+                # Only update if values differ
+                if abs(current_value - new_value) > 0.001:  # Compare with small epsilon
+                    bpjs_settings.set(field, new_value)
+                    changes_made = True
+        
+        # Save if changes were made
+        if changes_made:
+            bpjs_settings.flags.ignore_validate = True
+            bpjs_settings.save(ignore_permissions=True)
+            debug_log("BPJS Settings updated from defaults.json", "BPJS Settings")
+        else:
+            debug_log("BPJS Settings already match defaults.json", "BPJS Settings")
+        
+        return True
+    except Exception as e:
+        debug_log(f"Error updating BPJS Settings: {str(e)}", "BPJS Settings", trace=True)
+        frappe.log_error(f"Error updating BPJS Settings: {str(e)}")
+        return False
