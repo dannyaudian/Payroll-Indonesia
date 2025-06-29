@@ -393,3 +393,246 @@ def validate_pph21_settings(doc) -> None:
                   "Please define rates before using this method."),
                 indicator="orange"
             )
+
+# Add these functions to the existing validations.py file
+
+@safe_execute(log_exception=True)
+def validate_bpjs_settings(doc) -> None:
+    """
+    Validate BPJS Settings document.
+    
+    Args:
+        doc: BPJS Settings document
+    """
+    logger.info("Validating BPJS Settings")
+    
+    # Get validation rules from config
+    config = get_live_config()
+    bpjs_config = config.get("bpjs", {})
+    validation_rules = bpjs_config.get("validation_rules", {})
+    
+    # Validate percentage fields
+    _validate_bpjs_percentages(doc, validation_rules)
+    
+    # Validate maximum salary thresholds
+    _validate_bpjs_max_salary(doc, validation_rules)
+    
+    # Validate account types if specified
+    _validate_bpjs_account_types(doc)
+    
+    logger.info("BPJS Settings validation completed successfully")
+
+
+def _validate_bpjs_percentages(doc, validation_rules: Dict[str, Any]) -> None:
+    """
+    Validate BPJS percentage ranges using rules from configuration.
+    
+    Args:
+        doc: BPJS Settings document
+        validation_rules: Validation rules from configuration
+    """
+    percentage_rules = validation_rules.get("percentage_ranges", [])
+    
+    # If no rules defined, use default critical fields
+    if not percentage_rules:
+        percentage_rules = [
+            {
+                "field": "kesehatan_employee_percent",
+                "min": 0,
+                "max": 5,
+                "error_msg": "BPJS Kesehatan employee percentage must be between 0% and 5%"
+            },
+            {
+                "field": "kesehatan_employer_percent",
+                "min": 0,
+                "max": 10,
+                "error_msg": "BPJS Kesehatan employer percentage must be between 0% and 10%"
+            },
+            {
+                "field": "jht_employee_percent",
+                "min": 0,
+                "max": 5,
+                "error_msg": "JHT employee percentage must be between 0% and 5%"
+            },
+            {
+                "field": "jht_employer_percent",
+                "min": 0,
+                "max": 10,
+                "error_msg": "JHT employer percentage must be between 0% and 10%"
+            }
+        ]
+    
+    # Validate each field according to rules
+    for rule in percentage_rules:
+        field = rule.get("field")
+        min_val = rule.get("min", 0)
+        max_val = rule.get("max", 100)
+        error_msg = rule.get("error_msg", f"{field} must be between {min_val}% and {max_val}%")
+        
+        if hasattr(doc, field):
+            value = flt(doc.get(field))
+            if value < min_val or value > max_val:
+                logger.warning(
+                    f"BPJS validation failed: {field}={value} not in range {min_val}-{max_val}"
+                )
+                frappe.throw(_(error_msg))
+
+
+def _validate_bpjs_max_salary(doc, validation_rules: Dict[str, Any]) -> None:
+    """
+    Validate BPJS maximum salary thresholds.
+    
+    Args:
+        doc: BPJS Settings document
+        validation_rules: Validation rules from configuration
+    """
+    salary_rules = validation_rules.get("salary_thresholds", [])
+    
+    # If no rules defined, use default critical fields
+    if not salary_rules:
+        salary_rules = [
+            {
+                "field": "kesehatan_max_salary",
+                "min": 1000000,
+                "error_msg": "BPJS Kesehatan maximum salary must be at least Rp 1.000.000"
+            },
+            {
+                "field": "jp_max_salary",
+                "min": 1000000,
+                "error_msg": "JP maximum salary must be at least Rp 1.000.000"
+            }
+        ]
+    
+    # Validate each field according to rules
+    for rule in salary_rules:
+        field = rule.get("field")
+        min_val = rule.get("min", 0)
+        error_msg = rule.get("error_msg", f"{field} must be greater than {min_val}")
+        
+        if hasattr(doc, field):
+            value = flt(doc.get(field))
+            if value < min_val:
+                logger.warning(f"BPJS validation failed: {field}={value} below minimum {min_val}")
+                frappe.throw(_(error_msg))
+
+
+def _validate_bpjs_account_types(doc) -> None:
+    """
+    Validate that BPJS accounts are of the correct type.
+    
+    Args:
+        doc: BPJS Settings document
+    """
+    # Get account fields from configuration
+    config = get_live_config()
+    account_fields = config.get("bpjs_settings", {}).get("account_fields", [])
+    
+    # If no fields defined, use defaults
+    if not account_fields:
+        account_fields = [
+            "kesehatan_account",
+            "jht_account",
+            "jp_account",
+            "jkk_account",
+            "jkm_account",
+        ]
+    
+    # Validate each account
+    for field in account_fields:
+        if not hasattr(doc, field) or not doc.get(field):
+            continue
+            
+        account = doc.get(field)
+        account_data = frappe.db.get_value(
+            "Account",
+            account,
+            ["account_type", "root_type", "company", "is_group"],
+            as_dict=1
+        )
+        
+        if not account_data:
+            logger.warning(f"Account {account} does not exist")
+            frappe.throw(_("Account {0} does not exist").format(account))
+            
+        if account_data.root_type != "Liability" or (
+            account_data.account_type not in ["Payable", "Liability"]
+        ):
+            logger.warning(
+                f"Account {account} has wrong type: root={account_data.root_type}, "
+                f"type={account_data.account_type}"
+            )
+            frappe.throw(
+                _("Account {0} must be of type 'Payable' or a Liability account").format(account)
+            )
+
+
+@safe_execute(log_exception=True)
+def sync_bpjs_to_defaults(doc) -> None:
+    """
+    Sync BPJS settings to defaults.json configuration.
+    
+    Args:
+        doc: BPJS Settings document
+    """
+    try:
+        import os
+        import json
+        from pathlib import Path
+        
+        # Get app path
+        app_path = frappe.get_app_path("payroll_indonesia")
+        config_path = Path(app_path) / "config"
+        defaults_file = config_path / "defaults.json"
+        
+        # Ensure config directory exists
+        if not config_path.exists():
+            os.makedirs(config_path)
+        
+        # Read existing defaults if file exists
+        if defaults_file.exists():
+            with open(defaults_file, "r") as f:
+                defaults = json.load(f)
+        else:
+            defaults = {}
+        
+        # Ensure bpjs section exists
+        if "bpjs" not in defaults:
+            defaults["bpjs"] = {}
+        
+        # Update BPJS settings
+        bpjs_fields = [
+            "kesehatan_employee_percent",
+            "kesehatan_employer_percent",
+            "kesehatan_max_salary",
+            "jht_employee_percent",
+            "jht_employer_percent",
+            "jp_employee_percent",
+            "jp_employer_percent",
+            "jp_max_salary",
+            "jkk_percent",
+            "jkm_percent",
+        ]
+        
+        for field in bpjs_fields:
+            if hasattr(doc, field):
+                defaults["bpjs"][field] = flt(doc.get(field))
+        
+        # Add app info
+        defaults["app_info"] = {
+            "version": getattr(doc, "app_version", "1.0.0"),
+            "last_updated": str(now_datetime()),
+            "updated_by": frappe.session.user
+        }
+        
+        # Write updated defaults to file
+        with open(defaults_file, "w") as f:
+            json.dump(defaults, f, indent=2)
+            
+        logger.info(f"BPJS settings synced to defaults.json by {frappe.session.user}")
+        
+    except Exception as e:
+        logger.error(f"Error syncing BPJS settings to defaults.json: {str(e)}")
+        frappe.log_error(
+            f"Error syncing BPJS settings to defaults.json: {str(e)}",
+            "BPJS Settings Sync Error"
+        )
