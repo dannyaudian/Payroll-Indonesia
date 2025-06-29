@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-29 02:05:31 by dannyaudian
+# Last modified: 2025-06-29 02:31:10 by dannyaudian
 
 """
-TER calculator module - PPh 21 with Tarif Efektif Rata-rata.
+TER calculator module - kalkulator TER.
 """
 
 import logging
-from typing import Any, Dict, Optional, Union, cast, TYPE_CHECKING
+from typing import Any, Dict, Optional, Union, Tuple, TYPE_CHECKING
+from functools import lru_cache
 
 from payroll_indonesia.config import get_live_config
 from payroll_indonesia.constants import (
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("ter_calc")
 
 
+@lru_cache(maxsize=128)
 def get_ter_category(ptkp_code: str) -> str:
     """
     Map PTKP status to TER category based on PMK 168/2023.
@@ -57,29 +59,34 @@ def get_ter_category(ptkp_code: str) -> str:
         return TER_CATEGORY_C
     
     # Default to highest category
+    logger.warning(f"Unknown PTKP code '{ptkp_code}', defaulting to TER C")
     return TER_CATEGORY_C
 
 
-def get_ter_rate(ter_category: str, taxable_income: float) -> float:
+@lru_cache(maxsize=128)
+def get_ter_rate(ptkp_code: str, taxable_income: float) -> float:
     """
-    Get TER rate based on category and income.
+    Get TER rate based on PTKP code and income.
     
     Args:
-        ter_category: TER category (TER A, TER B, or TER C)
+        ptkp_code: Tax status code (TK0, K1, etc.)
         taxable_income: Monthly taxable income
         
     Returns:
         float: TER rate as decimal (e.g., 0.05 for 5%)
     """
+    ter_category = get_ter_category(ptkp_code)
     cfg = get_live_config()
+    
+    # Get rates from config
     ter_rates = cfg.get("ter_rates", {}).get(ter_category, [])
     
     # If rates exist in configuration, find the appropriate one
     if ter_rates:
         # Sort rates by income_from (descending)
         sorted_rates = sorted(
-            ter_rates, 
-            key=lambda x: float(x.get("income_from", 0)), 
+            ter_rates,
+            key=lambda x: float(x.get("income_from", 0)),
             reverse=True
         )
         
@@ -92,7 +99,12 @@ def get_ter_rate(ter_category: str, taxable_income: float) -> float:
             if taxable_income >= income_from and (
                 is_highest or income_to == 0 or taxable_income < income_to
             ):
-                return float(rate_data.get("rate", 0)) / 100.0
+                rate = float(rate_data.get("rate", 0)) / 100.0
+                logger.debug(
+                    f"Found TER rate {rate*100}% for category {ter_category}, "
+                    f"income {taxable_income}"
+                )
+                return rate
     
     # Default rates if not in configuration
     default_rates = {
@@ -101,86 +113,38 @@ def get_ter_rate(ter_category: str, taxable_income: float) -> float:
         TER_CATEGORY_C: 0.15   # 15%
     }
     
-    return default_rates.get(ter_category, 0.15)
+    rate = default_rates.get(ter_category, 0.15)
+    logger.warning(
+        f"No matching TER rate found in config for category {ter_category}, "
+        f"income {taxable_income}. Using default: {rate*100}%"
+    )
+    return rate
 
 
-def calculate_monthly_pph_with_ter(slip: Any) -> Dict[str, Any]:
-    """
-    Calculate PPh 21 using TER method as per PMK 168/2023.
-    
-    Args:
-        slip: Salary slip document
-        
-    Returns:
-        dict: Calculation results
-    """
-    # Get tax status and ensure it exists
+def _get_tax_status(slip: Any) -> str:
+    """Extract tax status from employee document."""
     employee = getattr(slip, "employee_doc", None)
     tax_status = "TK0"  # Default
+    
     if employee and hasattr(employee, "status_pajak") and employee.status_pajak:
         tax_status = employee.status_pajak
     
-    # Get gross pay
-    gross_pay = float(getattr(slip, "gross_pay", 0))
-    
-    # Detect annual values and adjust if needed
-    if should_adjust_annual_value(slip, gross_pay):
-        gross_pay = adjust_annual_to_monthly(gross_pay)
-        logger.info(f"Adjusted annual value to monthly: {gross_pay}")
-    
-    # Calculate annual taxable income
-    annual_taxable_income = gross_pay * MONTHS_PER_YEAR
-    
-    # Determine TER category
-    ter_category = get_ter_category(tax_status)
-    
-    # Get TER rate
-    ter_rate = get_ter_rate(ter_category, gross_pay)
-    
-    # Calculate monthly tax
-    monthly_tax = gross_pay * ter_rate
-    
-    # Store values in salary slip
-    if hasattr(slip, "monthly_gross_for_ter"):
-        slip.monthly_gross_for_ter = gross_pay
-    if hasattr(slip, "annual_taxable_income"):
-        slip.annual_taxable_income = annual_taxable_income
-    if hasattr(slip, "ter_category"):
-        slip.ter_category = ter_category
-    if hasattr(slip, "ter_rate"):
-        slip.ter_rate = ter_rate * 100  # Store as percentage
-    if hasattr(slip, "is_using_ter"):
-        slip.is_using_ter = 1
-    
-    # Prepare result for reporting
-    result = {
-        "tax_method": "TER",
-        "tax_status": tax_status,
-        "ter_category": ter_category,
-        "gross_pay": gross_pay,
-        "annual_taxable_income": annual_taxable_income,
-        "ter_rate": ter_rate,
-        "monthly_tax": monthly_tax
-    }
-    
-    logger.debug(f"TER calculation for {getattr(slip, 'employee', '')}: {result}")
-    return result
+    return tax_status
 
 
-def should_adjust_annual_value(slip: Any, gross_pay: float) -> bool:
+def _get_gross_pay(slip: Any) -> Tuple[float, bool]:
     """
-    Detect if gross_pay is likely an annual value that needs adjustment.
+    Extract gross pay from salary slip and detect if adjustment is needed.
     
-    Args:
-        slip: Salary slip document
-        gross_pay: Gross pay amount
-        
     Returns:
-        bool: True if value is likely annual
+        Tuple of (gross_pay, needs_adjustment)
     """
+    gross_pay = float(getattr(slip, "gross_pay", 0))
+    needs_adjustment = False
+    
     # Check if bypass flag is set
     if hasattr(slip, "bypass_annual_detection") and slip.bypass_annual_detection:
-        return False
+        return gross_pay, needs_adjustment
     
     # Get total earnings
     total_earnings = 0
@@ -197,24 +161,83 @@ def should_adjust_annual_value(slip: Any, gross_pay: float) -> bool:
                 basic_salary = float(getattr(e, "amount", 0))
                 break
     
-    # Check conditions
+    # Check conditions for annual value
     if total_earnings > 0 and gross_pay > total_earnings * 3:
-        return True
+        needs_adjustment = True
+    elif basic_salary > 0 and gross_pay > basic_salary * 10:
+        needs_adjustment = True
     
-    if basic_salary > 0 and gross_pay > basic_salary * 10:
-        return True
-    
-    return False
+    return gross_pay, needs_adjustment
 
 
-def adjust_annual_to_monthly(annual_value: float) -> float:
+def _adjust_annual_to_monthly(annual_value: float) -> float:
+    """Convert annual value to monthly."""
+    return annual_value / MONTHS_PER_YEAR
+
+
+def _update_slip_fields(slip: Any, values: Dict[str, Any]) -> None:
+    """Update salary slip fields with calculated values."""
+    for field, value in values.items():
+        if hasattr(slip, field):
+            setattr(slip, field, value)
+
+
+def calculate_monthly_pph_with_ter(slip: Any) -> Dict[str, Any]:
     """
-    Convert annual value to monthly.
+    Calculate PPh 21 using TER method as per PMK 168/2023.
     
     Args:
-        annual_value: Annual value
+        slip: Salary slip document
         
     Returns:
-        float: Monthly value
+        dict: Calculation results
     """
-    return annual_value / MONTHS_PER_YEAR
+    # Get tax status
+    tax_status = _get_tax_status(slip)
+    
+    # Get gross pay and detect if adjustment needed
+    gross_pay, needs_adjustment = _get_gross_pay(slip)
+    
+    # Adjust if needed (likely annual value)
+    if needs_adjustment:
+        original_gross = gross_pay
+        gross_pay = _adjust_annual_to_monthly(gross_pay)
+        logger.info(
+            f"Adjusted gross pay from {original_gross} to {gross_pay} "
+            f"for employee {getattr(slip, 'employee', 'unknown')}"
+        )
+    
+    # Calculate annual taxable income
+    annual_taxable_income = gross_pay * MONTHS_PER_YEAR
+    
+    # Get TER rate based on tax status and income
+    ter_rate = get_ter_rate(tax_status, gross_pay)
+    
+    # Calculate monthly tax
+    monthly_tax = gross_pay * ter_rate
+    
+    # Store values in salary slip
+    _update_slip_fields(slip, {
+        "monthly_gross_for_ter": gross_pay,
+        "annual_taxable_income": annual_taxable_income,
+        "ter_category": get_ter_category(tax_status),
+        "ter_rate": ter_rate * 100,  # Store as percentage
+        "is_using_ter": 1,
+        "pph21": monthly_tax  # Set calculated tax
+    })
+    
+    # Prepare result for reporting
+    result = {
+        "tax_method": "TER",
+        "tax_status": tax_status,
+        "ter_category": get_ter_category(tax_status),
+        "gross_pay": gross_pay,
+        "annual_taxable_income": annual_taxable_income,
+        "ter_rate": ter_rate,
+        "monthly_tax": monthly_tax,
+        "adjusted_from_annual": needs_adjustment
+    }
+    
+    employee_id = getattr(slip, "employee", "unknown")
+    logger.debug(f"TER calculation for {employee_id}: {result}")
+    return result
