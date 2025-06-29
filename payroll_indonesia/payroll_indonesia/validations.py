@@ -1,10 +1,17 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-28 23:52:11 by dannyaudian
+# Last modified: 2025-06-29 00:41:14 by dannyaudian
+
+"""
+Centralized validation functions for Payroll Indonesia.
+
+This module provides validation functions for various document types,
+ensuring consistent rule enforcement throughout the application.
+"""
 
 import logging
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional, Union, Tuple
 
 import frappe
 from frappe import _
@@ -15,386 +22,6 @@ from payroll_indonesia.frappe_helpers import safe_execute
 # Configure logger
 logger = logging.getLogger(__name__)
 
-
-@frappe.whitelist()
-@safe_execute(log_exception=True)
-def validate_employee_golongan(jabatan: str, golongan: str) -> None:
-    """
-    Validate that employee's golongan level does not exceed the maximum allowed for jabatan.
-
-    Args:
-        jabatan: The jabatan (position) code
-        golongan: The golongan (grade) code
-
-    Raises:
-        frappe.ValidationError: If golongan level exceeds maximum allowed level
-    """
-    if not jabatan:
-        frappe.throw(_("Jabatan is required"))
-
-    if not golongan:
-        frappe.throw(_("Golongan is required"))
-
-    # Get validation rules from config
-    config = get_live_config()
-    validation_rules = config.get("validation_rules", {})
-    
-    # Log the validation attempt
-    logger.info(f"Validating golongan '{golongan}' for jabatan '{jabatan}'")
-
-    max_golongan = frappe.db.get_value("Jabatan", jabatan, "max_golongan")
-    if not max_golongan:
-        logger.warning(f"Maximum Golongan not set for Jabatan {jabatan}")
-        frappe.throw(_("Maximum Golongan not set for Jabatan {0}").format(jabatan))
-
-    max_level = frappe.db.get_value("Golongan", max_golongan, "level")
-    if not max_level:
-        logger.warning(f"Level not set for Golongan {max_golongan}")
-        frappe.throw(_("Level not set for Golongan {0}").format(max_golongan))
-
-    current_level = frappe.db.get_value("Golongan", golongan, "level")
-    if not current_level:
-        logger.warning(f"Level not set for Golongan {golongan}")
-        frappe.throw(_("Level not set for Golongan {0}").format(golongan))
-
-    # Check if enforcing max level is enabled in config
-    enforce_max_level = validation_rules.get("enforce_golongan_max_level", True)
-    
-    if current_level > max_level and enforce_max_level:
-        logger.warning(
-            f"Golongan validation failed: level {current_level} exceeds max {max_level} "
-            f"for jabatan '{jabatan}'"
-        )
-        frappe.throw(
-            _(
-                "Employee's Golongan level ({0}) cannot be higher than "
-                "the maximum allowed level ({1}) for the selected Jabatan"
-            ).format(current_level, max_level)
-        )
-    elif current_level > max_level and not enforce_max_level:
-        # Soft notice without throwing error when enforcement is disabled
-        logger.info(
-            f"Notice: Golongan level {current_level} exceeds max {max_level} "
-            f"for jabatan '{jabatan}', but enforcement is disabled"
-        )
-
-
-@frappe.whitelist()
-@safe_execute(log_exception=True)
-def validate_bpjs_account_mapping(company: str) -> Dict[str, Any]:
-    """
-    Validate that a BPJS Account Mapping exists for the given company.
-
-    Args:
-        company: Company name
-
-    Returns:
-        dict: BPJS Account Mapping details if valid
-
-    Raises:
-        frappe.ValidationError: If mapping does not exist or is incomplete
-    """
-    if not company:
-        frappe.throw(_("Company is required to validate BPJS Account Mapping"))
-
-    # Get validation rules from config
-    config = get_live_config()
-    validation_rules = config.get("bpjs_settings", {}).get("validation_rules", {})
-    
-    # Check if validation is enabled
-    enforce_mapping = validation_rules.get("enforce_account_mapping", True)
-    
-    logger.info(f"Validating BPJS Account Mapping for company '{company}'")
-
-    # Check if mapping exists
-    mapping_name = frappe.db.get_value("BPJS Account Mapping", {"company": company}, "name")
-    if not mapping_name:
-        if enforce_mapping:
-            logger.warning(f"BPJS Account Mapping not found for company {company}")
-            frappe.throw(
-                _("BPJS Account Mapping not found for company {0}. Please create one first.").format(
-                    company
-                )
-            )
-        else:
-            logger.info(
-                f"BPJS Account Mapping not found for company {company}, "
-                "but enforcement is disabled"
-            )
-            return {"status": "warning", "message": "BPJS Account Mapping missing but not enforced"}
-
-    # Get the mapping document
-    mapping = frappe.get_doc("BPJS Account Mapping", mapping_name)
-
-    # Get required fields from config
-    required_fields = validation_rules.get("required_accounts", [
-        "employee_expense_account", 
-        "employer_expense_account", 
-        "payable_account"
-    ])
-
-    missing_fields = []
-    for field in required_fields:
-        if not mapping.get(field):
-            missing_fields.append(frappe.unscrub(field))
-
-    if missing_fields:
-        if enforce_mapping:
-            logger.warning(
-                f"Missing required accounts in BPJS Account Mapping: {', '.join(missing_fields)}"
-            )
-            frappe.throw(
-                _("The following required accounts are missing in BPJS Account Mapping: {0}").format(
-                    ", ".join(missing_fields)
-                )
-            )
-        else:
-            logger.info(
-                f"Missing required accounts in BPJS Account Mapping: {', '.join(missing_fields)}, "
-                "but enforcement is disabled"
-            )
-            return {
-                "status": "warning", 
-                "message": "Some required accounts are missing but not enforced",
-                "missing_fields": missing_fields
-            }
-
-    # Return the mapping if all validations pass
-    return {
-        "status": "success",
-        "name": mapping.name,
-        "employee_expense_account": mapping.employee_expense_account,
-        "employer_expense_account": mapping.employer_expense_account,
-        "payable_account": mapping.payable_account,
-    }
-
-
-@frappe.whitelist()
-@safe_execute(log_exception=True)
-def validate_bpjs_components(
-    company: str, 
-    salary_structure: Optional[str] = None
-) -> Dict[str, Any]:
-    """
-    Validate that all required BPJS components exist in the salary structure.
-
-    Args:
-        company: Company name
-        salary_structure: Salary Structure name to validate (optional)
-
-    Returns:
-        dict: Validation results
-
-    Raises:
-        frappe.ValidationError: If required components are missing
-    """
-    # First validate BPJS Account Mapping
-    mapping = validate_bpjs_account_mapping(company)
-    
-    # Get validation rules and component list from config
-    config = get_live_config()
-    validation_rules = config.get("bpjs_settings", {}).get("validation_rules", {})
-    components_config = config.get("salary_components", {})
-    
-    # Check if validation is enabled
-    enforce_components = validation_rules.get("enforce_components", True)
-    
-    # Get required BPJS components from config or use defaults
-    required_components = []
-    
-    # Extract BPJS components from config
-    for component in components_config.get("deductions", []):
-        if component.get("name", "").startswith("BPJS"):
-            required_components.append(component.get("name"))
-    
-    # Use defaults if not found in config
-    if not required_components:
-        required_components = [
-            "BPJS Kesehatan Employee",
-            "BPJS JHT Employee",
-            "BPJS JP Employee",
-            "BPJS Kesehatan Employer",
-            "BPJS JHT Employer",
-            "BPJS JP Employer",
-            "BPJS JKK",
-            "BPJS JKM",
-        ]
-    
-    logger.info(f"Validating BPJS components for company '{company}'")
-
-    # Check if all components exist
-    missing_components = []
-    for component in required_components:
-        if not frappe.db.exists("Salary Component", component):
-            missing_components.append(component)
-
-    if missing_components:
-        if enforce_components:
-            logger.warning(
-                f"Missing BPJS components: {', '.join(missing_components)}"
-            )
-            frappe.throw(
-                _("The following BPJS components are missing: {0}").format(
-                    ", ".join(missing_components)
-                )
-            )
-        else:
-            logger.info(
-                f"Missing BPJS components: {', '.join(missing_components)}, "
-                "but enforcement is disabled"
-            )
-            return {
-                "status": "warning",
-                "message": "Some BPJS components are missing but not enforced",
-                "missing_components": missing_components
-            }
-
-    # If salary structure is provided, validate components in structure
-    if salary_structure:
-        return validate_structure_components(
-            salary_structure, 
-            required_components, 
-            enforce_components
-        )
-
-    return {"status": "success", "message": _("All BPJS components exist"), "mapping": mapping}
-
-
-@safe_execute(log_exception=True)
-def validate_structure_components(
-    salary_structure: str, 
-    required_components: List[str],
-    enforce_components: bool = True
-) -> Dict[str, Any]:
-    """
-    Validate that all required components exist in the given salary structure.
-
-    Args:
-        salary_structure: Salary Structure name
-        required_components: List of required component names
-        enforce_components: Whether to enforce component validation
-
-    Returns:
-        dict: Validation results with missing components if any
-    """
-    if not frappe.db.exists("Salary Structure", salary_structure):
-        logger.warning(f"Salary Structure {salary_structure} does not exist")
-        frappe.throw(_("Salary Structure {0} does not exist").format(salary_structure))
-
-    structure = frappe.get_doc("Salary Structure", salary_structure)
-    
-    logger.info(f"Validating components in salary structure '{salary_structure}'")
-
-    # Get all components in the structure
-    structure_components = []
-    if hasattr(structure, "earnings"):
-        structure_components.extend([d.salary_component for d in structure.earnings])
-    if hasattr(structure, "deductions"):
-        structure_components.extend([d.salary_component for d in structure.deductions])
-
-    # Find missing components
-    missing_in_structure = []
-    for component in required_components:
-        if component not in structure_components:
-            missing_in_structure.append(component)
-
-    if missing_in_structure:
-        message = _("Some BPJS components are missing in the salary structure")
-        if enforce_components:
-            logger.warning(
-                f"Missing components in salary structure: {', '.join(missing_in_structure)}"
-            )
-        else:
-            logger.info(
-                f"Missing components in salary structure: {', '.join(missing_in_structure)}, "
-                "but enforcement is disabled"
-            )
-            
-        return {
-            "status": "warning",
-            "message": message,
-            "missing_components": missing_in_structure,
-        }
-
-    logger.info(f"All required components found in salary structure '{salary_structure}'")
-    return {
-        "status": "success",
-        "message": _("All required BPJS components exist in the salary structure"),
-    }
-
-# Add this function to existing validations.py
-
-@safe_execute(log_exception=True)
-def validate_pph21_settings(doc) -> None:
-    """
-    Validate PPh 21 Settings document.
-    
-    Args:
-        doc: PPh 21 Settings document
-    """
-    logger.info("Validating PPh 21 Settings")
-    
-    # Get validation rules from config
-    config = get_live_config()
-    tax_limits = config.get("tax", {}).get("limits", {})
-    
-    # Validate TER settings
-    if doc.calculation_method == "TER" and not doc.use_ter:
-        # Auto-set use_ter if calculation method is TER but use_ter isn't checked
-        logger.info("Auto-enabling TER since calculation method is TER")
-        doc.use_ter = 1
-    
-    # Validate biaya jabatan limits
-    min_biaya_jabatan = tax_limits.get("min_biaya_jabatan_percent", 0)
-    max_biaya_jabatan = tax_limits.get("max_biaya_jabatan_percent", 10)
-    
-    if hasattr(doc, "biaya_jabatan_percent"):
-        if (doc.biaya_jabatan_percent < min_biaya_jabatan or 
-            doc.biaya_jabatan_percent > max_biaya_jabatan):
-            logger.warning(
-                f"Biaya Jabatan percentage {doc.biaya_jabatan_percent} outside of "
-                f"allowed range ({min_biaya_jabatan}%-{max_biaya_jabatan}%)"
-            )
-            frappe.msgprint(
-                _("Biaya Jabatan percentage must be between {0}% and {1}%").format(
-                    min_biaya_jabatan, max_biaya_jabatan
-                ),
-                indicator="orange"
-            )
-    
-    # Validate tax brackets
-    if doc.bracket_table and len(doc.bracket_table) > 0:
-        # Sort by income_from
-        sorted_brackets = sorted(doc.bracket_table, key=lambda x: flt(x.income_from))
-        
-        # Check for gaps or overlaps
-        for i in range(len(sorted_brackets) - 1):
-            current = sorted_brackets[i]
-            next_bracket = sorted_brackets[i + 1]
-            
-            if flt(current.income_to) != flt(next_bracket.income_from):
-                logger.warning(
-                    f"Tax bracket gap found: {current.income_to} to {next_bracket.income_from}"
-                )
-                frappe.msgprint(
-                    _("Warning: Tax brackets should be continuous. Gap found between {0} and {1}")
-                    .format(current.income_to, next_bracket.income_from),
-                    indicator="orange"
-                )
-    
-    # Validate TER configuration if TER is enabled
-    if doc.use_ter:
-        # Check if TER table exists and has entries
-        ter_count = frappe.db.count("PPh 21 TER Table")
-        if ter_count == 0:
-            logger.warning("TER is enabled but no TER rates defined")
-            frappe.msgprint(
-                _("TER is enabled but no rates are defined in PPh 21 TER Table. "
-                  "Please define rates before using this method."),
-                indicator="orange"
-            )
-
-# Add these functions to the existing validations.py file
 
 @safe_execute(log_exception=True)
 def validate_bpjs_settings(doc) -> None:
@@ -407,8 +34,8 @@ def validate_bpjs_settings(doc) -> None:
     logger.info("Validating BPJS Settings")
     
     # Get validation rules from config
-    config = get_live_config()
-    bpjs_config = config.get("bpjs", {})
+    cfg = get_live_config()
+    bpjs_config = cfg.get("bpjs", {})
     validation_rules = bpjs_config.get("validation_rules", {})
     
     # Validate percentage fields
@@ -418,7 +45,7 @@ def validate_bpjs_settings(doc) -> None:
     _validate_bpjs_max_salary(doc, validation_rules)
     
     # Validate account types if specified
-    _validate_bpjs_account_types(doc)
+    _validate_bpjs_account_types(doc, bpjs_config)
     
     logger.info("BPJS Settings validation completed successfully")
 
@@ -440,13 +67,15 @@ def _validate_bpjs_percentages(doc, validation_rules: Dict[str, Any]) -> None:
                 "field": "kesehatan_employee_percent",
                 "min": 0,
                 "max": 5,
-                "error_msg": "BPJS Kesehatan employee percentage must be between 0% and 5%"
+                "error_msg": "BPJS Kesehatan employee percentage must be "
+                             "between 0% and 5%"
             },
             {
                 "field": "kesehatan_employer_percent",
                 "min": 0,
                 "max": 10,
-                "error_msg": "BPJS Kesehatan employer percentage must be between 0% and 10%"
+                "error_msg": "BPJS Kesehatan employer percentage must be "
+                             "between 0% and 10%"
             },
             {
                 "field": "jht_employee_percent",
@@ -458,7 +87,32 @@ def _validate_bpjs_percentages(doc, validation_rules: Dict[str, Any]) -> None:
                 "field": "jht_employer_percent",
                 "min": 0,
                 "max": 10,
-                "error_msg": "JHT employer percentage must be between 0% and 10%"
+                "error_msg": "JHT employer percentage must be "
+                             "between 0% and 10%"
+            },
+            {
+                "field": "jp_employee_percent",
+                "min": 0,
+                "max": 5,
+                "error_msg": "JP employee percentage must be between 0% and 5%"
+            },
+            {
+                "field": "jp_employer_percent",
+                "min": 0,
+                "max": 5,
+                "error_msg": "JP employer percentage must be between 0% and 5%"
+            },
+            {
+                "field": "jkk_percent",
+                "min": 0,
+                "max": 5,
+                "error_msg": "JKK percentage must be between 0% and 5%"
+            },
+            {
+                "field": "jkm_percent",
+                "min": 0,
+                "max": 5,
+                "error_msg": "JKM percentage must be between 0% and 5%"
             }
         ]
     
@@ -467,13 +121,17 @@ def _validate_bpjs_percentages(doc, validation_rules: Dict[str, Any]) -> None:
         field = rule.get("field")
         min_val = rule.get("min", 0)
         max_val = rule.get("max", 100)
-        error_msg = rule.get("error_msg", f"{field} must be between {min_val}% and {max_val}%")
+        error_msg = rule.get(
+            "error_msg", 
+            f"{field} must be between {min_val}% and {max_val}%"
+        )
         
         if hasattr(doc, field):
-            value = flt(doc.get(field))
+            value = frappe.utils.flt(doc.get(field))
             if value < min_val or value > max_val:
                 logger.warning(
-                    f"BPJS validation failed: {field}={value} not in range {min_val}-{max_val}"
+                    f"BPJS validation failed: {field}={value} not in range "
+                    f"{min_val}-{max_val}"
                 )
                 frappe.throw(_(error_msg))
 
@@ -494,7 +152,8 @@ def _validate_bpjs_max_salary(doc, validation_rules: Dict[str, Any]) -> None:
             {
                 "field": "kesehatan_max_salary",
                 "min": 1000000,
-                "error_msg": "BPJS Kesehatan maximum salary must be at least Rp 1.000.000"
+                "error_msg": "BPJS Kesehatan maximum salary must be at least "
+                             "Rp 1.000.000"
             },
             {
                 "field": "jp_max_salary",
@@ -507,25 +166,31 @@ def _validate_bpjs_max_salary(doc, validation_rules: Dict[str, Any]) -> None:
     for rule in salary_rules:
         field = rule.get("field")
         min_val = rule.get("min", 0)
-        error_msg = rule.get("error_msg", f"{field} must be greater than {min_val}")
+        error_msg = rule.get(
+            "error_msg",
+            f"{field} must be greater than {min_val}"
+        )
         
         if hasattr(doc, field):
-            value = flt(doc.get(field))
+            value = frappe.utils.flt(doc.get(field))
             if value < min_val:
-                logger.warning(f"BPJS validation failed: {field}={value} below minimum {min_val}")
+                logger.warning(
+                    f"BPJS validation failed: {field}={value} below minimum "
+                    f"{min_val}"
+                )
                 frappe.throw(_(error_msg))
 
 
-def _validate_bpjs_account_types(doc) -> None:
+def _validate_bpjs_account_types(doc, bpjs_config: Dict[str, Any]) -> None:
     """
     Validate that BPJS accounts are of the correct type.
     
     Args:
         doc: BPJS Settings document
+        bpjs_config: BPJS configuration from settings
     """
     # Get account fields from configuration
-    config = get_live_config()
-    account_fields = config.get("bpjs_settings", {}).get("account_fields", [])
+    account_fields = bpjs_config.get("account_fields", [])
     
     # If no fields defined, use defaults
     if not account_fields:
@@ -562,7 +227,384 @@ def _validate_bpjs_account_types(doc) -> None:
                 f"type={account_data.account_type}"
             )
             frappe.throw(
-                _("Account {0} must be of type 'Payable' or a Liability account").format(account)
+                _("Account {0} must be of type 'Payable' or a Liability account")
+                .format(account)
+            )
+
+
+@safe_execute(log_exception=True)
+def validate_pph21_settings(doc) -> None:
+    """
+    Validate PPh 21 Settings document.
+    
+    Args:
+        doc: PPh 21 Settings document
+    """
+    logger.info("Validating PPh 21 Settings")
+    
+    # Get validation rules from config
+    cfg = get_live_config()
+    tax_config = cfg.get("tax", {})
+    tax_limits = tax_config.get("limits", {})
+    
+    # Validate TER settings
+    if doc.calculation_method == "TER" and not doc.use_ter:
+        # Auto-set use_ter if calculation method is TER but use_ter isn't checked
+        logger.info("Auto-enabling TER since calculation method is TER")
+        doc.use_ter = 1
+    
+    # Validate biaya jabatan limits
+    min_biaya_jabatan = tax_limits.get("min_biaya_jabatan_percent", 0)
+    max_biaya_jabatan = tax_limits.get("max_biaya_jabatan_percent", 10)
+    
+    if hasattr(doc, "biaya_jabatan_percent"):
+        if (doc.biaya_jabatan_percent < min_biaya_jabatan or 
+                doc.biaya_jabatan_percent > max_biaya_jabatan):
+            logger.warning(
+                f"Biaya Jabatan percentage {doc.biaya_jabatan_percent} outside "
+                f"of allowed range ({min_biaya_jabatan}%-{max_biaya_jabatan}%)"
+            )
+            frappe.msgprint(
+                _("Biaya Jabatan percentage must be between {0}% and {1}%")
+                .format(min_biaya_jabatan, max_biaya_jabatan),
+                indicator="orange"
+            )
+    
+    # Validate tax brackets
+    if doc.bracket_table and len(doc.bracket_table) > 0:
+        # Sort by income_from
+        sorted_brackets = sorted(
+            doc.bracket_table, 
+            key=lambda x: frappe.utils.flt(x.income_from)
+        )
+        
+        # Check for gaps or overlaps
+        for i in range(len(sorted_brackets) - 1):
+            current = sorted_brackets[i]
+            next_bracket = sorted_brackets[i + 1]
+            
+            if frappe.utils.flt(current.income_to) != frappe.utils.flt(
+                    next_bracket.income_from):
+                logger.warning(
+                    f"Tax bracket gap found: {current.income_to} to "
+                    f"{next_bracket.income_from}"
+                )
+                frappe.msgprint(
+                    _("Warning: Tax brackets should be continuous. "
+                      "Gap found between {0} and {1}")
+                    .format(current.income_to, next_bracket.income_from),
+                    indicator="orange"
+                )
+    
+    # Validate TER configuration if TER is enabled
+    if doc.use_ter:
+        # Check if TER table exists and has entries
+        ter_count = frappe.db.count("PPh 21 TER Table")
+        if ter_count == 0:
+            logger.warning("TER is enabled but no TER rates defined")
+            frappe.msgprint(
+                _("TER is enabled but no rates are defined in PPh 21 TER Table. "
+                  "Please define rates before using this method."),
+                indicator="orange"
+            )
+
+
+@safe_execute(log_exception=True)
+def validate_employee(doc) -> None:
+    """
+    Validate Employee document.
+    
+    Args:
+        doc: Employee document
+    """
+    logger.info(f"Validating Employee: {doc.name}")
+    
+    # Get validation rules from config
+    cfg = get_live_config()
+    employee_validation = cfg.get("employee_validation", {})
+    
+    # Validate tax status
+    _validate_employee_tax_status(doc, employee_validation)
+    
+    # Validate golongan if enabled
+    if employee_validation.get("validate_golongan", True):
+        _validate_employee_golongan(doc, employee_validation)
+    
+    # Validate NPWP/KTP if enabled
+    if employee_validation.get("validate_tax_id", True):
+        _validate_employee_tax_id(doc, employee_validation)
+
+
+def _validate_employee_tax_status(
+    doc, 
+    validation_rules: Dict[str, Any]
+) -> None:
+    """
+    Validate employee tax status.
+    
+    Args:
+        doc: Employee document
+        validation_rules: Validation rules from configuration
+    """
+    if not hasattr(doc, "status_pajak"):
+        return
+        
+    # Get valid tax statuses from config
+    valid_statuses = validation_rules.get("valid_tax_statuses", [])
+    
+    # If not defined in config, use defaults
+    if not valid_statuses:
+        valid_statuses = [
+            "TK0", "TK1", "TK2", "TK3", 
+            "K0", "K1", "K2", "K3", 
+            "HB0", "HB1", "HB2", "HB3"
+        ]
+    
+    if doc.status_pajak and doc.status_pajak not in valid_statuses:
+        logger.warning(
+            f"Invalid tax status: {doc.status_pajak}. "
+            f"Valid values are: {', '.join(valid_statuses)}"
+        )
+        frappe.throw(
+            _("Invalid tax status: {0}. Valid values are: {1}")
+            .format(doc.status_pajak, ", ".join(valid_statuses))
+        )
+
+
+def _validate_employee_golongan(
+    doc, 
+    validation_rules: Dict[str, Any]
+) -> None:
+    """
+    Validate employee golongan against maximum allowed for jabatan.
+    
+    Args:
+        doc: Employee document
+        validation_rules: Validation rules from configuration
+    """
+    if not hasattr(doc, "jabatan") or not doc.jabatan:
+        return
+        
+    if not hasattr(doc, "golongan") or not doc.golongan:
+        return
+    
+    # Check if golongan validation is enabled
+    enforce_max_level = validation_rules.get("enforce_golongan_max_level", True)
+    
+    # Get maximum golongan for jabatan
+    max_golongan = frappe.db.get_value("Jabatan", doc.jabatan, "max_golongan")
+    if not max_golongan:
+        logger.info(f"Maximum Golongan not set for Jabatan {doc.jabatan}")
+        return
+    
+    # Get levels for comparison
+    max_level = frappe.db.get_value("Golongan", max_golongan, "level")
+    current_level = frappe.db.get_value("Golongan", doc.golongan, "level")
+    
+    if not max_level or not current_level:
+        logger.info("Golongan levels not properly configured")
+        return
+    
+    if current_level > max_level and enforce_max_level:
+        logger.warning(
+            f"Golongan validation failed: level {current_level} exceeds "
+            f"max {max_level} for jabatan '{doc.jabatan}'"
+        )
+        frappe.throw(
+            _(
+                "Employee's Golongan level ({0}) cannot be higher than "
+                "the maximum allowed level ({1}) for the selected Jabatan"
+            ).format(current_level, max_level)
+        )
+    elif current_level > max_level:
+        # Soft notice without throwing error when enforcement is disabled
+        logger.info(
+            f"Notice: Golongan level {current_level} exceeds max {max_level} "
+            f"for jabatan '{doc.jabatan}', but enforcement is disabled"
+        )
+        frappe.msgprint(
+            _(
+                "Notice: Employee's Golongan level ({0}) is higher than "
+                "the recommended level ({1}) for the selected Jabatan"
+            ).format(current_level, max_level),
+            indicator="orange"
+        )
+
+
+def _validate_employee_tax_id(
+    doc, 
+    validation_rules: Dict[str, Any]
+) -> None:
+    """
+    Validate employee tax IDs (NPWP/KTP).
+    
+    Args:
+        doc: Employee document
+        validation_rules: Validation rules from configuration
+    """
+    # Check if NPWP is required
+    npwp_required = validation_rules.get("npwp_required", False)
+    
+    if npwp_required and not (hasattr(doc, "npwp") and doc.npwp):
+        logger.warning(f"NPWP is required but not provided for {doc.name}")
+        frappe.throw(_("NPWP is required for all employees"))
+    
+    # Validate NPWP format if provided
+    if hasattr(doc, "npwp") and doc.npwp:
+        npwp_format = validation_rules.get("npwp_format", r"^\d{2}\.\d{3}\.\d{3}\.\d-\d{3}\.\d{3}$")
+        import re
+        if not re.match(npwp_format, doc.npwp):
+            logger.warning(f"Invalid NPWP format: {doc.npwp}")
+            frappe.msgprint(
+                _("Invalid NPWP format. Expected format: XX.XXX.XXX.X-XXX.XXX"),
+                indicator="orange"
+            )
+
+
+@safe_execute(log_exception=True)
+def validate_salary_slip(doc) -> None:
+    """
+    Validate Salary Slip document.
+    
+    Args:
+        doc: Salary Slip document
+    """
+    logger.info(f"Validating Salary Slip: {doc.name}")
+    
+    # Get validation rules from config
+    cfg = get_live_config()
+    salary_validation = cfg.get("salary_validation", {})
+    
+    # Validate salary slip dates
+    _validate_salary_slip_dates(doc, salary_validation)
+    
+    # Validate salary components
+    _validate_salary_components(doc, salary_validation)
+    
+    # Validate tax calculation
+    _validate_tax_calculation(doc, cfg.get("tax", {}))
+
+
+def _validate_salary_slip_dates(
+    doc, 
+    validation_rules: Dict[str, Any]
+) -> None:
+    """
+    Validate salary slip dates.
+    
+    Args:
+        doc: Salary Slip document
+        validation_rules: Validation rules from configuration
+    """
+    # Check start_date and end_date relationship
+    if doc.start_date and doc.end_date and doc.start_date > doc.end_date:
+        logger.warning(
+            f"Start date {doc.start_date} is after end date {doc.end_date}"
+        )
+        frappe.throw(_("Start Date cannot be after End Date"))
+    
+    # Validate posting date
+    max_backdated_days = validation_rules.get("max_backdated_days", 0)
+    max_future_days = validation_rules.get("max_future_days", 0)
+    
+    if doc.posting_date:
+        today = frappe.utils.today()
+        
+        # Check backdated posting
+        days_before = frappe.utils.date_diff(today, doc.posting_date)
+        if days_before > max_backdated_days and max_backdated_days > 0:
+            logger.warning(
+                f"Posting date {doc.posting_date} is {days_before} days in the "
+                f"past, exceeding limit of {max_backdated_days} days"
+            )
+            frappe.msgprint(
+                _("Posting Date is {0} days in the past. Maximum allowed is {1}.")
+                .format(days_before, max_backdated_days),
+                indicator="orange"
+            )
+        
+        # Check future posting
+        days_after = frappe.utils.date_diff(doc.posting_date, today)
+        if days_after > max_future_days and max_future_days > 0:
+            logger.warning(
+                f"Posting date {doc.posting_date} is {days_after} days in the "
+                f"future, exceeding limit of {max_future_days} days"
+            )
+            frappe.msgprint(
+                _("Posting Date is {0} days in the future. Maximum allowed is {1}.")
+                .format(days_after, max_future_days),
+                indicator="orange"
+            )
+
+
+def _validate_salary_components(
+    doc, 
+    validation_rules: Dict[str, Any]
+) -> None:
+    """
+    Validate salary components in salary slip.
+    
+    Args:
+        doc: Salary Slip document
+        validation_rules: Validation rules from configuration
+    """
+    # Check required components
+    required_components = validation_rules.get("required_components", [])
+    
+    if required_components:
+        # Get all components in the slip
+        slip_components = []
+        if hasattr(doc, "earnings"):
+            slip_components.extend([d.salary_component for d in doc.earnings])
+        if hasattr(doc, "deductions"):
+            slip_components.extend([d.salary_component for d in doc.deductions])
+        
+        # Check for missing required components
+        missing_components = []
+        for component in required_components:
+            if component not in slip_components:
+                missing_components.append(component)
+        
+        if missing_components:
+            logger.warning(
+                f"Missing required components in salary slip: "
+                f"{', '.join(missing_components)}"
+            )
+            frappe.msgprint(
+                _("Missing required components: {0}")
+                .format(", ".join(missing_components)),
+                indicator="orange"
+            )
+
+
+def _validate_tax_calculation(doc, tax_config: Dict[str, Any]) -> None:
+    """
+    Validate tax calculation in salary slip.
+    
+    Args:
+        doc: Salary Slip document
+        tax_config: Tax configuration from settings
+    """
+    # Check TER configuration
+    if hasattr(doc, "is_using_ter") and doc.is_using_ter:
+        # Check if TER rate is set
+        if not hasattr(doc, "ter_rate") or not doc.ter_rate:
+            logger.warning("TER is enabled but TER rate is not set")
+            frappe.msgprint(
+                _("TER calculation is enabled but no TER rate is set"),
+                indicator="orange"
+            )
+        
+        # Validate December override
+        december_month = tax_config.get("december_month", 12)
+        if doc.month == december_month and doc.is_using_ter:
+            logger.warning(
+                f"TER should not be used for month {december_month} (December)"
+            )
+            frappe.msgprint(
+                _("TER calculation should not be used for December payroll. "
+                  "Progressive method is recommended."),
+                indicator="orange"
             )
 
 
@@ -615,12 +657,12 @@ def sync_bpjs_to_defaults(doc) -> None:
         
         for field in bpjs_fields:
             if hasattr(doc, field):
-                defaults["bpjs"][field] = flt(doc.get(field))
+                defaults["bpjs"][field] = frappe.utils.flt(doc.get(field))
         
         # Add app info
         defaults["app_info"] = {
             "version": getattr(doc, "app_version", "1.0.0"),
-            "last_updated": str(now_datetime()),
+            "last_updated": str(frappe.utils.now_datetime()),
             "updated_by": frappe.session.user
         }
         
@@ -628,7 +670,9 @@ def sync_bpjs_to_defaults(doc) -> None:
         with open(defaults_file, "w") as f:
             json.dump(defaults, f, indent=2)
             
-        logger.info(f"BPJS settings synced to defaults.json by {frappe.session.user}")
+        logger.info(
+            f"BPJS settings synced to defaults.json by {frappe.session.user}"
+        )
         
     except Exception as e:
         logger.error(f"Error syncing BPJS settings to defaults.json: {str(e)}")
