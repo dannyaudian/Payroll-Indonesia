@@ -22,7 +22,6 @@
             "label": "Calculation Method"
         },
         {
-            "default": "Progressive",
             "fieldname": "calculation_method",
             "fieldtype": "Select",
             "in_list_view": 1,
@@ -62,7 +61,6 @@
             "label": "TER Settings"
         },
         {
-            "default": "1",
             "depends_on": "eval:doc.calculation_method=='TER'",
             "fieldname": "use_ter",
             "fieldtype": "Check",
@@ -73,12 +71,12 @@
             "fieldname": "ter_notes",
             "fieldtype": "Small Text",
             "label": "TER Notes",
-            "default": "TER rates are defined in the PPh 21 TER Table doctype based on PMK 168/2023."
+            "description": "Notes about TER rates configuration"
         }
     ],
     "issingle": 1,
-    "modified": "2025-04-23 12:35:23",
-    "modified_by": "Administrator",
+    "modified": "2025-06-29 00:23:11",
+    "modified_by": "dannyaudian",
     "module": "Payroll Indonesia",
     "name": "PPh 21 Settings",
     "owner": "Administrator",
