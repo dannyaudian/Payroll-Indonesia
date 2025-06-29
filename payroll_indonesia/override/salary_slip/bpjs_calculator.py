@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-29 01:06:03 by dannyaudian
+# Last modified: 2025-06-29 02:29:18 by dannyaudian
 
 """
-BPJS calculator module - single source of BPJS calculation logic.
+BPJS calculator module - satu-satunya kalkulator BPJS.
 """
 
 import logging
-from typing import Any, Dict, TYPE_CHECKING
+from typing import Any, Dict, Optional, TYPE_CHECKING
 
 from payroll_indonesia.config import get_live_config
 from payroll_indonesia.constants import (
@@ -31,13 +31,25 @@ if TYPE_CHECKING:
 logger = logging.getLogger("bpjs_calc")
 
 
+def _validate_percentage(key: str, value: Any) -> bool:
+    """Validate that a given value is a valid percentage (0-100)."""
+    try:
+        percentage = float(value)
+        if 0 <= percentage <= 100:
+            return True
+        logger.error(f"BPJS config {key} out of bounds: {percentage}")
+    except (ValueError, TypeError):
+        logger.error(f"BPJS config {key} not float: {value}")
+    return False
+
+
 def validate_bpjs_percentages(cfg: Dict[str, Any]) -> bool:
     """
-    Validate percentage values in BPJS config.
-    Returns True if all in 0..100, False otherwise.
+    Validate all percentage values in BPJS config.
+    Returns True if all are within 0-100 range, False otherwise.
     """
     bpjs = cfg.get("bpjs", {})
-    keys = [
+    percentage_keys = [
         "kesehatan_employee_percent",
         "kesehatan_employer_percent",
         "jht_employee_percent",
@@ -47,22 +59,37 @@ def validate_bpjs_percentages(cfg: Dict[str, Any]) -> bool:
         "jkk_percent",
         "jkm_percent",
     ]
-    for key in keys:
-        val = bpjs.get(key, 0)
-        try:
-            v = float(val)
-            if v < 0 or v > 100:
-                logger.error(f"BPJS config {key} out of bounds: {v}")
-                return False
-        except Exception:
-            logger.error(f"BPJS config {key} not float: {val}")
-            return False
-    return True
+    
+    return all(_validate_percentage(key, bpjs.get(key, 0)) for key in percentage_keys)
+
+
+def _get_base_salary(slip: Any) -> float:
+    """Extract base salary from salary slip or return default UMR."""
+    base_salary = 0.0
+    
+    # Try to get from gross_pay attribute
+    if hasattr(slip, "gross_pay") and slip.gross_pay:
+        base_salary = float(slip.gross_pay)
+        return base_salary
+    
+    # Try to get from earnings list (looking for "Gaji Pokok")
+    if hasattr(slip, "earnings"):
+        for earning in getattr(slip, "earnings", []):
+            if getattr(earning, "salary_component", "") == "Gaji Pokok":
+                base_salary += float(getattr(earning, "amount", 0))
+        if base_salary > 0:
+            return base_salary
+    
+    # Use default UMR if no base salary found
+    config = get_live_config()
+    default_umr = float(config.get("bpjs", {}).get("default_umr", DEFAULT_UMR))
+    logger.info(f"No base salary found. Using default UMR: {default_umr}")
+    return default_umr
 
 
 def calculate_components(slip: Any) -> Dict[str, float]:
     """
-    Calculate BPJS (employee & employer) for salary slip.
+    Calculate BPJS (employee & employer) components for salary slip.
     Returns dictionary with all components and totals.
     """
     cfg = get_live_config()
@@ -70,89 +97,80 @@ def calculate_components(slip: Any) -> Dict[str, float]:
         logger.error("BPJS config percentages invalid. Calculation aborted.")
         return {}
 
-    bpjs = cfg.get("bpjs", {})
-
-    # Salary caps (maximum salary considered)
-    kesehatan_max = float(bpjs.get(
+    bpjs_config = cfg.get("bpjs", {})
+    
+    # Get base salary
+    base_salary = _get_base_salary(slip)
+    
+    # Get salary caps from config or defaults
+    kesehatan_max = float(bpjs_config.get(
         "kesehatan_max_salary", 
         BPJS_KESEHATAN_MAX_SALARY
     ))
-    jp_max = float(bpjs.get(
+    jp_max = float(bpjs_config.get(
         "jp_max_salary", 
         BPJS_JP_MAX_SALARY
     ))
 
-    # Percentages
-    kesehatan_emp = float(bpjs.get(
-        "kesehatan_employee_percent", 
-        BPJS_KESEHATAN_EMPLOYEE_PERCENT
-    ))
-    kesehatan_com = float(bpjs.get(
-        "kesehatan_employer_percent", 
-        BPJS_KESEHATAN_EMPLOYER_PERCENT
-    ))
-    jht_emp = float(bpjs.get(
-        "jht_employee_percent", 
-        BPJS_JHT_EMPLOYEE_PERCENT
-    ))
-    jht_com = float(bpjs.get(
-        "jht_employer_percent", 
-        BPJS_JHT_EMPLOYER_PERCENT
-    ))
-    jp_emp = float(bpjs.get(
-        "jp_employee_percent", 
-        BPJS_JP_EMPLOYEE_PERCENT
-    ))
-    jp_com = float(bpjs.get(
-        "jp_employer_percent", 
-        BPJS_JP_EMPLOYER_PERCENT
-    ))
-    jkk = float(bpjs.get(
-        "jkk_percent", 
-        BPJS_JKK_PERCENT
-    ))
-    jkm = float(bpjs.get(
-        "jkm_percent", 
-        BPJS_JKM_PERCENT
-    ))
-
-    # Determine base salary for BPJS
-    base_salary = 0.0
-    if hasattr(slip, "gross_pay") and slip.gross_pay:
-        base_salary = float(slip.gross_pay)
-    elif hasattr(slip, "earnings"):
-        for e in getattr(slip, "earnings", []):
-            if getattr(e, "salary_component", "") == "Gaji Pokok":
-                base_salary += float(getattr(e, "amount", 0))
-    if not base_salary:
-        base_salary = float(bpjs.get("default_umr", DEFAULT_UMR))
-        logger.info(f"No base salary found. Using default UMR: {base_salary}")
+    # Get percentages from config or defaults
+    percentages = {
+        "kesehatan_emp": float(bpjs_config.get(
+            "kesehatan_employee_percent", 
+            BPJS_KESEHATAN_EMPLOYEE_PERCENT
+        )),
+        "kesehatan_com": float(bpjs_config.get(
+            "kesehatan_employer_percent", 
+            BPJS_KESEHATAN_EMPLOYER_PERCENT
+        )),
+        "jht_emp": float(bpjs_config.get(
+            "jht_employee_percent", 
+            BPJS_JHT_EMPLOYEE_PERCENT
+        )),
+        "jht_com": float(bpjs_config.get(
+            "jht_employer_percent", 
+            BPJS_JHT_EMPLOYER_PERCENT
+        )),
+        "jp_emp": float(bpjs_config.get(
+            "jp_employee_percent", 
+            BPJS_JP_EMPLOYEE_PERCENT
+        )),
+        "jp_com": float(bpjs_config.get(
+            "jp_employer_percent", 
+            BPJS_JP_EMPLOYER_PERCENT
+        )),
+        "jkk": float(bpjs_config.get(
+            "jkk_percent", 
+            BPJS_JKK_PERCENT
+        )),
+        "jkm": float(bpjs_config.get(
+            "jkm_percent", 
+            BPJS_JKM_PERCENT
+        )),
+    }
 
     # Apply salary caps
     kesehatan_salary = min(base_salary, kesehatan_max)
     jp_salary = min(base_salary, jp_max)
 
-    # Employee portion
-    kesehatan_employee = kesehatan_salary * (kesehatan_emp / 100.0)
-    jht_employee = base_salary * (jht_emp / 100.0)
-    jp_employee = jp_salary * (jp_emp / 100.0)
+    # Calculate employee portions
+    kesehatan_employee = kesehatan_salary * (percentages["kesehatan_emp"] / 100)
+    jht_employee = base_salary * (percentages["jht_emp"] / 100)
+    jp_employee = jp_salary * (percentages["jp_emp"] / 100)
 
-    # Employer portion
-    kesehatan_employer = kesehatan_salary * (kesehatan_com / 100.0)
-    jht_employer = base_salary * (jht_com / 100.0)
-    jp_employer = jp_salary * (jp_com / 100.0)
-    jkk_amount = base_salary * (jkk / 100.0)
-    jkm_amount = base_salary * (jkm / 100.0)
+    # Calculate employer portions
+    kesehatan_employer = kesehatan_salary * (percentages["kesehatan_com"] / 100)
+    jht_employer = base_salary * (percentages["jht_com"] / 100)
+    jp_employer = jp_salary * (percentages["jp_com"] / 100)
+    jkk_amount = base_salary * (percentages["jkk"] / 100)
+    jkm_amount = base_salary * (percentages["jkm"] / 100)
 
-    # Totals
-    total_employee = (
-        kesehatan_employee + jht_employee + jp_employee
-    )
+    # Calculate totals
+    total_employee = kesehatan_employee + jht_employee + jp_employee
     total_employer = (
-        kesehatan_employer + jht_employer +
-        jp_employer + jkk_amount + jkm_amount
+        kesehatan_employer + jht_employer + jp_employer + jkk_amount + jkm_amount
     )
 
+    # Prepare result dictionary
     result = {
         "kesehatan_employee": round(kesehatan_employee),
         "kesehatan_employer": round(kesehatan_employer),
@@ -165,5 +183,7 @@ def calculate_components(slip: Any) -> Dict[str, float]:
         "total_employee": round(total_employee),
         "total_employer": round(total_employer),
     }
-    logger.debug(f"BPJS calculation for {getattr(slip, 'employee', '')}: {result}")
+    
+    employee_id = getattr(slip, "employee", "unknown")
+    logger.debug(f"BPJS calculation for {employee_id}: {result}")
     return result
