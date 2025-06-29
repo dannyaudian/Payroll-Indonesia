@@ -1,12 +1,19 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-28 10:54:02 by dannyaudian
+# Last modified: 2025-06-29 02:32:01 by dannyaudian
 
+"""
+Utility functions for salary slip processing - util ringan YTD/YTM.
+"""
+
+import logging
 from typing import Any, Dict, Optional
 
-import frappe
-from frappe import _
+import payroll_indonesia.override.salary_slip_functions as slip_fn
+
+# Optional logger
+logger = logging.getLogger(__name__)
 
 
 def calculate_ytd_and_ytm(slip: Any, date: Optional[str] = None) -> Dict[str, float]:
@@ -22,16 +29,13 @@ def calculate_ytd_and_ytm(slip: Any, date: Optional[str] = None) -> Dict[str, fl
         Dict with YTD and YTM values for earnings, deductions, gross pay, and BPJS
     """
     try:
-        # Import here to avoid circular imports
-        from payroll_indonesia.override.salary_slip_functions import calculate_ytd_and_ytm as calc_ytd
-        
-        # Call the detailed implementation
-        return calc_ytd(slip, date)
-        
+        # Delegate to the actual implementation
+        return slip_fn.calculate_ytd_and_ytm(slip, date)
     except Exception as e:
         # Log the error but don't break the application
-        frappe.logger("salary_utils").exception(
-            f"Error calculating YTD/YTM values for {getattr(slip, 'name', 'unknown')}: {e}"
+        logger.exception(
+            f"Error calculating YTD/YTM values for "
+            f"{getattr(slip, 'name', 'unknown')}: {e}"
         )
         
         # Return default values on error
