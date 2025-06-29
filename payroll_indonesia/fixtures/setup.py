@@ -13,7 +13,7 @@ from frappe.utils import getdate, flt
 from typing import Dict, Any, Optional, List, Union
 
 # Import utility functions from centralized utils module
-from payroll_indonesia.config import get_config as get_default_config
+from payroll_indonesia.config.config import get_config as get_default_config
 from payroll_indonesia.payroll_indonesia.utils import (
     get_or_create_account,
     debug_log,
