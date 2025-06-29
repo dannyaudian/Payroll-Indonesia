@@ -1,333 +1,393 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
+# Last modified: 2025-06-29 02:35:42 by dannyaudian
 
-from typing import Any, Dict, Optional, List
+"""
+Salary Slip override for Indonesian payroll.
+"""
+
 import logging
+from typing import Any, Dict, Optional
 
 import frappe
 from frappe import _
 from frappe.utils import flt, getdate
 from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
 
-from payroll_indonesia.utilities.cache_utils import get_cached_value, cache_value
-from payroll_indonesia.constants import CACHE_MEDIUM, CACHE_LONG, VALID_TAX_STATUS
+# Import calculators
+import payroll_indonesia.override.salary_slip.bpjs_calculator as bpjs_calc
+import payroll_indonesia.override.salary_slip.tax_calculator as tax_calc
+import payroll_indonesia.override.salary_slip.ter_calculator as ter_calc
+
+# Import validation module
+import payroll_indonesia.payroll_indonesia.validations as validations
+
+# Import utilities
+from payroll_indonesia.config import get_live_config
 from payroll_indonesia.override.salary_slip.salary_utils import calculate_ytd_and_ytm
 
-__all__ = ["IndonesiaPayrollSalarySlip", "setup_fiscal_year_if_missing"]
+logger = logging.getLogger("salary_slip")
 
 
-def get_logger() -> logging.Logger:
-    """Get properly configured logger for salary slip module."""
-    return frappe.logger("salary_slip", with_more_info=True)
-
-
-class IndonesiaPayrollSalarySlip(SalarySlip):
+class IndonesiaSalarySlip(SalarySlip):
     """
-    Enhanced Salary Slip for Indonesian Payroll, supporting BPJS and PPh 21 tax
-    calculations, with multi-company support and TER methodology.
+    Enhanced Salary Slip for Indonesian Payroll.
+    Supports BPJS and PPh 21 tax calculations.
     """
-
+    
     def validate(self) -> None:
-        """Validate salary slip and calculate Indonesian tax/BPJS components."""
+        """
+        Validate salary slip with Indonesian payroll requirements.
+        """
         try:
-            # Sync December flag with Payroll Entry
-            self._sync_december_flag()
-            
-            # Additional validations for Indonesian payroll
-            self._validate_input_data()
-
-            # Call parent validation
+            # Call parent validation first
             super().validate()
-
+            
+            # Validate employee data
+            self._validate_employee_data()
+            
             # Initialize additional fields
-            self._initialize_payroll_fields()
-
-            # Get employee document
-            employee = self._get_employee_doc()
-
-            # Additional validation for tax ID fields
-            self._validate_tax_fields(employee)
-
-            # Process BPJS components
-            self._process_bpjs_components()
+            self._initialize_fields()
             
-            # Calculate YTD values
-            self._calculate_ytd_values()
-
-            # Process tax components
-            self._process_tax_components(employee)
-
-            # Final verifications
-            self._verify_all_components()
-
-            self.add_payroll_note("Validation successful: BPJS and tax components calculated.")
-
+            # Calculate components
+            self.calculate()
+            
+            logger.info(f"Validation completed for {self.name}")
         except Exception as e:
-            if isinstance(e, frappe.exceptions.ValidationError):
-                raise
-            get_logger().exception(f"Error validating salary slip for {self.employee}: {e}")
+            logger.exception(f"Error validating salary slip {self.name}: {e}")
             frappe.throw(_("Error validating salary slip: {0}").format(str(e)))
-
-    def _sync_december_flag(self) -> None:
-        """Sync December override flag with Payroll Entry if linked."""
-        from payroll_indonesia.override.salary_slip_functions import _sync_december_flag_standalone
-        _sync_december_flag_standalone(self)
-
-    def _validate_input_data(self) -> None:
-        """Validate basic input data including gross pay and posting date."""
-        from payroll_indonesia.override.salary_slip_functions import _validate_input_data_standalone
-        _validate_input_data_standalone(self)
-
-    def _initialize_payroll_fields(self) -> None:
-        """Initialize additional fields required for Indonesian payroll."""
-        from payroll_indonesia.override.salary_slip_functions import _initialize_payroll_fields
-        _initialize_payroll_fields(self)
-
-    def _get_employee_doc(self) -> Any:
-        """Get employee document with efficient caching."""
-        if not hasattr(self, "employee") or not self.employee:
-            frappe.throw(_("Employee is required"), title=_("Missing Employee"))
-
+    
+    def _validate_employee_data(self) -> None:
+        """
+        Validate employee data required for Indonesian payroll.
+        """
+        if not self.employee:
+            frappe.throw(_("Employee is required"), title=_("Missing Data"))
+        
+        # Get employee document
+        employee_doc = frappe.get_doc("Employee", self.employee)
+        
+        # Validate tax status if available
+        if hasattr(employee_doc, "status_pajak"):
+            validations.validate_tax_status(employee_doc.status_pajak)
+        
+        # Validate other employee fields
+        validations.validate_employee_fields(employee_doc)
+        
+        # Store reference to employee document
+        self.employee_doc = employee_doc
+    
+    def _initialize_fields(self) -> None:
+        """
+        Initialize additional fields required for Indonesian payroll.
+        """
+        default_fields = {
+            "biaya_jabatan": 0,
+            "netto": 0,
+            "total_bpjs": 0,
+            "kesehatan_employee": 0,
+            "jht_employee": 0,
+            "jp_employee": 0,
+            "is_using_ter": 0,
+            "ter_rate": 0,
+            "ter_category": "",
+            "koreksi_pph21": 0,
+            "ytd_gross_pay": 0,
+            "ytd_bpjs_deductions": 0,
+        }
+        
+        # Set default values for missing fields
+        for field, default in default_fields.items():
+            if not hasattr(self, field) or getattr(self, field) is None:
+                setattr(self, field, default)
+    
+    def calculate(self) -> None:
+        """
+        Calculate all components for Indonesian payroll.
+        """
+        # Get configuration
+        cfg = get_live_config()
+        
+        # Calculate BPJS components
+        self._calculate_bpjs()
+        
+        # Calculate YTD values
+        self._calculate_ytd_values()
+        
+        # Calculate tax based on method from config
+        self._calculate_tax(cfg)
+        
+        # Update totals
+        self._update_totals()
+    
+    def _calculate_bpjs(self) -> None:
+        """
+        Calculate BPJS components using the BPJS calculator.
+        """
         try:
-            cache_key = f"employee_doc:{self.employee}"
-            employee_doc = get_cached_value(cache_key)
-
-            if employee_doc is None:
-                employee_doc = frappe.get_doc("Employee", self.employee)
-                cache_value(cache_key, employee_doc, CACHE_MEDIUM)
-
-            return employee_doc
-        except Exception as e:
-            get_logger().exception(f"Error retrieving employee {self.employee}: {e}")
-            frappe.throw(_("Could not retrieve Employee: {0}").format(str(e)))
-
-    def _validate_tax_fields(self, employee: Any) -> None:
-        """Validate tax fields when PPh 21 component is present."""
-        # Check if PPh 21 component exists
-        has_pph21 = False
-        if hasattr(self, "deductions"):
-            for deduction in self.deductions:
-                if deduction.salary_component == "PPh 21" and flt(deduction.amount) > 0:
-                    has_pph21 = True
-                    break
-
-        if has_pph21:
-            # Validate NPWP exists
-            npwp = getattr(self, "npwp", "") or getattr(employee, "npwp", "")
-            if not npwp:
-                frappe.throw(_("NPWP is required for tax calculation"))
-
-            # Validate tax status exists and is valid
-            status_pajak = getattr(employee, "status_pajak", "")
-            if not status_pajak:
-                frappe.throw(_("Tax status is required for tax calculation"))
+            # Calculate BPJS components
+            bpjs_components = bpjs_calc.calculate_components(self)
             
-            if status_pajak not in VALID_TAX_STATUS:
-                frappe.throw(
-                    _("Invalid tax status: {0}. Should be one of: {1}").format(
-                        status_pajak, ", ".join(VALID_TAX_STATUS)
-                    )
-                )
-
-    def _process_bpjs_components(self) -> None:
-        """Calculate BPJS components using centralized calculator."""
-        from payroll_indonesia.override.salary_slip.bpjs_calculator import (
-            calculate_bpjs_components
-        )
-        calculate_bpjs_components(self)
+            # Store total BPJS employee contribution
+            if hasattr(self, "total_bpjs"):
+                self.total_bpjs = bpjs_components.get("total_employee", 0)
+            
+            # Store individual components
+            for component in ["kesehatan_employee", "jht_employee", "jp_employee"]:
+                if hasattr(self, component):
+                    setattr(self, component, bpjs_components.get(component, 0))
+            
+            # Update BPJS components in deductions
+            self._update_bpjs_deductions(bpjs_components)
+            
+            logger.debug(f"BPJS calculated for {self.name}: {bpjs_components}")
+        except Exception as e:
+            logger.exception(f"Error calculating BPJS: {e}")
+            frappe.throw(_("Error calculating BPJS: {0}").format(str(e)))
+    
+    def _update_bpjs_deductions(self, components: Dict[str, float]) -> None:
+        """
+        Update BPJS component amounts in deductions.
         
-        # Calculate total BPJS deductions
-        self._calculate_total_bpjs()
-
-    def _calculate_total_bpjs(self) -> None:
-        """Calculate and store total BPJS deductions."""
-        bpjs_total = 0
+        Args:
+            components: Dictionary of calculated BPJS components
+        """
+        if not hasattr(self, "deductions") or not self.deductions:
+            return
         
+        # Mapping of component names to values
+        component_map = {
+            "BPJS Kesehatan Employee": "kesehatan_employee",
+            "BPJS JHT Employee": "jht_employee",
+            "BPJS JP Employee": "jp_employee"
+        }
+        
+        # Update each component in deductions
+        for deduction in self.deductions:
+            component_name = getattr(deduction, "salary_component", "")
+            if component_name in component_map:
+                key = component_map[component_name]
+                deduction.amount = components.get(key, 0)
+    
+    def _calculate_ytd_values(self) -> None:
+        """
+        Calculate YTD values for gross pay and BPJS deductions.
+        """
+        try:
+            ytd_values = calculate_ytd_and_ytm(self)
+            
+            if hasattr(self, "ytd_gross_pay"):
+                self.ytd_gross_pay = ytd_values.get("ytd_gross", 0)
+            
+            if hasattr(self, "ytd_bpjs_deductions"):
+                self.ytd_bpjs_deductions = ytd_values.get("ytd_bpjs", 0)
+            
+            logger.debug(f"YTD values calculated for {self.name}")
+        except Exception as e:
+            logger.warning(f"Error calculating YTD values: {e}")
+            # Non-critical error, continue processing
+    
+    def _calculate_tax(self, cfg: Dict[str, Any]) -> None:
+        """
+        Calculate tax based on method from config.
+        
+        Args:
+            cfg: Configuration dictionary
+        """
+        try:
+            # Determine calculation method
+            is_december = self._is_december_month()
+            is_using_ter = self._should_use_ter(cfg)
+            
+            # Use appropriate calculation method
+            if is_december:
+                logger.info(f"Using December tax calculation for {self.name}")
+                tax_calc.calculate_december_pph(self)
+            elif is_using_ter:
+                logger.info(f"Using TER tax calculation for {self.name}")
+                ter_calc.calculate_monthly_pph_with_ter(self)
+            else:
+                logger.info(f"Using progressive tax calculation for {self.name}")
+                tax_calc.calculate_monthly_pph_progressive(self)
+            
+            # Update PPh 21 component in deductions
+            self._update_pph21_deduction()
+        except Exception as e:
+            logger.exception(f"Error calculating tax: {e}")
+            frappe.throw(_("Error calculating tax: {0}").format(str(e)))
+    
+    def _is_december_month(self) -> bool:
+        """
+        Check if this is a December salary slip or has the December override flag.
+        
+        Returns:
+            bool: True if December or override flag is set
+        """
+        # Check explicit override flag
+        if hasattr(self, "is_december_override") and self.is_december_override:
+            return True
+        
+        # Check if month is December
+        if hasattr(self, "end_date") and self.end_date:
+            end_date = getdate(self.end_date)
+            return end_date.month == 12
+        
+        return False
+    
+    def _should_use_ter(self, cfg: Dict[str, Any]) -> bool:
+        """
+        Determine if TER calculation should be used based on config.
+        
+        Args:
+            cfg: Configuration dictionary
+            
+        Returns:
+            bool: True if TER should be used
+        """
+        # Check explicit flag first
+        if hasattr(self, "is_using_ter") and self.is_using_ter:
+            return True
+        
+        # Check config setting
+        use_ter = cfg.get("tax", {}).get("use_ter_by_default", 0)
+        
+        # Check employee category if needed
+        if use_ter and hasattr(self, "employee_doc"):
+            emp_category = getattr(self.employee_doc, "employee_category", "")
+            excluded_categories = cfg.get("tax", {}).get("ter_excluded_categories", [])
+            
+            if emp_category in excluded_categories:
+                return False
+        
+        return bool(use_ter)
+    
+    def _update_pph21_deduction(self) -> None:
+        """
+        Update PPh 21 component in deductions with calculated amount.
+        """
+        if not hasattr(self, "deductions") or not self.deductions:
+            return
+        
+        pph21_amount = flt(getattr(self, "pph21", 0))
+        
+        # Look for PPh 21 component in deductions
+        for deduction in self.deductions:
+            if getattr(deduction, "salary_component", "") == "PPh 21":
+                deduction.amount = pph21_amount
+                return
+        
+        # If not found and amount > 0, add it
+        if pph21_amount > 0:
+            # Add PPh 21 component if it doesn't exist
+            self.append("deductions", {
+                "salary_component": "PPh 21",
+                "amount": pph21_amount,
+                "default_amount": pph21_amount,
+                "abbr": "PPh21"
+            })
+    
+    def _update_totals(self) -> None:
+        """
+        Update total deduction to include BPJS and PPh 21.
+        """
+        if not hasattr(self, "total_deduction"):
+            return
+        
+        # Calculate sum of all deductions to ensure consistency
+        total = 0
         if hasattr(self, "deductions") and self.deductions:
             for deduction in self.deductions:
-                component_name = deduction.salary_component
-                if any(bpjs_type in component_name for bpjs_type in 
-                      ["BPJS Kesehatan", "BPJS JHT", "BPJS JP"]):
-                    bpjs_total += flt(deduction.amount)
+                total += flt(getattr(deduction, "amount", 0))
         
-        self.bpjs_deductions = bpjs_total
+        self.total_deduction = total
         
-        if hasattr(self, "name") and self.name:
-            try:
-                self.db_set("bpjs_deductions", bpjs_total, update_modified=False)
-            except Exception as e:
-                get_logger().warning(f"Error saving BPJS deductions: {e}")
-
-    def _calculate_ytd_values(self) -> None:
-        """Calculate YTD values for gross pay and BPJS deductions."""
-        # Use the centralized implementation from salary_utils
-        ytd_vals = calculate_ytd_and_ytm(self)
-        self.ytd_gross_pay = ytd_vals["ytd_gross"]
-        self.ytd_bpjs_deductions = ytd_vals["ytd_bpjs"]
-        
-        if hasattr(self, "name") and self.name:
-            try:
-                self.db_set("ytd_gross_pay", self.ytd_gross_pay, update_modified=False)
-                self.db_set("ytd_bpjs_deductions", self.ytd_bpjs_deductions, 
-                           update_modified=False)
-            except Exception as e:
-                get_logger().warning(f"Error saving YTD values: {e}")
-                self.add_payroll_note(f"Warning: Could not save YTD values: {str(e)}")
-
-    def _process_tax_components(self, employee: Any) -> None:
-        """Calculate tax components using centralized tax calculator."""
-        from payroll_indonesia.override.salary_slip.tax_calculator import (
-            calculate_tax_components
-        )
-        calculate_tax_components(self, employee)
-
-    def _verify_all_components(self) -> None:
-        """Perform final verification of all calculated components."""
-        from payroll_indonesia.override.salary_slip_functions import (
-            _verify_ter_settings, verify_bpjs_components
-        )
-        
-        # Verify TER settings
-        _verify_ter_settings(self)
-        
-        # Verify BPJS components
-        verify_bpjs_components(self)
-        
-        # Generate tax ID data
-        self._generate_tax_id_data()
-        
-        # Check fiscal year
-        self._check_fiscal_year()
-
-    def _generate_tax_id_data(self) -> None:
-        """Copy tax IDs from employee record if available."""
-        try:
-            employee = self._get_employee_doc()
-            
-            if hasattr(employee, "npwp") and employee.npwp:
-                self.npwp = employee.npwp
-                self.db_set("npwp", employee.npwp, update_modified=False)
-
-            if hasattr(employee, "ktp") and employee.ktp:
-                self.ktp = employee.ktp
-                self.db_set("ktp", employee.ktp, update_modified=False)
-        except Exception as e:
-            get_logger().warning(f"Error extracting tax IDs: {e}")
-            frappe.msgprint(_("Warning: Could not extract tax IDs"), indicator="orange")
-
-    def _check_fiscal_year(self) -> None:
-        """Check and create fiscal year if missing."""
-        try:
-            if hasattr(self, "start_date"):
-                from payroll_indonesia.payroll_indonesia.utils import (
-                    check_fiscal_year_setup, setup_fiscal_year_if_missing as setup_fy
-                )
-                
-                fiscal_year = check_fiscal_year_setup(self.start_date)
-                
-                if fiscal_year.get("status") == "error":
-                    setup_result = setup_fy(self.start_date)
-                    self.add_payroll_note(
-                        f"Fiscal year setup: {setup_result.get('status', 'unknown')}"
-                    )
-        except Exception as e:
-            get_logger().warning(f"Error checking fiscal year: {e}")
-            frappe.msgprint(_("Warning: Could not verify fiscal year"), indicator="orange")
-
-    def add_payroll_note(self, note: str, section: Optional[str] = None) -> None:
-        """Add a note to the payroll_note field with optional section header."""
-        try:
-            if not hasattr(self, "payroll_note"):
-                self.payroll_note = ""
-
-            if section:
-                formatted_note = f"\n\n=== {section} ===\n{note}"
-            else:
-                formatted_note = note
-
-            if self.payroll_note:
-                self.payroll_note += f"\n{formatted_note}"
-            else:
-                self.payroll_note = formatted_note
-
-            self.db_set("payroll_note", self.payroll_note, update_modified=False)
-        except Exception as e:
-            get_logger().warning(f"Error adding payroll note: {e}")
-
+        # Update net pay if gross pay exists
+        if hasattr(self, "gross_pay") and hasattr(self, "net_pay"):
+            self.net_pay = flt(self.gross_pay) - flt(self.total_deduction)
+    
     def on_submit(self) -> None:
-        """Handle submission actions including tax summary updates."""
+        """
+        Process document on submission.
+        Update related tax and BPJS records.
+        """
         try:
-            # Call parent handler
+            # Call parent submission handler
             super().on_submit()
-
-            # Final verification before submit
-            self._verify_all_components()
-
-            # Update tax summary if needed
-            self._update_tax_summary()
+            
+            # Recalculate to ensure latest values
+            self.calculate()
+            
+            # Update employee records with YTD values
+            self._update_employee_ytd_records()
+            
+            logger.info(f"Salary slip {self.name} submitted successfully")
         except Exception as e:
-            if isinstance(e, frappe.exceptions.ValidationError):
-                raise
-            get_logger().exception(f"Error during salary slip submission: {e}")
-            frappe.throw(_("Error during submission: {0}").format(str(e)))
-
-    def _update_tax_summary(self) -> None:
-        """Enqueue tax summary update in background job."""
-        if self.docstatus != 1:
+            logger.exception(f"Error submitting salary slip {self.name}: {e}")
+            frappe.throw(_("Error submitting salary slip: {0}").format(str(e)))
+    
+    def _update_employee_ytd_records(self) -> None:
+        """
+        Update employee's YTD records for tax and BPJS.
+        """
+        if not self.employee:
             return
-
-        from payroll_indonesia.override.salary_slip_functions import _enqueue_tax_summary_update
-        _enqueue_tax_summary_update(self)
-
-    def on_cancel(self) -> None:
-        """Handle cancellation actions including tax summary reversion."""
+        
         try:
-            # Call parent handler
-            super().on_cancel()
-
-            # Revert tax summary
-            self._revert_tax_summary()
+            # Get current YTD values from employee
+            ytd_pph21 = flt(frappe.db.get_value("Employee", self.employee, 
+                                               "ytd_pph21", 0))
+            ytd_bpjs = flt(frappe.db.get_value("Employee", self.employee, 
+                                              "ytd_bpjs", 0))
+            
+            # Add current slip values
+            new_ytd_pph21 = ytd_pph21 + flt(getattr(self, "pph21", 0))
+            new_ytd_bpjs = ytd_bpjs + flt(getattr(self, "total_bpjs", 0))
+            
+            # Update employee record
+            frappe.db.set_value("Employee", self.employee, {
+                "ytd_pph21": new_ytd_pph21,
+                "ytd_bpjs": new_ytd_bpjs
+            })
+            
+            logger.debug(
+                f"Updated YTD records for {self.employee}: "
+                f"PPh21={new_ytd_pph21}, BPJS={new_ytd_bpjs}"
+            )
         except Exception as e:
-            if isinstance(e, frappe.exceptions.ValidationError):
-                raise
-            get_logger().exception(f"Error during salary slip cancellation: {e}")
-            frappe.throw(_("Error during cancellation: {0}").format(str(e)))
+            logger.warning(f"Error updating employee YTD records: {e}")
+            # Non-critical error, continue processing
 
-    def _revert_tax_summary(self) -> None:
-        """Enqueue tax summary reversion in background job."""
-        if self.docstatus != 2:  # 2 = Cancelled
-            return
 
-        from payroll_indonesia.override.salary_slip_functions import (
-            _get_tax_year_from_slip, _enqueue_tax_summary_reversion
+def setup_hooks() -> None:
+    """
+    Set up hooks to override standard Salary Slip functionality.
+    """
+    try:
+        # Override standard SalarySlip class with our implementation
+        frappe.model.override.make_property_setter(
+            "Salary Slip", 
+            "validate", 
+            "IndonesiaSalarySlip.validate", 
+            "Data"
         )
         
-        year = _get_tax_year_from_slip(self)
-        if year:
-            _enqueue_tax_summary_reversion(self, year)
-        else:
-            self.add_payroll_note("Could not determine year for tax summary reversion")
-
-
-def setup_fiscal_year_if_missing(date_str: Optional[str] = None) -> Dict[str, Any]:
-    """Create fiscal year if missing for the given date."""
-    from payroll_indonesia.payroll_indonesia.utils import setup_fiscal_year_if_missing as setup_fy
-    return setup_fy(date_str)
-
-
-def apply_hooks() -> None:
-    """Apply hooks to extend standard Salary Slip functionality."""
-    try:
-        from payroll_indonesia.override.salary_slip_functions import extend_salary_slip_functionality
-        extend_salary_slip_functionality()
+        frappe.model.override.make_property_setter(
+            "Salary Slip", 
+            "on_submit", 
+            "IndonesiaSalarySlip.on_submit", 
+            "Data"
+        )
+        
+        logger.info("Indonesian Salary Slip hooks set up successfully")
     except Exception as e:
-        get_logger().exception(f"Error applying salary slip hooks: {e}")
+        logger.exception(f"Error setting up Salary Slip hooks: {e}")
         frappe.msgprint(
-            _("Warning: Could not apply salary slip hooks. Some features may be unavailable."),
-            indicator="red"
+            _("Warning: Could not set up Salary Slip hooks. "
+              "Some features may not work correctly."),
+            indicator="orange"
         )
 
 
-# Apply hooks when module is loaded
-apply_hooks()
+# Set up hooks when module is loaded
+setup_hooks()
