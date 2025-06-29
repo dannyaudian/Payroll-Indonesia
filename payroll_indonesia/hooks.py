@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-29 02:57:37 by dannyaudian
+# Last modified: 2025-06-29 04:11:36 by dannyaudian
 
 from __future__ import unicode_literals
 from typing import Dict, List, Any, Union
@@ -18,9 +18,10 @@ app_version = "0.1.0"
 required_apps = ["erpnext", "hrms"]
 
 # ❷ Install hooks
-before_install = "payroll_indonesia.install.before_install"
-after_install = "payroll_indonesia.install.after_install"
-after_sync = "payroll_indonesia.install.after_sync"
+before_install = "payroll_indonesia.fixtures.setup.before_install"
+after_install = "payroll_indonesia.fixtures.setup.after_install"
+after_sync = "payroll_indonesia.fixtures.setup.after_sync"
+after_migrate = "payroll_indonesia.fixtures.setup.setup_all_accounts"
 
 # List view JS
 doctype_list_js = {
@@ -62,7 +63,8 @@ doc_events = {
         "on_cancel": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.on_cancel",
     },
     "Company": {
-        "after_insert": "payroll_indonesia.fixtures.setup.setup_company_accounts"
+        "after_insert": "payroll_indonesia.fixtures.setup.setup_company_accounts",
+        "on_update": "payroll_indonesia.fixtures.setup.setup_company_accounts",
     },
 }
 
@@ -81,12 +83,12 @@ fixtures = [
     {"doctype": "Workspace", "filters": [["module", "=", "Payroll Indonesia"]]},
     {"doctype": "Report", "filters": [["module", "=", "Payroll Indonesia"]]},
     {
-        "doctype": "Print Format", 
+        "doctype": "Print Format",
         "filters": [["name", "in", ["BPJS Payment Summary Report"]]]
     },
     # Master Data
     {
-        "doctype": "Supplier Group", 
+        "doctype": "Supplier Group",
         "filters": [["name", "in", ["BPJS Provider", "Tax Authority"]]]
     },
     {
@@ -180,7 +182,7 @@ jinja = {
 }
 
 # Hook to initialize module functionality after app startup
-after_app_init = "payroll_indonesia.startup.initialize"
+# after_app_init = "payroll_indonesia.startup.initialize"
 
 # Whitelist for client-side API calls
 whitelist_methods = [
