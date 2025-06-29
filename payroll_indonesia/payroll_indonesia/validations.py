@@ -387,3 +387,26 @@ def validate_bpjs_components():
             _("Komponen BPJS berikut belum dibuat: {0}").format(", ".join(missing)),
             title="Validasi Komponen BPJS"
         )
+
+def validate_bpjs_account_mapping(company: str = None):
+    """
+    Validasi bahwa mapping akun BPJS tersedia untuk perusahaan yang aktif.
+    Jika parameter `company` diberikan, maka validasi dilakukan untuk perusahaan tersebut.
+    """
+    companies = [company] if company else frappe.get_all("Company", pluck="name")
+    missing = []
+
+    for comp in companies:
+        mappings = frappe.get_all(
+            "BPJS Account Mapping",
+            filters={"company": comp},
+            limit=1
+        )
+        if not mappings:
+            missing.append(comp)
+
+    if missing:
+        frappe.throw(
+            _("BPJS Account Mapping belum tersedia untuk perusahaan berikut: {0}").format(", ".join(missing)),
+            title="Validasi BPJS Mapping"
+        )
