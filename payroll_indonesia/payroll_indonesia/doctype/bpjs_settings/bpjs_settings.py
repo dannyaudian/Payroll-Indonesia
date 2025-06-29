@@ -16,7 +16,7 @@ from frappe import _
 import frappe
 from frappe.model.document import Document
 
-from payroll_indonesia.config import get_config as get_default_config
+from payroll_indonesia.config.config import get_config as get_default_config
 from payroll_indonesia.payroll_indonesia.utils import (
     get_or_create_account, debug_log
 )
