@@ -859,3 +859,87 @@ def bulk_refresh_tax_summaries(employees=None, year=None, company=None):
         )
 
         return {"status": "error", "message": _("Error starting bulk refresh: {0}").format(str(e))}
+
+
+# -*- coding: utf-8 -*-
+# Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
+# For license information, please see license.txt
+# Last modified: 2025-06-29 00:12:13 by dannyaudian
+
+import frappe
+from frappe import _
+from frappe.utils import flt
+
+from payroll_indonesia.config import get_live_config
+from payroll_indonesia.frappe_helpers import safe_execute
+
+@frappe.whitelist()
+@safe_execute(default_value={}, log_exception=True)
+def get_bpjs_limits():
+    """
+    Get BPJS validation limits from configuration.
+    
+    Returns:
+        dict: Validation rules for BPJS settings
+    """
+    # Get validation rules from config
+    config = get_live_config()
+    bpjs_config = config.get("bpjs", {})
+    validation_rules = bpjs_config.get("validation_rules", {})
+    
+    # If no rules defined, provide defaults
+    if not validation_rules or not validation_rules.get("percentage_ranges"):
+        validation_rules = {
+            "percentage_ranges": [
+                {
+                    "field": "kesehatan_employee_percent",
+                    "min": 0,
+                    "max": 5,
+                    "error_msg": "BPJS Kesehatan employee percentage must be between 0% and 5%"
+                },
+                {
+                    "field": "kesehatan_employer_percent",
+                    "min": 0,
+                    "max": 10,
+                    "error_msg": "BPJS Kesehatan employer percentage must be between 0% and 10%"
+                },
+                {
+                    "field": "jht_employee_percent",
+                    "min": 0,
+                    "max": 5,
+                    "error_msg": "JHT employee percentage must be between 0% and 5%"
+                },
+                {
+                    "field": "jht_employer_percent",
+                    "min": 0,
+                    "max": 10,
+                    "error_msg": "JHT employer percentage must be between 0% and 10%"
+                },
+                {
+                    "field": "jp_employee_percent",
+                    "min": 0,
+                    "max": 5,
+                    "error_msg": "JP employee percentage must be between 0% and 5%"
+                },
+                {
+                    "field": "jp_employer_percent",
+                    "min": 0,
+                    "max": 5,
+                    "error_msg": "JP employer percentage must be between 0% and 5%"
+                },
+                {
+                    "field": "jkk_percent",
+                    "min": 0,
+                    "max": 5,
+                    "error_msg": "JKK percentage must be between 0% and 5%"
+                },
+                {
+                    "field": "jkm_percent",
+                    "min": 0,
+                    "max": 5,
+                    "error_msg": "JKM percentage must be between 0% and 5%"
+                }
+            ]
+        }
+    
+    return validation_rules
