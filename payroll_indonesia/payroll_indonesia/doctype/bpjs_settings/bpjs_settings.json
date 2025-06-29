@@ -30,30 +30,27 @@
       "label": "BPJS Kesehatan"
     },
     {
-      "default": "1.0",
       "fieldname": "kesehatan_employee_percent",
       "fieldtype": "Float",
       "label": "Persentase Karyawan",
       "reqd": 1,
       "precision": 2,
-      "description": "Persentase kontribusi BPJS Kesehatan karyawan (default: 1%)"
+      "description": "Persentase kontribusi BPJS Kesehatan karyawan"
     },
     {
-      "default": "4.0",
       "fieldname": "kesehatan_employer_percent",
       "fieldtype": "Float",
       "label": "Persentase Perusahaan",
       "reqd": 1,
       "precision": 2,
-      "description": "Persentase kontribusi BPJS Kesehatan perusahaan (default: 4%)"
+      "description": "Persentase kontribusi BPJS Kesehatan perusahaan"
     },
     {
-      "default": "12000000",
       "fieldname": "kesehatan_max_salary",
       "fieldtype": "Currency",
       "label": "Batas Maksimal Gaji",
       "reqd": 1,
-      "description": "Batas maksimal gaji untuk perhitungan BPJS Kesehatan (default: Rp 12.000.000)"
+      "description": "Batas maksimal gaji untuk perhitungan BPJS Kesehatan"
     },
     {
       "fieldname": "kesehatan_account",
@@ -68,22 +65,20 @@
       "label": "BPJS Ketenagakerjaan"
     },
     {
-      "default": "2.0",
       "fieldname": "jht_employee_percent",
       "fieldtype": "Float",
       "label": "Persentase JHT Karyawan",
       "reqd": 1,
       "precision": 2,
-      "description": "Persentase kontribusi Jaminan Hari Tua karyawan (default: 2%)"
+      "description": "Persentase kontribusi Jaminan Hari Tua karyawan"
     },
     {
-      "default": "3.7",
       "fieldname": "jht_employer_percent",
       "fieldtype": "Float",
       "label": "Persentase JHT Perusahaan",
       "reqd": 1,
       "precision": 2,
-      "description": "Persentase kontribusi Jaminan Hari Tua perusahaan (default: 3.7%)"
+      "description": "Persentase kontribusi Jaminan Hari Tua perusahaan"
     },
     {
       "fieldname": "jht_account",
@@ -93,30 +88,27 @@
       "description": "GL Account untuk pembayaran JHT"
     },
     {
-      "default": "1.0",
       "fieldname": "jp_employee_percent",
       "fieldtype": "Float",
       "label": "Persentase JP Karyawan",
       "reqd": 1,
       "precision": 2,
-      "description": "Persentase kontribusi Jaminan Pensiun karyawan (default: 1%)"
+      "description": "Persentase kontribusi Jaminan Pensiun karyawan"
     },
     {
-      "default": "2.0",
       "fieldname": "jp_employer_percent",
       "fieldtype": "Float",
       "label": "Persentase JP Perusahaan",
       "reqd": 1,
       "precision": 2,
-      "description": "Persentase kontribusi Jaminan Pensiun perusahaan (default: 2%)"
+      "description": "Persentase kontribusi Jaminan Pensiun perusahaan"
     },
     {
-      "default": "9077600",
       "fieldname": "jp_max_salary",
       "fieldtype": "Currency",
       "label": "Batas Maksimal Gaji JP",
       "reqd": 1,
-      "description": "Batas maksimal gaji untuk perhitungan Jaminan Pensiun (default: Rp 9.077.600)"
+      "description": "Batas maksimal gaji untuk perhitungan Jaminan Pensiun"
     },
     {
       "fieldname": "jp_account",
@@ -126,13 +118,12 @@
       "description": "GL Account untuk pembayaran Jaminan Pensiun"
     },
     {
-      "default": "0.24",
       "fieldname": "jkk_percent",
       "fieldtype": "Float",
       "label": "Persentase JKK",
       "reqd": 1,
       "precision": 2,
-      "description": "Persentase kontribusi Jaminan Kecelakaan Kerja (default: 0.24%)"
+      "description": "Persentase kontribusi Jaminan Kecelakaan Kerja"
     },
     {
       "fieldname": "jkk_account",
@@ -142,13 +133,12 @@
       "description": "GL Account untuk pembayaran Jaminan Kecelakaan Kerja"
     },
     {
-      "default": "0.3",
       "fieldname": "jkm_percent",
       "fieldtype": "Float",
       "label": "Persentase JKM",
       "reqd": 1,
       "precision": 2,
-      "description": "Persentase kontribusi Jaminan Kematian (default: 0.3%)"
+      "description": "Persentase kontribusi Jaminan Kematian"
     },
     {
       "fieldname": "jkm_account",
@@ -160,7 +150,7 @@
   ],
   "issingle": 1,
   "links": [],
-  "modified": "2025-04-27 08:46:13",
+  "modified": "2025-06-29 00:23:11",
   "modified_by": "dannyaudian",
   "module": "Payroll Indonesia",
   "name": "BPJS Settings",
