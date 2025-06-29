@@ -7,7 +7,7 @@ from frappe import _
 from frappe.utils import now
 from hrms.payroll.doctype.salary_structure.salary_structure import SalaryStructure
 from payroll_indonesia.utilities.tax_slab import get_default_tax_slab, create_income_tax_slab
-from payroll_indonesia.config.config.gl_account_mapper import get_gl_account_for_salary_component
+from payroll_indonesia.config.gl_account_mapper import get_gl_account_for_salary_component
 
 
 class CustomSalaryStructure(SalaryStructure):
