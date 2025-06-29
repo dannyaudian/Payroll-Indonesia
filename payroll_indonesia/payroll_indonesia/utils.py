@@ -1,14 +1,13 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-29 00:34:47 by dannyaudian
+# Last modified: 2025-06-29 00:38:07 by dannyaudian
 
 """
-Utilitas pusat untuk modul Payroll Indonesia.
+Core utility functions for the Payroll Indonesia module.
 
-Modul ini menyediakan fungsi-fungsi umum yang digunakan oleh berbagai
-komponen Payroll Indonesia, dengan fokus pada pemisahan konfigurasi
-dan logika bisnis.
+This module provides common functions used by various components of 
+Payroll Indonesia, with a focus on separating configuration from business logic.
 """
 
 import logging
@@ -26,11 +25,11 @@ from payroll_indonesia.frappe_helpers import (
     doc_exists
 )
 
-# Konfigurasi logger
+# Configure logger
 logger = logging.getLogger('payroll_utils')
 
 
-# =========== FUNGSI AKUN DAN GL ===========
+# =========== ACCOUNT AND GL FUNCTIONS ===========
 
 @safe_execute(default_value=None, log_exception=True)
 def get_or_create_account(
@@ -41,38 +40,38 @@ def get_or_create_account(
     root_type: Optional[str] = None
 ) -> Optional[str]:
     """
-    Mendapatkan atau membuat akun GL jika belum ada.
+    Get or create a GL account if it doesn't exist.
     
     Args:
-        company: Nama perusahaan
-        account_name: Nama akun tanpa awalan perusahaan
-        account_type: Tipe akun (Payable, Expense, dll)
-        is_group: Apakah akun adalah grup (1) atau bukan (0)
-        root_type: Tipe root (akan ditentukan dari account_type jika None)
+        company: Company name
+        account_name: Account name without company prefix
+        account_type: Account type (Payable, Expense, etc.)
+        is_group: Whether the account is a group (1) or not (0)
+        root_type: Root type (will be determined from account_type if None)
         
     Returns:
-        str: Nama akun lengkap, None jika gagal
+        str: Full account name, None if failed
     """
-    # Validasi parameter
+    # Validate parameters
     if not company or not account_name:
-        logger.error("Company dan account_name wajib diisi")
+        logger.error("Company and account_name are required")
         return None
     
-    # Dapatkan abbreviation perusahaan
+    # Get company abbreviation
     abbr = frappe.get_cached_value("Company", company, "abbr")
     if not abbr:
-        logger.error(f"Perusahaan {company} tidak memiliki abbreviation")
+        logger.error(f"Company {company} does not have an abbreviation")
         return None
     
-    # Buat nama akun lengkap
+    # Create full account name
     full_account_name = f"{account_name} - {abbr}"
     
-    # Cek jika akun sudah ada
+    # Check if account already exists
     if frappe.db.exists("Account", full_account_name):
-        logger.info(f"Akun {full_account_name} sudah ada")
+        logger.info(f"Account {full_account_name} already exists")
         return full_account_name
     
-    # Tentukan root_type jika tidak diberikan
+    # Determine root_type if not provided
     if not root_type:
         if account_type in ["Payable", "Tax", "Receivable"]:
             root_type = "Liability"
@@ -85,15 +84,15 @@ def get_or_create_account(
         else:
             root_type = "Liability"  # Default
     
-    # Cari parent account
+    # Find parent account
     parent = find_parent_account(company, account_type, root_type)
     if not parent:
         logger.error(
-            f"Tidak dapat menemukan parent account untuk {account_name}"
+            f"Cannot find parent account for {account_name}"
         )
         return None
     
-    # Buat objek akun
+    # Create account object
     account_data = {
         "doctype": "Account",
         "account_name": account_name,
@@ -106,11 +105,11 @@ def get_or_create_account(
         ),
     }
     
-    # Tambahkan account_type untuk non-group accounts
+    # Add account_type for non-group accounts
     if not is_group and account_type:
         account_data["account_type"] = account_type
     
-    # Buat akun
+    # Create account
     try:
         doc = frappe.get_doc(account_data)
         doc.flags.ignore_permissions = True
@@ -118,10 +117,10 @@ def get_or_create_account(
         doc.insert(ignore_permissions=True)
         frappe.db.commit()
         
-        logger.info(f"Berhasil membuat akun: {full_account_name}")
+        logger.info(f"Successfully created account: {full_account_name}")
         return full_account_name
     except Exception as e:
-        logger.error(f"Gagal membuat akun {full_account_name}: {str(e)}")
+        logger.error(f"Failed to create account {full_account_name}: {str(e)}")
         return None
 
 
@@ -132,17 +131,17 @@ def find_parent_account(
     root_type: Optional[str] = None
 ) -> Optional[str]:
     """
-    Mencari parent account yang sesuai berdasarkan tipe.
+    Find appropriate parent account based on type.
     
     Args:
-        company: Nama perusahaan
-        account_type: Tipe akun (Payable, Expense, dll)
-        root_type: Tipe root (akan ditentukan dari account_type jika None)
+        company: Company name
+        account_type: Account type (Payable, Expense, etc.)
+        root_type: Root type (will be determined from account_type if None)
         
     Returns:
-        str: Nama parent account, None jika tidak ditemukan
+        str: Parent account name, None if not found
     """
-    # Tentukan root_type jika tidak diberikan
+    # Determine root_type if not provided
     if not root_type:
         if account_type in ["Payable", "Tax", "Receivable"]:
             root_type = "Liability"
@@ -155,17 +154,17 @@ def find_parent_account(
         else:
             root_type = "Liability"  # Default
     
-    # Dapatkan abbreviation perusahaan
+    # Get company abbreviation
     abbr = frappe.get_cached_value("Company", company, "abbr")
     if not abbr:
-        logger.error(f"Perusahaan {company} tidak memiliki abbreviation")
+        logger.error(f"Company {company} does not have an abbreviation")
         return None
     
-    # Dapatkan kandidat dari konfigurasi
+    # Get candidates from configuration
     config = get_live_config()
     parent_candidates = config.get("parent_accounts", {}).get(root_type, [])
     
-    # Gunakan default jika tidak ada di konfigurasi
+    # Use defaults if not in configuration
     if not parent_candidates:
         if root_type == "Liability":
             parent_candidates = [
@@ -182,9 +181,9 @@ def find_parent_account(
         else:
             parent_candidates = []
     
-    # Cari parent account dari kandidat
+    # Find parent account from candidates
     for candidate in parent_candidates:
-        # Cek nama akun persis
+        # Check exact account name
         account = frappe.db.get_value(
             "Account",
             {
@@ -198,12 +197,12 @@ def find_parent_account(
         if account:
             return account
         
-        # Cek dengan suffix perusahaan
+        # Check with company suffix
         account_with_suffix = f"{candidate} - {abbr}"
         if frappe.db.exists("Account", account_with_suffix):
             return account_with_suffix
     
-    # Fallback: cari akun grup dengan root_type yang sesuai
+    # Fallback: find any group account with matching root_type
     accounts = frappe.get_all(
         "Account",
         filters={
@@ -218,7 +217,7 @@ def find_parent_account(
     if accounts:
         return accounts[0].name
     
-    # Ultimate fallback: gunakan akun root perusahaan
+    # Ultimate fallback: use company's root account
     root_accounts = {
         "Asset": "Application of Funds (Assets)",
         "Liability": "Source of Funds (Liabilities)",
@@ -236,26 +235,26 @@ def find_parent_account(
     return None
 
 
-# =========== FUNGSI BPJS ===========
+# =========== BPJS FUNCTIONS ===========
 
 @safe_execute(default_value={}, log_exception=True)
-def hitung_bpjs(gaji: float) -> Dict[str, Any]:
+def calculate_bpjs(salary: float) -> Dict[str, Any]:
     """
-    Menghitung kontribusi BPJS berdasarkan gaji.
+    Calculate BPJS contributions based on salary.
     
     Args:
-        gaji: Gaji pokok
+        salary: Base salary
         
     Returns:
-        dict: Detail kontribusi BPJS
+        dict: BPJS contribution details
     """
-    # Validasi input
-    gaji = flt(gaji)
-    if gaji < 0:
-        logger.warning("Nilai gaji negatif, menggunakan nilai absolut")
-        gaji = abs(gaji)
+    # Validate input
+    salary = flt(salary)
+    if salary < 0:
+        logger.warning("Negative salary value, using absolute value")
+        salary = abs(salary)
     
-    # Dapatkan persentase BPJS dari konfigurasi
+    # Get BPJS percentages from configuration
     config = get_live_config()
     bpjs_config = config.get('bpjs', {})
     
@@ -273,54 +272,54 @@ def hitung_bpjs(gaji: float) -> Dict[str, Any]:
     jp_employer = flt(bpjs_config.get('jp_employer_percent', 2.0))
     jp_max = flt(bpjs_config.get('jp_max_salary', 9077600))
     
-    # BPJS Ketenagakerjaan - JKK dan JKM
+    # BPJS Ketenagakerjaan - JKK and JKM
     jkk = flt(bpjs_config.get('jkk_percent', 0.24))
     jkm = flt(bpjs_config.get('jkm_percent', 0.3))
     
-    # Batasi gaji dengan maksimum yang diatur
-    kesehatan_gaji = min(gaji, kesehatan_max)
-    jp_gaji = min(gaji, jp_max)
+    # Cap salary with maximum limits
+    kesehatan_salary = min(salary, kesehatan_max)
+    jp_salary = min(salary, jp_max)
     
-    # Hitung kontribusi
-    kesehatan_karyawan = kesehatan_gaji * (kesehatan_employee / 100)
-    kesehatan_perusahaan = kesehatan_gaji * (kesehatan_employer / 100)
+    # Calculate contributions
+    kesehatan_employee_amount = kesehatan_salary * (kesehatan_employee / 100)
+    kesehatan_employer_amount = kesehatan_salary * (kesehatan_employer / 100)
     
-    jht_karyawan = gaji * (jht_employee / 100)
-    jht_perusahaan = gaji * (jht_employer / 100)
+    jht_employee_amount = salary * (jht_employee / 100)
+    jht_employer_amount = salary * (jht_employer / 100)
     
-    jp_karyawan = jp_gaji * (jp_employee / 100)
-    jp_perusahaan = jp_gaji * (jp_employer / 100)
+    jp_employee_amount = jp_salary * (jp_employee / 100)
+    jp_employer_amount = jp_salary * (jp_employer / 100)
     
-    jkk_nilai = gaji * (jkk / 100)
-    jkm_nilai = gaji * (jkm / 100)
+    jkk_amount = salary * (jkk / 100)
+    jkm_amount = salary * (jkm / 100)
     
-    # Hasil
+    # Result
     return {
         "kesehatan": {
-            "karyawan": kesehatan_karyawan,
-            "perusahaan": kesehatan_perusahaan,
-            "total": kesehatan_karyawan + kesehatan_perusahaan
+            "employee": kesehatan_employee_amount,
+            "employer": kesehatan_employer_amount,
+            "total": kesehatan_employee_amount + kesehatan_employer_amount
         },
         "ketenagakerjaan": {
             "jht": {
-                "karyawan": jht_karyawan,
-                "perusahaan": jht_perusahaan,
-                "total": jht_karyawan + jht_perusahaan
+                "employee": jht_employee_amount,
+                "employer": jht_employer_amount,
+                "total": jht_employee_amount + jht_employer_amount
             },
             "jp": {
-                "karyawan": jp_karyawan,
-                "perusahaan": jp_perusahaan,
-                "total": jp_karyawan + jp_perusahaan
+                "employee": jp_employee_amount,
+                "employer": jp_employer_amount,
+                "total": jp_employee_amount + jp_employer_amount
             },
-            "jkk": jkk_nilai,
-            "jkm": jkm_nilai
+            "jkk": jkk_amount,
+            "jkm": jkm_amount
         },
-        "total_karyawan": (
-            kesehatan_karyawan + jht_karyawan + jp_karyawan
+        "total_employee": (
+            kesehatan_employee_amount + jht_employee_amount + jp_employee_amount
         ),
-        "total_perusahaan": (
-            kesehatan_perusahaan + jht_perusahaan + 
-            jp_perusahaan + jkk_nilai + jkm_nilai
+        "total_employer": (
+            kesehatan_employer_amount + jht_employer_amount + 
+            jp_employer_amount + jkk_amount + jkm_amount
         )
     }
 
@@ -332,17 +331,17 @@ def validate_bpjs_limits(
     field_type: str = "percentage"
 ) -> bool:
     """
-    Validasi nilai parameter BPJS berdasarkan batas konfigurasi.
+    Validate BPJS parameter values based on configuration limits.
     
     Args:
-        component: Komponen BPJS (kesehatan_employee, jht_employer, dll)
-        value: Nilai untuk divalidasi
-        field_type: Tipe nilai (percentage atau max_salary)
+        component: BPJS component (kesehatan_employee, jht_employer, etc.)
+        value: Value to validate
+        field_type: Value type (percentage or max_salary)
         
     Returns:
-        bool: True jika valid, False jika tidak
+        bool: True if valid, False if not
     """
-    # Dapatkan batas dari konfigurasi
+    # Get limits from configuration
     config = get_live_config()
     bpjs_config = config.get('bpjs', {})
     validation = bpjs_config.get('validation', {})
@@ -367,28 +366,28 @@ def validate_bpjs_limits(
     return True
 
 
-# =========== FUNGSI PAJAK (PPH 21) ===========
+# =========== TAX (PPh 21) FUNCTIONS ===========
 
 @safe_execute(default_value=None, log_exception=True)
-def get_ptkp_value(status_pajak: str) -> Optional[float]:
+def get_ptkp_value(tax_status: str) -> Optional[float]:
     """
-    Mendapatkan nilai PTKP berdasarkan status pajak.
+    Get PTKP value based on tax status.
     
     Args:
-        status_pajak: Kode status pajak (TK0, K1, dll)
+        tax_status: Tax status code (TK0, K1, etc.)
         
     Returns:
-        float: Nilai PTKP tahunan, None jika tidak ditemukan
+        float: Annual PTKP value, None if not found
     """
-    # Dapatkan nilai PTKP dari konfigurasi
+    # Get PTKP values from configuration
     config = get_live_config()
     ptkp_values = config.get('ptkp', {})
     
-    # Jika status pajak ada di konfigurasi, gunakan nilai dari sana
-    if status_pajak in ptkp_values:
-        return flt(ptkp_values[status_pajak])
+    # If tax status exists in configuration, use that value
+    if tax_status in ptkp_values:
+        return flt(ptkp_values[tax_status])
     
-    # Jika tidak ada di konfigurasi, gunakan nilai default
+    # If not in configuration, use default values
     default_values = {
         "TK0": 54000000,
         "TK1": 58500000,
@@ -404,27 +403,27 @@ def get_ptkp_value(status_pajak: str) -> Optional[float]:
         "HB3": 126000000
     }
     
-    return flt(default_values.get(status_pajak))
+    return flt(default_values.get(tax_status))
 
 
 @safe_execute(default_value=[], log_exception=True)
 def get_tax_brackets() -> List[Dict[str, Any]]:
     """
-    Mendapatkan lapisan pajak progresif PPh 21.
+    Get progressive tax brackets for PPh 21.
     
     Returns:
-        list: Daftar lapisan pajak dengan income_from, income_to, dan tax_rate
+        list: List of tax brackets with income_from, income_to, and tax_rate
     """
-    # Dapatkan lapisan pajak dari konfigurasi
+    # Get tax brackets from configuration
     config = get_live_config()
     brackets = config.get('tax_brackets', [])
     
-    # Jika ada di konfigurasi, urutkan dan gunakan
+    # If in configuration, sort and use
     if brackets:
-        # Urutkan berdasarkan income_from
+        # Sort by income_from
         return sorted(brackets, key=lambda x: x["income_from"])
     
-    # Jika tidak ada di konfigurasi, gunakan nilai default
+    # If not in configuration, use default values
     return [
         {"income_from": 0, "income_to": 60000000, "tax_rate": 5},
         {"income_from": 60000000, "income_to": 250000000, "tax_rate": 15},
@@ -435,29 +434,29 @@ def get_tax_brackets() -> List[Dict[str, Any]]:
 
 
 @safe_execute(default_value="TER C", log_exception=True)
-def get_ter_category(status_pajak: str) -> str:
+def get_ter_category(tax_status: str) -> str:
     """
-    Memetakan status PTKP ke kategori TER.
+    Map PTKP status to TER category.
     
     Args:
-        status_pajak: Kode status pajak (TK0, K1, dll)
+        tax_status: Tax status code (TK0, K1, etc.)
         
     Returns:
-        str: Kategori TER ("TER A", "TER B", atau "TER C")
+        str: TER category ("TER A", "TER B", or "TER C")
     """
-    # Dapatkan pemetaan dari konfigurasi
+    # Get mapping from configuration
     config = get_live_config()
     ptkp_to_ter = config.get('ptkp_to_ter_mapping', {})
     
-    # Jika ada di konfigurasi, gunakan
-    if status_pajak in ptkp_to_ter:
-        return ptkp_to_ter[status_pajak]
+    # If in configuration, use it
+    if tax_status in ptkp_to_ter:
+        return ptkp_to_ter[tax_status]
     
-    # Jika tidak ada di konfigurasi, gunakan logika default
-    prefix = status_pajak[:2] if len(status_pajak) >= 2 else status_pajak
-    suffix = status_pajak[2:] if len(status_pajak) >= 3 else "0"
+    # If not in configuration, use default logic
+    prefix = tax_status[:2] if len(tax_status) >= 2 else tax_status
+    suffix = tax_status[2:] if len(tax_status) >= 3 else "0"
     
-    if status_pajak == "TK0":
+    if tax_status == "TK0":
         return "TER A"
     elif prefix == "TK" and suffix in ["1", "2", "3"]:
         return "TER B"
@@ -468,53 +467,53 @@ def get_ter_category(status_pajak: str) -> str:
     elif prefix == "HB":  # Single parent
         return "TER C"
     
-    # Default: kategori tertinggi
+    # Default: highest category
     return "TER C"
 
 
 @safe_execute(default_value=0.0, log_exception=True)
-def calculate_ter(status_pajak: str, penghasilan: float) -> float:
+def calculate_ter(tax_status: str, income: float) -> float:
     """
-    Menghitung tarif pajak TER (Tarif Efektif Rata-rata).
+    Calculate TER (Tarif Efektif Rata-rata) tax rate.
     
     Args:
-        status_pajak: Kode status pajak (TK0, K1, dll)
-        penghasilan: Penghasilan bruto
+        tax_status: Tax status code (TK0, K1, etc.)
+        income: Gross income
         
     Returns:
-        float: TER rate dalam desimal (mis. 0.05 untuk 5%)
+        float: TER rate as decimal (e.g. 0.05 for 5%)
     """
-    # Validasi input
-    penghasilan = flt(penghasilan)
-    if penghasilan <= 0:
+    # Validate input
+    income = flt(income)
+    if income <= 0:
         return 0.0
     
-    # Dapatkan kategori TER
-    ter_category = get_ter_category(status_pajak)
+    # Get TER category
+    ter_category = get_ter_category(tax_status)
     
-    # Dapatkan tarif TER dari konfigurasi
+    # Get TER rates from configuration
     config = get_live_config()
     ter_rates = config.get('ter_rates', {}).get(ter_category, [])
     
-    # Jika ada tarif di konfigurasi, cari yang sesuai
+    # If rates exist in configuration, find the appropriate one
     if ter_rates:
-        # Urutkan tarif berdasarkan income_from (descending)
+        # Sort rates by income_from (descending)
         sorted_rates = sorted(
             ter_rates, key=lambda x: x.get("income_from", 0), reverse=True
         )
         
-        # Cari tarif yang sesuai
+        # Find matching rate
         for rate_data in sorted_rates:
             income_from = flt(rate_data.get("income_from", 0))
             income_to = flt(rate_data.get("income_to", 0))
             is_highest = rate_data.get("is_highest_bracket", False)
             
-            if penghasilan >= income_from and (
-                is_highest or income_to == 0 or penghasilan < income_to
+            if income >= income_from and (
+                is_highest or income_to == 0 or income < income_to
             ):
                 return flt(rate_data.get("rate", 0)) / 100.0
     
-    # Jika tidak ada di konfigurasi, gunakan tarif default
+    # If not in configuration, use default rates
     default_rates = {
         "TER A": 0.05,  # 5%
         "TER B": 0.10,  # 10%
@@ -527,52 +526,52 @@ def calculate_ter(status_pajak: str, penghasilan: float) -> float:
 @safe_execute(default_value=False, log_exception=True)
 def should_use_ter(is_december: bool = False) -> bool:
     """
-    Mengecek apakah metode TER harus digunakan berdasarkan konfigurasi.
+    Check if TER method should be used based on configuration.
     
     Args:
-        is_december: Apakah ini slip gaji bulan Desember
+        is_december: Whether this is a December salary slip
         
     Returns:
-        bool: True jika gunakan TER, False jika gunakan Progresif
+        bool: True if use TER, False if use Progressive
     """
-    # Jika Desember, selalu gunakan Progresif
+    # If December, always use Progressive
     if is_december:
-        logger.info("Bulan Desember, menggunakan perhitungan Progresif")
+        logger.info("December month, using Progressive calculation")
         return False
     
-    # Dapatkan konfigurasi TER
+    # Get TER configuration
     config = get_live_config()
     tax_config = config.get('tax', {})
     
     calculation_method = tax_config.get('tax_calculation_method', 'Progressive')
     use_ter = cint(tax_config.get('use_ter', 0))
     
-    # Gunakan TER jika keduanya sesuai
+    # Use TER if both match
     return calculation_method == 'TER' and use_ter == 1
 
 
 @safe_execute(default_value=0.0, log_exception=True)
 def calculate_biaya_jabatan(gross_pay: float) -> float:
     """
-    Menghitung biaya jabatan berdasarkan aturan pajak.
+    Calculate position allowance based on tax rules.
     
     Args:
-        gross_pay: Penghasilan bruto
+        gross_pay: Gross income
         
     Returns:
-        float: Nilai biaya jabatan
+        float: Position allowance value
     """
-    # Dapatkan parameter dari konfigurasi
+    # Get parameters from configuration
     config = get_live_config()
     tax_config = config.get('tax', {})
     
     percent = flt(tax_config.get('biaya_jabatan_percent', 5.0))
     max_value = flt(tax_config.get('biaya_jabatan_max', 500000.0))
     
-    # Hitung biaya jabatan
+    # Calculate position allowance
     biaya_jabatan = gross_pay * (percent / 100)
     
-    # Batasi dengan nilai maksimum
+    # Cap with maximum value
     if biaya_jabatan > max_value:
         biaya_jabatan = max_value
     
@@ -581,28 +580,28 @@ def calculate_biaya_jabatan(gross_pay: float) -> float:
 
 @safe_execute(default_value=0.0, log_exception=True)
 def calculate_progressive_tax(
-    netto_yearly: float,
+    yearly_netto: float,
     ptkp: float
 ) -> float:
     """
-    Menghitung PPh 21 dengan metode progresif.
+    Calculate PPh 21 using progressive method.
     
     Args:
-        netto_yearly: Penghasilan netto tahunan
-        ptkp: Nilai PTKP tahunan
+        yearly_netto: Annual net income
+        ptkp: Annual PTKP value
         
     Returns:
-        float: Pajak tahunan
+        float: Annual tax
     """
-    # Hitung PKP (Penghasilan Kena Pajak)
-    pkp = max(0, netto_yearly - ptkp)
+    # Calculate PKP (Taxable Income)
+    pkp = max(0, yearly_netto - ptkp)
     if pkp <= 0:
         return 0.0
     
-    # Dapatkan lapisan pajak
+    # Get tax brackets
     brackets = get_tax_brackets()
     
-    # Hitung pajak per lapisan
+    # Calculate tax per bracket
     tax = 0.0
     remaining_income = pkp
     
@@ -611,12 +610,12 @@ def calculate_progressive_tax(
         income_to = flt(bracket["income_to"])
         rate = flt(bracket["tax_rate"]) / 100.0
         
-        # Lapisan terakhir
+        # Last bracket
         if income_to == 0 or income_to > remaining_income:
             tax += remaining_income * rate
             break
         
-        # Lapisan tengah
+        # Middle brackets
         taxable_in_bracket = income_to - income_from
         if remaining_income <= taxable_in_bracket:
             tax += remaining_income * rate
@@ -628,20 +627,20 @@ def calculate_progressive_tax(
     return tax
 
 
-# =========== FUNGSI UTILITAS UMUM ===========
+# =========== GENERAL UTILITY FUNCTIONS ===========
 
 @safe_execute(default_value=None, log_exception=True)
 def get_settings():
     """
-    Mendapatkan dokumen Payroll Indonesia Settings.
+    Get Payroll Indonesia Settings document.
     
     Returns:
-        Dokumen settings atau None jika error
+        Settings document or None if error
     """
     settings_name = "Payroll Indonesia Settings"
     
     if not doc_exists(settings_name, settings_name):
-        # Buat settings default jika belum ada
+        # Create default settings if doesn't exist
         settings = create_default_settings()
     else:
         settings = frappe.get_doc(settings_name, settings_name)
@@ -652,15 +651,15 @@ def get_settings():
 @safe_execute(default_value=None, log_exception=True)
 def create_default_settings():
     """
-    Membuat Payroll Indonesia Settings default.
+    Create default Payroll Indonesia Settings.
     
     Returns:
-        Dokumen settings yang dibuat
+        Created settings document
     """
-    # Dapatkan konfigurasi default
+    # Get default configuration
     config = get_live_config()
     
-    # Ekstrak nilai dengan default
+    # Extract values with defaults
     bpjs = config.get('bpjs', {})
     tax = config.get('tax', {})
     defaults = config.get('defaults', {})
@@ -696,7 +695,7 @@ def create_default_settings():
         "working_hours_per_day": defaults.get("working_hours", 8),
     })
     
-    # Insert dengan bypass permission
+    # Insert with permission bypass
     settings.flags.ignore_permissions = True
     settings.flags.ignore_mandatory = True
     settings.insert(ignore_permissions=True)
@@ -708,23 +707,23 @@ def create_default_settings():
 @safe_execute(default_value=None, log_exception=True)
 def get_employee_details(employee_id: str) -> Optional[Dict[str, Any]]:
     """
-    Mendapatkan detail karyawan dengan data pajak dan BPJS.
+    Get employee details with tax and BPJS data.
     
     Args:
-        employee_id: ID karyawan
+        employee_id: Employee ID
         
     Returns:
-        dict: Detail karyawan, None jika tidak ditemukan
+        dict: Employee details, None if not found
     """
-    # Pastikan karyawan ada
+    # Ensure employee exists
     if not frappe.db.exists("Employee", employee_id):
-        logger.warning(f"Karyawan {employee_id} tidak ditemukan")
+        logger.warning(f"Employee {employee_id} not found")
         return None
     
-    # Ambil dokumen karyawan
+    # Get employee document
     employee = frappe.get_doc("Employee", employee_id)
     
-    # Ekstrak informasi yang relevan
+    # Extract relevant information
     result = {
         "name": employee.name,
         "employee_name": employee.employee_name,
@@ -747,20 +746,20 @@ def get_employee_details(employee_id: str) -> Optional[Dict[str, Any]]:
 
 def get_month_name(month: int) -> str:
     """
-    Mendapatkan nama bulan dari nomor bulan.
+    Get month name from month number.
     
     Args:
-        month: Nomor bulan (1-12)
+        month: Month number (1-12)
         
     Returns:
-        str: Nama bulan
+        str: Month name
     """
     month_names = [
-        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
     ]
     
     if 1 <= month <= 12:
         return month_names[month - 1]
     
-    return f"Bulan {month}"
+    return f"Month {month}"
