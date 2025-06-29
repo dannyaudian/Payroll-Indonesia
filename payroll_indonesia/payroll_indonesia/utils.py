@@ -17,6 +17,12 @@ from payroll_indonesia.frappe_helpers import ensure_doc_exists
 logger = logging.getLogger("payroll_utils")
 F = TypeVar("F", bound=Callable[..., Any])
 
+def debug_log(message: str, data: Any = None):
+    from frappe.utils import now
+    print(f"[{now()}] {message}")
+    if data:
+        import pprint
+        pprint.pprint(data)
 
 def safe_execute(
     default_value: Any = None, log_exception: bool = True
