@@ -5,7 +5,7 @@ from typing import Dict, Any, Optional
 import frappe
 from frappe import _
 
-from payroll_indonesia.config import get_config, get_live_config
+from payroll_indonesia.config.config import get_config, get_live_config
 from payroll_indonesia.frappe_helpers import safe_execute, ensure_doc_exists
 from payroll_indonesia.setup import setup_module
 

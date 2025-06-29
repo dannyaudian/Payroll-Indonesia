@@ -19,7 +19,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, cint, now
 
-from payroll_indonesia.config import get_config, get_live_config
+from payroll_indonesia.config.config import get_config, get_live_config
 from payroll_indonesia.payroll_indonesia.validations import (
     validate_bpjs_components,
     validate_bpjs_account_mapping

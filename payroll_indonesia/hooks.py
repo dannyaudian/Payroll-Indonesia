@@ -163,7 +163,7 @@ authentication_hooks = "payroll_indonesia.override.auth_hooks.validate_login"
 jinja = {
     "methods": [
         # Configuration and Utils
-        "payroll_indonesia.config.get_live_config",
+        "payroll_indonesia.config.config.get_live_config",
         "payroll_indonesia.payroll_indonesia.utils.get_formatted_currency",
         
         # Tax calculation methods

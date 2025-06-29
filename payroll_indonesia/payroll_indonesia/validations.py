@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import frappe
 from frappe import _
 
-from payroll_indonesia.config import get_live_config
+from payroll_indonesia.config.config import get_live_config
 
 # Configure logger
 logger = logging.getLogger(__name__)

@@ -14,7 +14,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, cint, now_datetime
 
-from payroll_indonesia.config import get_live_config
+from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.frappe_helpers import safe_execute
 import payroll_indonesia.payroll_indonesia.validations as validations  # Corrected import path
 

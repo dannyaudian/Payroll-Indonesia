@@ -11,7 +11,7 @@ import logging
 from typing import Any, Dict, Optional, Union, Tuple, TYPE_CHECKING
 from functools import lru_cache
 
-from payroll_indonesia.config import get_live_config
+from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.constants import (
     MONTHS_PER_YEAR,
     TER_CATEGORY_A,

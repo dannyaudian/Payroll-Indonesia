@@ -9,7 +9,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, now
 
-from payroll_indonesia.config import get_live_config
+from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.frappe_helpers import (
     safe_execute,
     ensure_doc_exists,

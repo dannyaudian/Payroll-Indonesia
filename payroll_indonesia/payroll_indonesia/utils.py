@@ -11,7 +11,7 @@ import logging
 from typing import Any, Callable, Optional, Dict, TypeVar, cast
 import frappe
 
-from payroll_indonesia.config import get_live_config
+from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.frappe_helpers import ensure_doc_exists
 
 logger = logging.getLogger("payroll_utils")

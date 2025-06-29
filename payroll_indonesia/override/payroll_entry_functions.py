@@ -14,7 +14,7 @@ import frappe
 from frappe import _
 from frappe.utils import getdate, date_diff, cint, flt, add_days
 
-from payroll_indonesia.config import get_live_config
+from payroll_indonesia.config.config import get_live_config
 import payroll_indonesia.override.salary_slip.bpjs_calculator as bpjs_calc
 import payroll_indonesia.override.salary_slip.tax_calculator as tax_calc
 import payroll_indonesia.override.salary_slip.ter_calculator as ter_calc

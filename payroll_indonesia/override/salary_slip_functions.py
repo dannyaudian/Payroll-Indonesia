@@ -24,7 +24,7 @@ import payroll_indonesia.override.salary_slip.salary_utils as utils
 import payroll_indonesia.payroll_indonesia.validations as val
 
 # Config
-from payroll_indonesia.config import get_live_config
+from payroll_indonesia.config.config import get_live_config
 
 # Logger setup
 logger = logging.getLogger('salary_slip_fn')

@@ -10,7 +10,7 @@ BPJS calculator module - satu-satunya kalkulator BPJS.
 import logging
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
-from payroll_indonesia.config import get_live_config
+from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.constants import (
     DEFAULT_UMR,
     BPJS_KESEHATAN_EMPLOYEE_PERCENT,

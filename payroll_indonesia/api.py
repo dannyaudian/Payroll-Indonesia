@@ -24,7 +24,7 @@ from frappe import _
 from frappe.utils import cint, flt, getdate
 
 # Payroll Indonesia imports
-from payroll_indonesia.config import get_live_config
+from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.override.salary_slip import (
     bpjs_calculator as bpjs_calc,
     tax_calculator as tax_calc,

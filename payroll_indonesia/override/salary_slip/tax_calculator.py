@@ -10,7 +10,7 @@ Tax calculator module - PPh 21 (progresif & tahunan)
 import logging
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
-from payroll_indonesia.config import get_live_config
+from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.constants import (
     MONTHS_PER_YEAR,
     BIAYA_JABATAN_PERCENT,

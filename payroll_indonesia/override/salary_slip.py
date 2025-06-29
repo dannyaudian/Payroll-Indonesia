@@ -24,7 +24,7 @@ import payroll_indonesia.override.salary_slip.ter_calculator as ter_calc
 import payroll_indonesia.payroll_indonesia.validations as validations
 
 # Import utilities
-from payroll_indonesia.config import get_live_config
+from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.override.salary_slip.salary_utils import calculate_ytd_and_ytm
 
 logger = logging.getLogger("salary_slip")
