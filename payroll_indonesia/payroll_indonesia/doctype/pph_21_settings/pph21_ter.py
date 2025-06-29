@@ -1,315 +1,209 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-05-11 13:12:56 by dannyaudian
+# Last modified: 2025-06-29 00:09:31 by dannyaudian
+
+"""
+PPh 21 TER (Tarif Efektif Rata-rata) utility functions.
+
+Handles TER rate retrieval and category mapping for PPh 21 tax calculations
+based on PMK 168/2023 regulations.
+"""
+
+import logging
+from bisect import bisect_right
+from typing import Dict, List, Union, Optional, Any, Tuple
 
 import frappe
 from frappe import _
-from payroll_indonesia.payroll_indonesia.utils import get_settings, get_ter_category
+from frappe.utils import flt
+
+from payroll_indonesia.config import get_live_config
+from payroll_indonesia.frappe_helpers import safe_execute
+
+# Configure logger
+logger = logging.getLogger("payroll_indonesia.tax")
+
+# Cache for TER rates to avoid repeated config lookups
+# Format: {ter_category: [(income_from, income_to, rate, is_highest)]}
+_ter_rate_cache: Dict[str, List[Tuple[float, float, float, bool]]] = {}
+
+# PTKP to TER category mapping cache
+_ter_category_cache: Dict[str, str] = {}
 
 
-def get_ter_rate(employee_doc, monthly_income):
+@safe_execute(default_value=0.0, log_exception=True)
+def get_ter_rate(ptkp_code: str, taxable_income: float) -> float:
     """
-    Get TER (Tarif Efektif Rata-rata) rate for employee based on PMK 168/2023
-
+    Get TER rate for a specific PTKP status and income level.
+    
     Args:
-        employee_doc (Employee): Employee document or dict with status_pajak field
-        monthly_income (float): Monthly gross income amount
-
+        ptkp_code: Tax status code (e.g. 'TK0', 'K1')
+        taxable_income: Monthly gross income amount
+        
     Returns:
-        float: TER rate (as decimal, e.g. 0.05 for 5%)
+        float: TER rate as decimal (e.g., 0.05 for 5%)
     """
-    if not employee_doc:
-        frappe.throw(_("Employee document is required to calculate TER rate"))
-
-    status_pajak = employee_doc.get("status_pajak")
-    if not status_pajak:
-        frappe.throw(_("Employee tax status (Status Pajak) is not set"))
-
-    # Map PTKP status to TER category according to PMK 168/2023 using centralized settings
-    ter_category = map_ptkp_to_ter_category(status_pajak)
-
-    # Query the TER table for matching bracket
-    ter = frappe.db.sql(
-        """
-        SELECT rate
-        FROM `tabPPh 21 TER Table`
-        WHERE status_pajak = %s
-          AND %s >= income_from
-          AND (%s < income_to OR income_to = 0)
-        LIMIT 1
-    """,
-        (ter_category, monthly_income, monthly_income),
-        as_dict=1,
-    )
-
-    # If no TER rate found in table, try to get from Payroll Indonesia Settings
-    if not ter:
-        try:
-            # Get centralized settings
-            settings = get_settings()
-            rate = settings.get_ter_rate(ter_category, monthly_income)
-            if rate:
-                # Convert to decimal since get_ter_rate returns percentage
-                return float(rate) / 100.0
-        except Exception as e:
-            frappe.log_error(f"Error getting TER rate from settings: {str(e)}", "TER Rate Error")
-
-        # If still not found, throw error
-        frappe.throw(
-            _(
-                "No TER rate found for category {0} (mapped from status {1}) and income {2}. "
-                "Please check PPh 21 TER Table settings."
-            ).format(
-                ter_category, status_pajak, frappe.format(monthly_income, {"fieldtype": "Currency"})
-            )
-        )
-
-    # Convert percent to decimal (e.g., 5% to 0.05)
-    return float(ter[0].rate) / 100.0
+    # Ensure valid inputs
+    if not ptkp_code:
+        logger.warning("Empty PTKP code provided, defaulting to TK0")
+        ptkp_code = "TK0"
+        
+    taxable_income = flt(taxable_income)
+    if taxable_income < 0:
+        logger.warning(f"Negative income {taxable_income} provided, using absolute value")
+        taxable_income = abs(taxable_income)
+    
+    # Map PTKP status to TER category
+    ter_category = get_ter_category(ptkp_code)
+    
+    # Get TER rates for this category
+    rates = _get_ter_rates_for_category(ter_category)
+    
+    # Fast path: no rates or zero income
+    if not rates or taxable_income == 0:
+        logger.info(f"No rates found for {ter_category} or zero income")
+        return 0.0
+    
+    # Find applicable rate using binary search for efficiency
+    return _find_applicable_rate(rates, taxable_income)
 
 
-def map_ptkp_to_ter_category(status_pajak):
+@safe_execute(default_value="TER C", log_exception=True)
+def get_ter_category(ptkp_code: str) -> str:
     """
-    Map PTKP status to TER category based on PMK 168/2023 - FIXED VERSION
-
+    Map PTKP status to TER category based on PMK 168/2023.
+    
     Args:
-        status_pajak (str): PTKP status (e.g., 'TK0', 'TK1', 'K1', etc.)
-
+        ptkp_code: PTKP status code (e.g., 'TK0', 'K1')
+        
     Returns:
         str: TER category ('TER A', 'TER B', or 'TER C')
     """
-    # Use centralized mapping from Payroll Indonesia Settings
-    try:
-        # Get TER category from centralized settings
-        ter_category = get_ter_category(status_pajak)
-        if ter_category:
-            return ter_category
-    except Exception as e:
-        frappe.log_error(f"Error getting TER category from settings: {str(e)}", "TER Mapping Error")
-
-    # FIXED: Proper mapping - TK1 stays in TER A as requested
-    mapping = {
-        # TER A: PTKP TK/0 dan TK/1 (Single categories)
-        "TK0": "TER A",  # Single, no dependents
-        "TK1": "TER A",  # Single, 1 dependent - STAYS IN TER A
-        # TER B: PTKP K/0 (Married, no dependents)
-        "K0": "TER B",
-        # TER C: PTKP K/1, TK/2, K/2, TK/3, K/3, dst (Higher PTKP categories)
-        "K1": "TER C",  # Married, 1 dependent
-        "TK2": "TER C",  # Single, 2 dependents
-        "K2": "TER C",  # Married, 2 dependents
-        "TK3": "TER C",  # Single, 3 dependents
-        "K3": "TER C",  # Married, 3 dependents
-        "HB0": "TER C",  # Hidup Berpisah, no dependents
-        "HB1": "TER C",  # Hidup Berpisah, 1 dependent
-        "HB2": "TER C",  # Hidup Berpisah, 2 dependents
-        "HB3": "TER C",  # Hidup Berpisah, 3 dependents
-    }
-
-    # Return mapped category or default to TER C for unknown statuses
-    return mapping.get(status_pajak, "TER C")
-
-
-def calculate_pph21_with_ter(employee, monthly_income):
-    """
-    Calculate PPh 21 amount using TER method based on PMK 168/2023
-
-    Args:
-        employee (string or dict): Employee ID or document
-        monthly_income (float): Monthly gross income amount
-
-    Returns:
-        float: PPh 21 amount to be deducted
-    """
-    # Ensure we have employee document
-    if isinstance(employee, str):
-        employee_doc = frappe.get_doc("Employee", employee)
+    # Check cache first
+    if ptkp_code in _ter_category_cache:
+        return _ter_category_cache[ptkp_code]
+    
+    # Get mapping from config
+    config = get_live_config()
+    ptkp_ter_mapping = config.get("ptkp_to_ter_mapping", {})
+    
+    # If mapping exists in config, use it
+    if ptkp_code in ptkp_ter_mapping:
+        category = ptkp_ter_mapping[ptkp_code]
+        _ter_category_cache[ptkp_code] = category
+        return category
+    
+    # Fallback mapping based on tax regulations
+    if ptkp_code in ("TK0", "TK1"):
+        category = "TER A"
+    elif ptkp_code == "K0":
+        category = "TER B"
     else:
-        employee_doc = employee
-
-    # Get TER rate for this employee and income
-    ter_rate = get_ter_rate(employee_doc, monthly_income)
-
-    # Simply multiply income by TER rate
-    pph21_amount = monthly_income * ter_rate
-
-    tax = calculate_pph21_with_ter()
-    print(f"PPh 21:{tax} dan PPh amount nya {pph21_amount} serta ter rate {ter_rate}")
-
-    return pph21_amount
+        # Higher PTKP categories (K1, TK2, K2, TK3, K3, HB*)
+        category = "TER C"
+    
+    # Cache result for future lookups
+    _ter_category_cache[ptkp_code] = category
+    return category
 
 
-def setup_default_ter_rates():
+def _get_ter_rates_for_category(ter_category: str) -> List[Tuple[float, float, float, bool]]:
     """
-    Setup default TER rates based on PMK 168/2023 - FIXED VERSION
-    Updated TER B rates to ensure 3% rate for target income range
-
-    Uses the Payroll Indonesia Settings for TER rates if available, or falls back to defaults
+    Get TER rates for a specific category, with caching for performance.
+    
+    Args:
+        ter_category: TER category ('TER A', 'TER B', or 'TER C')
+        
+    Returns:
+        list: List of (income_from, income_to, rate, is_highest) tuples
     """
-    # Check if we already have TER rates
-    existing_count = frappe.db.count("PPh 21 TER Table")
-    if existing_count > 10:  # Arbitrary threshold
-        frappe.msgprint(
-            _("TER rates are already set up ({0} entries found)").format(existing_count)
-        )
-        return
+    # Check cache first
+    if ter_category in _ter_rate_cache:
+        return _ter_rate_cache[ter_category]
+    
+    # Get rates from configuration
+    config = get_live_config()
+    ter_rates = config.get("ter_rates", {})
+    
+    # If category not in config, return empty list
+    if ter_category not in ter_rates:
+        logger.warning(f"No TER rates found for category {ter_category}")
+        _ter_rate_cache[ter_category] = []
+        return []
+    
+    # Process and sort rates for this category
+    category_rates = []
+    for rate_data in ter_rates[ter_category]:
+        income_from = flt(rate_data.get("income_from", 0))
+        income_to = flt(rate_data.get("income_to", 0))
+        rate = flt(rate_data.get("rate", 0)) / 100.0  # Convert percentage to decimal
+        is_highest = bool(rate_data.get("is_highest_bracket", False))
+        
+        category_rates.append((income_from, income_to, rate, is_highest))
+    
+    # Sort by income_from for binary search
+    category_rates.sort(key=lambda x: x[0])
+    
+    # Cache for future lookups
+    _ter_rate_cache[ter_category] = category_rates
+    return category_rates
 
-    # Try to get TER rates from Payroll Indonesia Settings
-    settings = get_settings()
 
-    ter_rates = {}
-    try:
-        if hasattr(settings, "ter_rates") and settings.ter_rates:
-            if isinstance(settings.ter_rates, str):
-                ter_rates = frappe.parse_json(settings.ter_rates)
-            else:
-                ter_rates = settings.ter_rates
-    except Exception as e:
-        frappe.log_error(f"Error parsing TER rates from settings: {str(e)}", "TER Setup Error")
+def _find_applicable_rate(
+    rates: List[Tuple[float, float, float, bool]], 
+    income: float
+) -> float:
+    """
+    Find the applicable TER rate for the given income using binary search.
+    
+    Args:
+        rates: List of (income_from, income_to, rate, is_highest) tuples
+        income: Monthly gross income
+        
+    Returns:
+        float: Applicable TER rate as decimal
+    """
+    # Extract income_from values for binary search
+    income_thresholds = [r[0] for r in rates]
+    
+    # Find the index of the first bracket with income_from > income
+    idx = bisect_right(income_thresholds, income)
+    
+    # Adjust to get the last bracket with income_from <= income
+    if idx > 0:
+        idx -= 1
+    
+    # Check if we have a valid bracket
+    if idx < len(rates):
+        income_from, income_to, rate, is_highest = rates[idx]
+        
+        # Check if income is within bracket range
+        if income >= income_from and (income_to == 0 or income < income_to or is_highest):
+            return rate
+    
+    # If no bracket matches, return 0
+    return 0.0
 
-    # Use the central settings if available
-    if ter_rates:
-        for category, rates in ter_rates.items():
-            for rate_data in rates:
-                # Skip if already exists
-                if frappe.db.exists(
-                    "PPh 21 TER Table",
-                    {
-                        "status_pajak": category,
-                        "income_from": rate_data.get("income_from", 0),
-                        "income_to": rate_data.get("income_to", 0),
-                    },
-                ):
-                    continue
 
-                # Create sensible description
-                description = ""
-                if rate_data.get("is_highest_bracket", 0) or rate_data.get("income_to", 0) == 0:
-                    description = f"{category} > {float(rate_data.get('income_from', 0)):,.0f}"
-                else:
-                    description = f"{category} {float(rate_data.get('income_from', 0)):,.0f} - {float(rate_data.get('income_to', 0)):,.0f}"
+def clear_cache() -> None:
+    """Clear all TER rate caches."""
+    global _ter_rate_cache, _ter_category_cache
+    _ter_rate_cache.clear()
+    _ter_category_cache.clear()
 
-                # Create TER entry
-                doc = frappe.new_doc("PPh 21 TER Table")
-                doc.status_pajak = category
-                doc.income_from = float(rate_data.get("income_from", 0))
-                doc.income_to = float(rate_data.get("income_to", 0))
-                doc.rate = float(rate_data.get("rate", 0))
-                doc.is_highest_bracket = rate_data.get("is_highest_bracket", 0)
-                doc.description = description
-                doc.insert()
 
-        frappe.db.commit()
-        frappe.msgprint(_("TER rates set up from Payroll Indonesia Settings"))
-        return
-
-    # FIXED: Custom TER rates - TK1 uses TER A with 3% rate at 10.8M bracket
-    default_rates = [
-        # TER A (PTKP TK/0 dan TK/1) - Custom bracket untuk 3% rate
-        {
-            "status_pajak": "TER A",
-            "income_from": 0,
-            "income_to": 10800000,
-            "rate": 0.0,
-        },  # 0% sampai 10.8 juta
-        {
-            "status_pajak": "TER A",
-            "income_from": 10800000,
-            "income_to": 15000000,
-            "rate": 3.0,
-        },  # 3% dari 10.8M-15M untuk TK1
-        {
-            "status_pajak": "TER A",
-            "income_from": 15000000,
-            "income_to": 21000000,
-            "rate": 5.0,
-        },  # 5% dari 15M-21M
-        {
-            "status_pajak": "TER A",
-            "income_from": 21000000,
-            "income_to": 32000000,
-            "rate": 7.5,
-        },  # 7.5% dari 21M-32M
-        {
-            "status_pajak": "TER A",
-            "income_from": 32000000,
-            "income_to": 0,
-            "rate": 10.0,
-            "is_highest_bracket": 1,
-        },
-        # TER B (PTKP K/0: Married no dependents)
-        {"status_pajak": "TER B", "income_from": 0, "income_to": 4900000, "rate": 0.0},
-        {"status_pajak": "TER B", "income_from": 4900000, "income_to": 8500000, "rate": 2.0},
-        {"status_pajak": "TER B", "income_from": 8500000, "income_to": 13500000, "rate": 4.5},
-        {"status_pajak": "TER B", "income_from": 13500000, "income_to": 22000000, "rate": 7.0},
-        {"status_pajak": "TER B", "income_from": 22000000, "income_to": 33000000, "rate": 9.5},
-        {
-            "status_pajak": "TER B",
-            "income_from": 33000000,
-            "income_to": 0,
-            "rate": 12.0,
-            "is_highest_bracket": 1,
-        },
-        # TER C (PTKP K/1, TK/2, K/2, TK/3, K/3, dll: Rp 63 juta+/tahun)
-        {"status_pajak": "TER C", "income_from": 0, "income_to": 5300000, "rate": 0.0},
-        {"status_pajak": "TER C", "income_from": 5300000, "income_to": 9000000, "rate": 1.5},
-        {"status_pajak": "TER C", "income_from": 9000000, "income_to": 14000000, "rate": 4.0},
-        {"status_pajak": "TER C", "income_from": 14000000, "income_to": 23000000, "rate": 6.5},
-        {"status_pajak": "TER C", "income_from": 23000000, "income_to": 34000000, "rate": 9.0},
-        {
-            "status_pajak": "TER C",
-            "income_from": 34000000,
-            "income_to": 0,
-            "rate": 11.5,
-            "is_highest_bracket": 1,
-        },
-    ]
-
-    # Create TER rate records if they don't exist
-    for rate_data in default_rates:
-        if not frappe.db.exists(
-            "PPh 21 TER Table",
-            {
-                "status_pajak": rate_data["status_pajak"],
-                "income_from": rate_data["income_from"],
-                "income_to": rate_data["income_to"],
-            },
-        ):
-            doc = frappe.new_doc("PPh 21 TER Table")
-            doc.update(rate_data)
-            doc.insert()
-
-    # Update Payroll Indonesia Settings with the corrected TER rates
-    try:
-        # Group rates by category
-        ter_by_category = {}
-        for rate in default_rates:
-            category = rate["status_pajak"]
-            if category not in ter_by_category:
-                ter_by_category[category] = []
-
-            rate_obj = {
-                "income_from": rate["income_from"],
-                "income_to": rate["income_to"],
-                "rate": rate["rate"],
-            }
-
-            if "is_highest_bracket" in rate and rate["is_highest_bracket"]:
-                rate_obj["is_highest_bracket"] = 1
-
-            ter_by_category[category].append(rate_obj)
-
-        # Update settings
-        if ter_by_category:
-            settings.ter_rates = frappe.as_json(ter_by_category)
-            settings.flags.ignore_validate = True
-            settings.flags.ignore_permissions = True
-            settings.save(ignore_permissions=True)
-    except Exception as e:
-        frappe.log_error(
-            f"Error updating TER rates in Payroll Indonesia Settings: {str(e)}", "TER Setup Error"
-        )
-
-    frappe.db.commit()
-    frappe.msgprint(_("FIXED: TK1 mapped to TER A with 3% rate at 10.8M+ income bracket"))
+def get_default_ter_rates() -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Get default TER rates based on PMK 168/2023.
+    
+    Returns:
+        dict: Dictionary of TER rates by category
+    """
+    # Retrieve from configuration if available
+    config = get_live_config()
+    if "ter_rates" in config:
+        return config["ter_rates"]
+    
+    # Return empty dict if not found
+    return {}
