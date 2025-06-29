@@ -1,345 +1,464 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-29 02:34:41 by dannyaudian
+# Last modified: 2025-06-29 02:45:27 by dannyaudian
 
 """
-Helper functions for Salary Slip - without duplication.
+Helper functions for Salary Slip processing - without calculator duplication.
 """
 
+# Standard imports
 import logging
-from typing import Any, Dict, Optional, List, Union, Tuple
-from datetime import datetime
+from typing import Any, Dict, List, Optional, Union, Tuple, TYPE_CHECKING
 
+# Frappe imports
 import frappe
 from frappe import _
-from frappe.utils import getdate, flt, add_months
+from frappe.utils import getdate, flt
 
+# Calculator module imports
 import payroll_indonesia.override.salary_slip.bpjs_calculator as bpjs_calc
 import payroll_indonesia.override.salary_slip.tax_calculator as tax_calc
 import payroll_indonesia.override.salary_slip.ter_calculator as ter_calc
+import payroll_indonesia.override.salary_slip.salary_utils as utils
+import payroll_indonesia.payroll_indonesia.validations as val
+
+# Config
 from payroll_indonesia.config import get_live_config
 
-logger = logging.getLogger(__name__)
+# Logger setup
+logger = logging.getLogger('salary_slip_fn')
 
 
-def update_component_amount(slip: Any, component_name: str, amount: float) -> bool:
+def update_component_amount(slip: Any) -> Dict[str, Any]:
     """
-    Update a salary component amount in the salary slip.
+    Update BPJS and PPh 21 component amounts in salary slip.
     
     Args:
         slip: Salary slip document
-        component_name: Name of the salary component to update
-        amount: New amount to set
         
     Returns:
-        bool: True if component was found and updated, False otherwise
+        Dict[str, Any]: Updated component details
     """
-    if not slip or not component_name:
-        return False
+    try:
+        result = {}
+        
+        # Calculate BPJS components
+        bpjs_components = bpjs_calc.calculate_components(slip)
+        result['bpjs'] = bpjs_components
+        
+        # Update BPJS component amounts in deductions
+        _update_bpjs_components(slip, bpjs_components)
+        
+        # Get configuration
+        cfg = get_live_config()
+        
+        # Determine tax calculation method
+        is_december = _is_december_calculation(slip)
+        is_using_ter = _should_use_ter(slip, cfg)
+        
+        # Calculate tax based on method
+        if is_december:
+            tax_result = tax_calc.calculate_december_pph(slip)
+            result['tax_method'] = 'december'
+        elif is_using_ter:
+            tax_result = ter_calc.calculate_monthly_pph_with_ter(slip)
+            result['tax_method'] = 'ter'
+        else:
+            tax_result = tax_calc.calculate_monthly_pph_progressive(slip)
+            result['tax_method'] = 'progressive'
+        
+        result['tax'] = tax_result
+        
+        # Update PPh 21 component amount
+        _update_pph21_component(slip)
+        
+        # Update total deduction
+        _update_totals(slip)
+        
+        # Calculate YTD and YTM values
+        ytd_values = utils.calculate_ytd_and_ytm(slip)
+        result['ytd'] = ytd_values
+        
+        # Set YTD values on slip
+        _set_ytd_values(slip, ytd_values)
+        
+        # Queue tax summary update if needed
+        if _needs_tax_summary_update(slip):
+            _enqueue_tax_summary_update(slip)
+        
+        logger.info(f"Updated components for slip {getattr(slip, 'name', 'unknown')}")
+        return result
     
-    # Try to find component in earnings
-    if hasattr(slip, "earnings"):
-        for e in slip.earnings:
-            if getattr(e, "salary_component", "") == component_name:
-                e.amount = amount
-                return True
+    except Exception as e:
+        logger.exception(f"Error updating component amounts: {e}")
+        frappe.throw(_("Error updating component amounts: {0}").format(str(e)))
+
+
+def _update_bpjs_components(slip: Any, components: Dict[str, float]) -> None:
+    """
+    Update BPJS component amounts in salary slip deductions.
     
-    # Try to find component in deductions
-    if hasattr(slip, "deductions"):
-        for d in slip.deductions:
-            if getattr(d, "salary_component", "") == component_name:
-                d.amount = amount
-                return True
+    Args:
+        slip: Salary slip document
+        components: Dictionary of calculated BPJS components
+    """
+    if not hasattr(slip, "deductions") or not slip.deductions:
+        return
     
-    # Component not found
-    logger.warning(
-        f"Component {component_name} not found in slip {getattr(slip, 'name', 'unknown')}"
-    )
+    # Mapping of component names to values
+    component_map = {
+        "BPJS Kesehatan Employee": components.get("kesehatan_employee", 0),
+        "BPJS JHT Employee": components.get("jht_employee", 0),
+        "BPJS JP Employee": components.get("jp_employee", 0)
+    }
+    
+    # Update components
+    for deduction in slip.deductions:
+        component_name = getattr(deduction, "salary_component", "")
+        if component_name in component_map:
+            deduction.amount = component_map[component_name]
+
+
+def _update_pph21_component(slip: Any) -> None:
+    """
+    Update PPh 21 component amount in salary slip deductions.
+    
+    Args:
+        slip: Salary slip document
+    """
+    if not hasattr(slip, "deductions") or not slip.deductions:
+        return
+    
+    pph21_amount = flt(getattr(slip, "pph21", 0))
+    pph21_found = False
+    
+    # Look for existing PPh 21 component
+    for deduction in slip.deductions:
+        component_name = getattr(deduction, "salary_component", "")
+        if component_name == "PPh 21":
+            deduction.amount = pph21_amount
+            pph21_found = True
+            break
+    
+    # Add PPh 21 component if not found and amount > 0
+    if not pph21_found and pph21_amount > 0:
+        slip.append("deductions", {
+            "salary_component": "PPh 21",
+            "amount": pph21_amount,
+            "default_amount": pph21_amount
+        })
+
+
+def _update_totals(slip: Any) -> None:
+    """
+    Update total deduction and net pay in salary slip.
+    
+    Args:
+        slip: Salary slip document
+    """
+    if hasattr(slip, "deductions") and slip.deductions:
+        # Calculate total deductions
+        total_deduction = sum(flt(d.amount) for d in slip.deductions)
+        
+        # Update total_deduction field
+        if hasattr(slip, "total_deduction"):
+            slip.total_deduction = total_deduction
+        
+        # Update net_pay field
+        if hasattr(slip, "gross_pay") and hasattr(slip, "net_pay"):
+            slip.net_pay = flt(slip.gross_pay) - total_deduction
+
+
+def _set_ytd_values(slip: Any, ytd_values: Dict[str, float]) -> None:
+    """
+    Set YTD values on salary slip.
+    
+    Args:
+        slip: Salary slip document
+        ytd_values: Dictionary of YTD values
+    """
+    # Set YTD values if fields exist
+    if hasattr(slip, "ytd_gross_pay"):
+        slip.ytd_gross_pay = ytd_values.get("ytd_gross", 0)
+    
+    if hasattr(slip, "ytd_bpjs_deductions"):
+        slip.ytd_bpjs_deductions = ytd_values.get("ytd_bpjs", 0)
+    
+    if hasattr(slip, "ytd_pph21"):
+        slip.ytd_pph21 = ytd_values.get("ytd_pph21", 0)
+    
+    # Try to persist values if document has been saved
+    if getattr(slip, "name", "").startswith("new-") is False:
+        try:
+            for field, key in [
+                ("ytd_gross_pay", "ytd_gross"), 
+                ("ytd_bpjs_deductions", "ytd_bpjs"),
+                ("ytd_pph21", "ytd_pph21")
+            ]:
+                if hasattr(slip, field):
+                    slip.db_set(field, ytd_values.get(key, 0), update_modified=False)
+        except Exception as e:
+            logger.warning(f"Could not persist YTD values: {e}")
+
+
+def _is_december_calculation(slip: Any) -> bool:
+    """
+    Determine if slip should use December calculation logic.
+    
+    Args:
+        slip: Salary slip document
+        
+    Returns:
+        bool: True if December or override flag is set
+    """
+    # Check explicit override flag
+    if getattr(slip, "is_december_override", 0):
+        return True
+    
+    # Check if month is December
+    if hasattr(slip, "end_date") and slip.end_date:
+        end_date = getdate(slip.end_date)
+        return end_date.month == 12
+    
     return False
 
 
-def calculate_bpjs_components(slip: Any) -> Dict[str, float]:
+def _should_use_ter(slip: Any, cfg: Dict[str, Any]) -> bool:
     """
-    Calculate BPJS components for a salary slip.
-    This is a wrapper around bpjs_calculator.calculate_components with additional
-    logic to update the salary slip document.
+    Determine if TER calculation should be used.
+    
+    Args:
+        slip: Salary slip document
+        cfg: Configuration dictionary
+        
+    Returns:
+        bool: True if TER should be used
+    """
+    # Check explicit flag first
+    if getattr(slip, "is_using_ter", 0):
+        return True
+    
+    # Check config setting
+    use_ter = cfg.get("tax", {}).get("use_ter_by_default", 0)
+    
+    # Check employee category if needed
+    if use_ter and hasattr(slip, "employee_doc"):
+        emp_category = getattr(slip.employee_doc, "employee_category", "")
+        excluded_categories = cfg.get("tax", {}).get("ter_excluded_categories", [])
+        
+        if emp_category in excluded_categories:
+            return False
+    
+    return bool(use_ter)
+
+
+def _needs_tax_summary_update(slip: Any) -> bool:
+    """
+    Check if tax summary needs to be updated.
     
     Args:
         slip: Salary slip document
         
     Returns:
-        Dict[str, float]: Calculated BPJS components
+        bool: True if tax summary update is needed
     """
-    try:
-        # Calculate components using the BPJS calculator
-        components = bpjs_calc.calculate_components(slip)
-        
-        # Update the salary slip fields with calculated values
-        _update_slip_bpjs_fields(slip, components)
-        
-        # Update BPJS component amounts in deductions
-        _update_bpjs_component_amounts(slip, components)
-        
-        return components
-    except Exception as e:
-        logger.exception(f"Error calculating BPJS components: {e}")
-        frappe.throw(_("Error calculating BPJS components: {0}").format(str(e)))
+    # Check if slip has PPh 21 component
+    has_pph21 = False
+    pph21_amount = flt(getattr(slip, "pph21", 0))
+    
+    if pph21_amount > 0:
+        has_pph21 = True
+    else:
+        # Check deductions
+        if hasattr(slip, "deductions") and slip.deductions:
+            for d in slip.deductions:
+                if getattr(d, "salary_component", "") == "PPh 21" and flt(d.amount) > 0:
+                    has_pph21 = True
+                    break
+    
+    # Check if slip has BPJS component
+    has_bpjs = False
+    bpjs_total = flt(getattr(slip, "total_bpjs", 0))
+    
+    if bpjs_total > 0:
+        has_bpjs = True
+    else:
+        # Check deductions
+        if hasattr(slip, "deductions") and slip.deductions:
+            for d in slip.deductions:
+                if any(bpjs_type in getattr(d, "salary_component", "") 
+                       for bpjs_type in ["BPJS Kesehatan", "BPJS JHT", "BPJS JP"]):
+                    has_bpjs = True
+                    break
+    
+    return has_pph21 or has_bpjs
 
 
-def _update_slip_bpjs_fields(slip: Any, components: Dict[str, float]) -> None:
+def _enqueue_tax_summary_update(slip: Any) -> None:
     """
-    Update the salary slip's BPJS fields with calculated component values.
+    Enqueue a background job to update the tax summary.
     
     Args:
         slip: Salary slip document
-        components: Dictionary of calculated BPJS components
     """
-    # Update individual employee components
-    if hasattr(slip, "kesehatan_employee"):
-        slip.kesehatan_employee = components.get("kesehatan_employee", 0)
+    # Check document status
+    if getattr(slip, "docstatus", 0) != 1:  # 1 = Submitted
+        logger.debug(f"Skip tax summary update for non-submitted slip {slip.name}")
+        return
     
-    if hasattr(slip, "jht_employee"):
-        slip.jht_employee = components.get("jht_employee", 0)
+    # Enqueue the job
+    frappe.enqueue(
+        "payroll_indonesia.payroll_indonesia.doctype.employee_tax_summary."
+        "employee_tax_summary.create_from_salary_slip",
+        queue="long",
+        timeout=600,
+        salary_slip=slip.name,
+        is_async=True,
+        job_name=f"tax_summary_update_{slip.name}",
+        now=False  # Run in background
+    )
     
-    if hasattr(slip, "jp_employee"):
-        slip.jp_employee = components.get("jp_employee", 0)
+    logger.info(f"Queued tax summary update for slip {slip.name}")
     
-    # Update total BPJS amount
-    if hasattr(slip, "total_bpjs"):
-        slip.total_bpjs = components.get("total_employee", 0)
+    # Add note to payroll_note field if it exists
+    if hasattr(slip, "payroll_note"):
+        note = f"Tax summary update queued (job: tax_summary_update_{slip.name})"
+        
+        try:
+            current_note = getattr(slip, "payroll_note", "")
+            new_note = f"{current_note}\n{note}" if current_note else note
+            slip.db_set("payroll_note", new_note, update_modified=False)
+        except Exception as e:
+            logger.warning(f"Could not update payroll note: {e}")
 
 
-def _update_bpjs_component_amounts(slip: Any, components: Dict[str, float]) -> None:
+def initialize_fields(slip: Any) -> None:
     """
-    Update BPJS component amounts in the salary slip deductions.
+    Initialize additional fields required for Indonesian payroll.
     
     Args:
         slip: Salary slip document
-        components: Dictionary of calculated BPJS components
     """
-    # Mapping of component names to BPJS calculation results
-    component_mapping = {
-        "BPJS Kesehatan Employee": "kesehatan_employee",
-        "BPJS JHT Employee": "jht_employee",
-        "BPJS JP Employee": "jp_employee"
+    default_fields = {
+        "biaya_jabatan": 0,
+        "netto": 0,
+        "total_bpjs": 0,
+        "kesehatan_employee": 0,
+        "jht_employee": 0,
+        "jp_employee": 0,
+        "is_using_ter": 0,
+        "ter_rate": 0,
+        "ter_category": "",
+        "koreksi_pph21": 0,
+        "payroll_note": "",
+        "npwp": "",
+        "ktp": "",
+        "ytd_gross_pay": 0,
+        "ytd_bpjs_deductions": 0,
+        "ytd_pph21": 0
     }
     
-    # Update each component if it exists in the slip
-    for component_name, calc_key in component_mapping.items():
-        amount = components.get(calc_key, 0)
-        update_component_amount(slip, component_name, amount)
+    # Set default values for fields
+    for field, default in default_fields.items():
+        if not hasattr(slip, field) or getattr(slip, field) is None:
+            setattr(slip, field, default)
+            
+            # Try to persist with db_set if possible
+            if getattr(slip, "name", "").startswith("new-") is False:
+                try:
+                    slip.db_set(field, default, update_modified=False)
+                except Exception:
+                    pass  # Ignore errors for unsaved documents
 
 
-def calculate_ytd_and_ytm(slip: Any, date: Optional[str] = None) -> Dict[str, float]:
+def set_tax_ids_from_employee(slip: Any) -> None:
     """
-    Calculate Year-to-Date (YTD) and Year-to-Month (YTM) values for salary slip.
+    Set tax ID fields from employee record.
     
     Args:
         slip: Salary slip document
-        date: Optional date to use instead of slip's end_date
-        
-    Returns:
-        Dict with YTD and YTM values
     """
-    try:
-        # Use provided date or slip's end_date
-        if not date and hasattr(slip, "end_date"):
-            date = getattr(slip, "end_date")
-        
-        if not date:
-            # If no date is available, use current date
-            date = datetime.now().strftime("%Y-%m-%d")
-        
-        # Get employee ID
-        employee = getattr(slip, "employee", None)
-        if not employee:
-            logger.warning("No employee found in salary slip")
-            return _get_default_ytd_values()
-        
-        # Parse the date
-        date_obj = getdate(date)
-        year = date_obj.year
-        month = date_obj.month
-        
-        # Get all salary slips for this employee in the current year up to the given month
-        filters = {
-            "employee": employee,
-            "docstatus": 1,  # Submitted slips only
-            "start_date": [">=", f"{year}-01-01"],
-            "end_date": ["<=", f"{year}-{month:02d}-31"]
-        }
-        
-        # Exclude current slip if it's in draft
-        current_name = getattr(slip, "name", "")
-        if current_name and getattr(slip, "docstatus", 0) == 0:  # Draft
-            filters["name"] = ["!=", current_name]
-        
-        # Query salary slips
-        slips = frappe.get_all(
-            "Salary Slip",
-            filters=filters,
-            fields=[
-                "gross_pay", "total_deduction", "total_bpjs", 
-                "pph21", "name", "start_date"
-            ]
-        )
-        
-        # Calculate YTD totals
-        ytd_gross = sum(flt(s.gross_pay) for s in slips)
-        ytd_deductions = sum(flt(s.total_deduction) for s in slips)
-        ytd_bpjs = sum(flt(s.total_bpjs) for s in slips)
-        ytd_pph21 = sum(flt(s.pph21) for s in slips)
-        
-        # Calculate YTM (Year-to-Month but not including current month)
-        # Get previous month
-        prev_month_date = add_months(date_obj, -1)
-        prev_month = prev_month_date.month
-        
-        # Filter slips for YTM (up to previous month)
-        ytm_slips = [
-            s for s in slips 
-            if getdate(s.start_date).month <= prev_month
-        ]
-        
-        ytm_gross = sum(flt(s.gross_pay) for s in ytm_slips)
-        ytm_deductions = sum(flt(s.total_deduction) for s in ytm_slips)
-        ytm_bpjs = sum(flt(s.total_bpjs) for s in ytm_slips)
-        ytm_pph21 = sum(flt(s.pph21) for s in ytm_slips)
-        
-        # Create result dictionary
-        result = {
-            "ytd_gross": ytd_gross,
-            "ytd_earnings": ytd_gross,  # Simplified as gross pay
-            "ytd_deductions": ytd_deductions,
-            "ytd_bpjs": ytd_bpjs,
-            "ytd_pph21": ytd_pph21,
-            "ytm_gross": ytm_gross,
-            "ytm_earnings": ytm_gross,  # Simplified as gross pay
-            "ytm_deductions": ytm_deductions,
-            "ytm_bpjs": ytm_bpjs,
-            "ytm_pph21": ytm_pph21,
-        }
-        
-        return result
-    except Exception as e:
-        logger.exception(f"Error calculating YTD/YTM values: {e}")
-        return _get_default_ytd_values()
-
-
-def _get_default_ytd_values() -> Dict[str, float]:
-    """
-    Get default YTD and YTM values when calculation fails.
+    if not hasattr(slip, "employee") or not slip.employee:
+        return
     
-    Returns:
-        Dict with default values (all zeros)
+    # Get employee tax IDs
+    employee_data = frappe.db.get_value(
+        "Employee", 
+        slip.employee, 
+        ["npwp", "ktp"], 
+        as_dict=True
+    )
+    
+    if not employee_data:
+        return
+    
+    # Set NPWP if available
+    if hasattr(slip, "npwp") and not slip.npwp and employee_data.npwp:
+        slip.npwp = employee_data.npwp
+        
+        # Try to persist
+        if getattr(slip, "name", "").startswith("new-") is False:
+            try:
+                slip.db_set("npwp", employee_data.npwp, update_modified=False)
+            except Exception:
+                pass
+    
+    # Set KTP if available
+    if hasattr(slip, "ktp") and not slip.ktp and employee_data.ktp:
+        slip.ktp = employee_data.ktp
+        
+        # Try to persist
+        if getattr(slip, "name", "").startswith("new-") is False:
+            try:
+                slip.db_set("ktp", employee_data.ktp, update_modified=False)
+            except Exception:
+                pass
+
+
+def verify_slip_components(slip: Any) -> Dict[str, Any]:
     """
-    return {
-        "ytd_gross": 0.0,
-        "ytd_earnings": 0.0,
-        "ytd_deductions": 0.0,
-        "ytd_bpjs": 0.0,
-        "ytd_pph21": 0.0,
-        "ytm_gross": 0.0,
-        "ytm_earnings": 0.0,
-        "ytm_deductions": 0.0,
-        "ytm_bpjs": 0.0,
-        "ytm_pph21": 0.0,
+    Verify that all required components are properly set in the salary slip.
+    
+    Args:
+        slip: Salary slip document
+        
+    Returns:
+        Dict[str, Any]: Verification results
+    """
+    result = {
+        "status": "success",
+        "messages": [],
+        "has_errors": False
     }
-
-
-def apply_salary_structure_changes(slip: Any) -> None:
-    """
-    Apply any pending salary structure changes for the employee.
     
-    Args:
-        slip: Salary slip document
-    """
-    try:
-        # Get configuration for auto-applying changes
-        cfg = get_live_config()
-        auto_apply = cfg.get("salary", {}).get("auto_apply_changes", 0)
-        
-        if not auto_apply:
-            return
-        
-        employee = getattr(slip, "employee", None)
-        if not employee:
-            return
-        
-        # Get slip's start and end dates
-        start_date = getattr(slip, "start_date", None)
-        end_date = getattr(slip, "end_date", None)
-        
-        if not start_date or not end_date:
-            return
-        
-        # Get pending salary structure changes
-        filters = {
-            "employee": employee,
-            "docstatus": 1,  # Submitted only
-            "effective_date": ["between", [start_date, end_date]],
-            "applied": 0  # Not applied yet
-        }
-        
-        pending_changes = frappe.get_all(
-            "Salary Structure Change",
-            filters=filters,
-            fields=["name", "effective_date", "component", "amount", "type"]
-        )
-        
-        # Apply each pending change
-        for change in pending_changes:
-            component = change.get("component")
-            amount = flt(change.get("amount"))
-            change_type = change.get("type", "absolute")
-            
-            if not component:
-                continue
-            
-            # Get current amount from slip
-            current_amount = _get_component_amount(slip, component)
-            
-            # Calculate new amount based on change type
-            if change_type == "percentage":
-                new_amount = current_amount * (1 + amount / 100)
-            else:  # absolute
-                new_amount = amount
-            
-            # Update component in slip
-            if update_component_amount(slip, component, new_amount):
-                # Mark change as applied
-                frappe.db.set_value("Salary Structure Change", change.name, "applied", 1)
-                logger.info(
-                    f"Applied salary structure change {change.name} for {employee}: "
-                    f"{component} = {new_amount}"
-                )
-    except Exception as e:
-        logger.exception(f"Error applying salary structure changes: {e}")
-        # Don't throw, just log the error to avoid breaking slip creation
-
-
-def _get_component_amount(slip: Any, component_name: str) -> float:
-    """
-    Get the current amount of a salary component in the slip.
+    # Verify BPJS fields
+    bpjs_fields = ["kesehatan_employee", "jht_employee", "jp_employee", "total_bpjs"]
     
-    Args:
-        slip: Salary slip document
-        component_name: Name of the salary component
+    for field in bpjs_fields:
+        if not hasattr(slip, field):
+            result["messages"].append(f"Missing BPJS field: {field}")
+            result["has_errors"] = True
+            result["status"] = "error"
+        elif getattr(slip, field) is None:
+            result["messages"].append(f"BPJS field {field} is None")
+            result["has_errors"] = True
+            result["status"] = "error"
+    
+    # Verify TER settings if using TER
+    if getattr(slip, "is_using_ter", 0):
+        if not getattr(slip, "ter_category", ""):
+            result["messages"].append("Using TER but no category set")
+            result["status"] = "warning"
         
-    Returns:
-        float: Current amount of the component, or 0 if not found
-    """
-    # Check earnings
-    if hasattr(slip, "earnings"):
-        for e in slip.earnings:
-            if getattr(e, "salary_component", "") == component_name:
-                return flt(getattr(e, "amount", 0))
+        if not getattr(slip, "ter_rate", 0):
+            result["messages"].append("Using TER but no rate set")
+            result["status"] = "warning"
     
-    # Check deductions
-    if hasattr(slip, "deductions"):
-        for d in slip.deductions:
-            if getattr(d, "salary_component", "") == component_name:
-                return flt(getattr(d, "amount", 0))
+    # Check if tax IDs are set if PPh 21 is calculated
+    if flt(getattr(slip, "pph21", 0)) > 0:
+        if not getattr(slip, "npwp", "") and not getattr(slip, "ktp", ""):
+            result["messages"].append("PPh 21 calculated but no NPWP or KTP set")
+            result["status"] = "warning"
     
-    return 0.0
+    return result
