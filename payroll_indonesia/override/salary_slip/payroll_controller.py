@@ -21,6 +21,8 @@ import payroll_indonesia.override.salary_slip.tax_calculator as tax_calc
 import payroll_indonesia.override.salary_slip.ter_calculator as ter_calc
 import payroll_indonesia.payroll_indonesia.validations as val
 
+__all__ = ["on_submit", "on_cancel"]
+
 logger = logging.getLogger("payroll_controller")
 
 
@@ -179,3 +181,14 @@ class PayrollController:
         )
 
         logger.info(f"Updated YTD records for employee {employee}")
+
+
+def on_submit(doc, method=None):
+    """Salary Slip on_submit hook."""
+    PayrollController(doc).on_submit()
+
+
+def on_cancel(doc, method=None):
+    """Salary Slip on_cancel hook."""
+    # implement cancellation logic or leave as pass
+    pass
