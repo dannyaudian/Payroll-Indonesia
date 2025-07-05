@@ -5,13 +5,20 @@
 
 """
 Salary Slip override for Indonesian payroll.
+
+This module provides a custom implementation of the Salary Slip document
+for Indonesian payroll processing, with support for:
+- BPJS (social security) calculations
+- PPh 21 tax calculations (progressive and TER methods)
+- December year-end tax correction
+- YTD tracking and reporting
 """
 
 from typing import Any, Dict
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate
+from frappe.utils import flt
 from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
 
 # Import calculators
@@ -19,24 +26,37 @@ import payroll_indonesia.override.salary_slip.bpjs_calculator as bpjs_calc
 import payroll_indonesia.override.salary_slip.tax_calculator as tax_calc
 import payroll_indonesia.override.salary_slip.ter_calculator as ter_calc
 
-# Import validation module
+# Import validation module and helpers
 import payroll_indonesia.payroll_indonesia.validations as validations
+from payroll_indonesia.override.salary_slip_functions import (
+    initialize_fields, 
+    salary_slip_post_submit,
+    _is_december_calculation,
+    _should_use_ter
+)
 
 # Import utilities
 from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.override.salary_slip.salary_utils import calculate_ytd_and_ytm
 from payroll_indonesia.frappe_helpers import logger
 
+__all__ = ["IndonesiaPayrollSalarySlip"]
+
 
 class IndonesiaPayrollSalarySlip(SalarySlip):
     """
     Enhanced Salary Slip for Indonesian Payroll.
-    Supports BPJS and PPh 21 tax calculations.
+    
+    Extends the standard Salary Slip with support for Indonesian tax regulations,
+    BPJS calculations, and year-end tax corrections.
     """
 
     def validate(self) -> None:
         """
         Validate salary slip with Indonesian payroll requirements.
+        
+        Performs employee data validation, field initialization,
+        and calculates all Indonesian payroll components.
         """
         try:
             # Call parent validation first
@@ -46,7 +66,7 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             self._validate_employee_data()
 
             # Initialize additional fields
-            self._initialize_fields()
+            initialize_fields(self)
 
             # Calculate components
             self.calculate()
@@ -59,6 +79,9 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     def _validate_employee_data(self) -> None:
         """
         Validate employee data required for Indonesian payroll.
+        
+        Checks for valid tax status and other employee-specific requirements.
+        Stores the employee document for later use in calculations.
         """
         if not self.employee:
             frappe.throw(_("Employee is required"), title=_("Missing Data"))
@@ -76,34 +99,12 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         # Store reference to employee document
         self.employee_doc = employee_doc
 
-    def _initialize_fields(self) -> None:
-        """
-        Initialize additional fields required for Indonesian payroll.
-        """
-        default_fields = {
-            "biaya_jabatan": 0,
-            "netto": 0,
-            "total_bpjs": 0,
-            "kesehatan_employee": 0,
-            "jht_employee": 0,
-            "jp_employee": 0,
-            "is_using_ter": 0,
-            "ter_rate": 0,
-            "ter_category": "",
-            "koreksi_pph21": 0,
-            "ytd_gross_pay": 0,
-            "ytd_bpjs_deductions": 0,
-            "pph21": 0,
-        }
-
-        # Set default values for missing fields
-        for field, default in default_fields.items():
-            if not hasattr(self, field) or getattr(self, field) is None:
-                setattr(self, field, default)
-
     def calculate(self) -> None:
         """
         Calculate all components for Indonesian payroll.
+        
+        Orchestrates the calculation of BPJS, YTD values, taxes,
+        and ensures totals are properly updated.
         """
         # Get configuration
         cfg = get_live_config()
@@ -123,6 +124,9 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     def _calculate_bpjs(self) -> None:
         """
         Calculate BPJS components using the BPJS calculator.
+        
+        Updates both the salary slip fields and deduction components
+        with the calculated BPJS values.
         """
         try:
             # Calculate BPJS components
@@ -148,7 +152,7 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     def _update_bpjs_deductions(self, components: Dict[str, float]) -> None:
         """
         Update BPJS component amounts in deductions.
-
+        
         Args:
             components: Dictionary of calculated BPJS components
         """
@@ -172,6 +176,9 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     def _calculate_ytd_values(self) -> None:
         """
         Calculate YTD values for gross pay and BPJS deductions.
+        
+        Uses the salary_utils.calculate_ytd_and_ytm function to retrieve
+        year-to-date values and updates the salary slip fields accordingly.
         """
         try:
             ytd_values = calculate_ytd_and_ytm(self)
@@ -193,14 +200,17 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     def _calculate_tax(self, cfg: Dict[str, Any]) -> None:
         """
         Calculate tax based on method from config.
-
+        
+        Determines which tax calculation method to use (December, TER, or Progressive)
+        and applies the appropriate calculation.
+        
         Args:
             cfg: Configuration dictionary
         """
         try:
             # Determine calculation method
-            is_december = self._is_december_month()
-            is_using_ter = self._should_use_ter(cfg)
+            is_december = _is_december_calculation(self)
+            is_using_ter = _should_use_ter(self, cfg)
 
             # Use appropriate calculation method
             if is_december:
@@ -219,54 +229,12 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             logger.exception(f"Error calculating tax: {e}")
             frappe.throw(_("Error calculating tax: {0}").format(str(e)))
 
-    def _is_december_month(self) -> bool:
-        """
-        Check if this is a December salary slip or has the December override flag.
-
-        Returns:
-            bool: True if December or override flag is set
-        """
-        # Check explicit override flag
-        if hasattr(self, "is_december_override") and self.is_december_override:
-            return True
-
-        # Check if month is December
-        if hasattr(self, "end_date") and self.end_date:
-            end_date = getdate(self.end_date)
-            return end_date.month == 12
-
-        return False
-
-    def _should_use_ter(self, cfg: Dict[str, Any]) -> bool:
-        """
-        Determine if TER calculation should be used based on config.
-
-        Args:
-            cfg: Configuration dictionary
-
-        Returns:
-            bool: True if TER should be used
-        """
-        # Check explicit flag first
-        if hasattr(self, "is_using_ter") and self.is_using_ter:
-            return True
-
-        # Check config setting
-        use_ter = cfg.get("tax", {}).get("use_ter_by_default", 0)
-
-        # Check employee category if needed
-        if use_ter and hasattr(self, "employee_doc"):
-            emp_category = getattr(self.employee_doc, "employee_category", "")
-            excluded_categories = cfg.get("tax", {}).get("ter_excluded_categories", [])
-
-            if emp_category in excluded_categories:
-                return False
-
-        return bool(use_ter)
-
     def _update_pph21_deduction(self) -> None:
         """
         Update PPh 21 component in deductions with calculated amount.
+        
+        Either updates an existing PPh 21 component or adds a new one
+        if it doesn't exist and the amount is greater than zero.
         """
         if not hasattr(self, "deductions") or not self.deductions:
             return
@@ -295,6 +263,9 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     def _update_totals(self) -> None:
         """
         Update total deduction to include BPJS and PPh 21.
+        
+        Recalculates the total deduction amount based on all deduction components
+        and updates the net pay accordingly.
         """
         if not hasattr(self, "total_deduction"):
             return
@@ -314,50 +285,20 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     def on_submit(self) -> None:
         """
         Process document on submission.
-        Update related tax and BPJS records.
+        
+        Executes post-submission tasks such as:
+        - Updating related tax and BPJS records
+        - Enqueueing tax summary updates
+        - Updating employee YTD records
         """
         try:
             # Call parent submission handler
             super().on_submit()
-
-            # Recalculate to ensure latest values
-            self.calculate()
-
-            # Update employee records with YTD values
-            self._update_employee_ytd_records()
-
+            
+            # Run post-submit processing (tax summaries, etc.)
+            salary_slip_post_submit(self)
+            
             logger.info(f"Salary slip {self.name} submitted successfully")
         except Exception as e:
             logger.exception(f"Error submitting salary slip {self.name}: {e}")
             frappe.throw(_("Error submitting salary slip: {0}").format(str(e)))
-
-    def _update_employee_ytd_records(self) -> None:
-        """
-        Update employee's YTD records for tax and BPJS.
-        """
-        if not self.employee:
-            return
-
-        try:
-            # Get current YTD values from employee
-            ytd_pph21 = flt(frappe.db.get_value("Employee", self.employee, "ytd_pph21", 0))
-            ytd_bpjs = flt(frappe.db.get_value("Employee", self.employee, "ytd_bpjs", 0))
-
-            # Add current slip values
-            new_ytd_pph21 = ytd_pph21 + flt(getattr(self, "pph21", 0))
-            new_ytd_bpjs = ytd_bpjs + flt(getattr(self, "total_bpjs", 0))
-
-            # Update employee record
-            frappe.db.set_value(
-                "Employee", 
-                self.employee, 
-                {"ytd_pph21": new_ytd_pph21, "ytd_bpjs": new_ytd_bpjs}
-            )
-
-            logger.debug(
-                f"Updated YTD records for {self.employee}: "
-                f"PPh21={new_ytd_pph21}, BPJS={new_ytd_bpjs}"
-            )
-        except Exception as e:
-            logger.warning(f"Error updating employee YTD records: {e}")
-            # Non-critical error, continue processing
