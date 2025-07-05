@@ -436,7 +436,7 @@
       "fieldname": "basic_salary_percent",
       "fieldtype": "Float",
       "label": "Basic Salary Percentage",
-      "default": 75,
+      "default": 100,
       "precision": 2,
       "reqd": 1
     },
