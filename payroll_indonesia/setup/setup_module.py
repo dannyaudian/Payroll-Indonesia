@@ -1,19 +1,21 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-07-03 04:11:21 by dannyaudian
+# Last modified: 2025-07-05 by dannyaudian
 
 """
 setup_module.py – basic setup routines for Payroll Indonesia.
-Provides minimal setup functions used during installation.
+Provides minimal setup functions used during installation and migration.
 """
 
 import logging
-from typing import Dict, Any, Optional, List, cast
+from typing import Dict, Any, Optional, List
 
 import frappe
 from frappe import _
 from frappe.utils import now_datetime
+
+from payroll_indonesia.utilities.tax_slab import setup_income_tax_slab
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -45,6 +47,20 @@ def setup_module() -> bool:
         logger.warning("Payroll Indonesia basic setup completed with warnings")
 
     return success
+
+
+def setup_accounts() -> bool:
+    """
+    Setup accounts and ensure Income Tax Slab exists.
+    This function can safely be hooked into after_migrate.
+    """
+    logger.info("Setting up Payroll Indonesia accounts and Income Tax Slab")
+    result = setup_income_tax_slab()
+    if result:
+        logger.info("Income Tax Slab ensured successfully during account setup")
+    else:
+        logger.warning("Income Tax Slab setup failed or skipped")
+    return result
 
 
 def create_custom_workspace() -> bool:
@@ -104,7 +120,8 @@ def create_custom_workspace() -> bool:
     except Exception as e:
         logger.error(f"Error creating workspace: {str(e)}")
         frappe.log_error(
-            f"Error creating workspace: {str(e)}\n{frappe.get_traceback()}", "Workspace Setup Error"
+            f"Error creating workspace: {str(e)}\n{frappe.get_traceback()}",
+            "Workspace Setup Error",
         )
         return False
 
