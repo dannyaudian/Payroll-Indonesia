@@ -6,6 +6,18 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
+from payroll_indonesia.frappe_helpers import logger
+
+__all__ = [
+    "BPJSAccountMapping",
+    "validate",
+    "on_update",
+    "get_mapping_for_company",
+    "create_default_mapping",
+    "get_bpjs_accounts",
+    "sync_to_settings",
+]
+
 # ---------------------------------------------------------------------------
 # Module level functions
 # ---------------------------------------------------------------------------
@@ -20,9 +32,39 @@ def validate(doc, method=None):
         doc: The document being validated
         method: The method that triggered this hook (optional)
     """
-    # This is a minimal stub implementation
-    # Additional validation logic can be added in the future
-    pass
+    doc.validate()
+
+
+def on_update(doc, method=None):
+    """
+    Global on_update hook for BPJS Account Mapping document.
+    Called by hooks after document is updated.
+
+    Args:
+        doc: The document being updated
+        method: The method that triggered this hook (optional)
+    """
+    doc.on_update()
+    
+    # Optionally sync to settings
+    sync_to_settings(doc)
+
+
+def sync_to_settings(doc, method=None):
+    """
+    Sync BPJS Account Mapping to Payroll Indonesia Settings.
+    
+    Args:
+        doc: The BPJS Account Mapping document
+        method: The method that triggered this hook (optional)
+    """
+    try:
+        # This is a placeholder for sync_to_settings functionality
+        # Actual implementation would synchronize BPJS mapping data to settings
+        logger.debug(f"BPJS Account Mapping {doc.name} updated - settings sync placeholder")
+        pass
+    except Exception as e:
+        logger.error(f"Error syncing BPJS mapping to settings: {str(e)}")
 
 
 @frappe.whitelist()

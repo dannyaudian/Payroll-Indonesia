@@ -62,12 +62,23 @@ def setup_accounts() -> bool:
         "pph21_ter": False
     }
     
-    # Load defaults for configuration
-    defaults = _load_defaults()
-    if not defaults:
-        logger.warning("Could not load defaults.json, using minimal defaults")
+    # Get defaults from Frappe system defaults
+    try:
+        defaults = frappe.defaults.get_defaults()
+        logger.info("Obtained system defaults for tax setup")
+    except Exception as e:
+        logger.warning(f"Could not get system defaults, falling back to config: {str(e)}")
+        defaults = {}
     
-    # Setup Income Tax Slab
+    # Supplement with app-specific defaults if needed
+    config_defaults = _load_defaults()
+    if config_defaults:
+        # Merge defaults, giving priority to system defaults
+        for key, value in config_defaults.items():
+            if key not in defaults:
+                defaults[key] = value
+    
+    # Setup Income Tax Slab with new signature
     try:
         result = setup_income_tax_slab(defaults)
         results["income_tax_slab"] = result
