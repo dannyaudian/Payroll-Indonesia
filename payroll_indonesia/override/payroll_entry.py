@@ -247,3 +247,13 @@ def setup_hooks() -> None:
 
 # Set up hooks when module is loaded
 setup_hooks()
+
+
+def validate(doc, method=None):
+    """Wrapper for Payroll Entry validate event."""
+    return CustomPayrollEntry.validate(doc)
+
+
+def on_submit(doc, method=None):
+    """Wrapper for Payroll Entry on_submit event."""
+    return CustomPayrollEntry.on_submit(doc)
