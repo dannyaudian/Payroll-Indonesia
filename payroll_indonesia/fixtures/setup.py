@@ -498,19 +498,22 @@ def setup_pph21_ter(config, force_update=False):
     Returns:
         bool: True if successful, False otherwise
     """
-    if not frappe.db.table_exists("PPh 21 TER Table"):
-        logger.warning("PPh 21 TER Table does not exist")
+    if not frappe.db.table_exists("Payroll Indonesia Settings"):
+        logger.warning("Payroll Indonesia Settings table does not exist")
         return False
 
     try:
+        settings = frappe.get_single("Payroll Indonesia Settings")
+
         if not force_update:
-            cats = ["TER A", "TER B", "TER C"]
-            if all(frappe.db.exists("PPh 21 TER Table", {"status_pajak": cat}) for cat in cats):
+            cats = {"TER A", "TER B", "TER C"}
+            existing = {row.status_pajak for row in settings.ter_rate_table}
+            if cats.issubset(existing):
                 logger.info("TER categories already setup for PMK 168/2023")
                 return True
 
-        # Delete existing TER rates
-        frappe.db.sql("DELETE FROM `tabPPh 21 TER Table`")
+        # Clear existing TER rates
+        settings.ter_rate_table = []
 
         ter_rates = config.get("ter_rates", {})
         if not ter_rates:
@@ -524,9 +527,9 @@ def setup_pph21_ter(config, force_update=False):
                 continue
 
             for rate_data in rates:
-                ter_entry = frappe.get_doc(
+                settings.append(
+                    "ter_rate_table",
                     {
-                        "doctype": "PPh 21 TER Table",
                         "status_pajak": status,
                         "income_from": flt(rate_data["income_from"]),
                         "income_to": flt(rate_data["income_to"]),
@@ -534,11 +537,12 @@ def setup_pph21_ter(config, force_update=False):
                         "description": f"{status} - {flt(rate_data['income_from']):,.0f} to {flt(rate_data['income_to']):,.0f}",
                         "is_highest_bracket": cint(rate_data.get("is_highest_bracket", 0)),
                         "pmk_168": 1,
-                    }
+                    },
                 )
-                ter_entry.flags.ignore_permissions = True
-                ter_entry.insert(ignore_permissions=True)
                 count += 1
+
+        settings.flags.ignore_permissions = True
+        settings.save(ignore_permissions=True)
 
         logger.info(f"Processed {count} TER rates successfully")
         return count > 0
