@@ -249,11 +249,20 @@ def setup_hooks() -> None:
 setup_hooks()
 
 
+def _ensure_custom_entry(doc: Any) -> CustomPayrollEntry:
+    """Ensure ``doc`` is treated as :class:`CustomPayrollEntry`."""
+    if not isinstance(doc, CustomPayrollEntry):
+        doc.__class__ = CustomPayrollEntry
+    return doc
+
+
 def validate(doc, method=None):
-    """Wrapper for Payroll Entry validate event."""
-    return CustomPayrollEntry.validate(doc)
+    """Payroll Entry validate hook."""
+    entry = _ensure_custom_entry(doc)
+    entry.validate()
 
 
 def on_submit(doc, method=None):
-    """Wrapper for Payroll Entry on_submit event."""
-    return CustomPayrollEntry.on_submit(doc)
+    """Payroll Entry on_submit hook."""
+    entry = _ensure_custom_entry(doc)
+    entry.on_submit()
