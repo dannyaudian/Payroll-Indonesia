@@ -121,7 +121,7 @@ def migrate_all_settings(settings_doc=None, defaults=None, *args, **kwargs) -> D
     results["gl_account_mappings"] = _seed_gl_account_mappings(settings_doc, defaults)
 
     # Save if we created the settings doc
-    if settings_doc._doc_before_save is None:
+    if not getattr(settings_doc, "_doc_before_save", None):
         settings_doc.save()
 
     # Log summary
