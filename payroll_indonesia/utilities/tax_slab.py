@@ -12,6 +12,7 @@ from typing import Optional
 import frappe
 from frappe.utils import getdate
 from payroll_indonesia.frappe_helpers import logger
+from frappe.exceptions import DoesNotExistError
 
 __all__ = [
     "setup_income_tax_slab",
@@ -115,16 +116,39 @@ def get_default_tax_slab(create_if_missing=True) -> Optional[str]:
     slab_doctype = "Income Tax Slab"
     currency = "IDR"
     try:
-        default_slab = frappe.db.get_value(
-            slab_doctype, {"currency": currency, "is_default": 1}, "name"
-        )
+        try:
+            default_slab = frappe.db.get_value(
+                slab_doctype, {"currency": currency, "is_default": 1}, "name"
+            )
+        except (DoesNotExistError, Exception) as e:
+            # Column might not exist on fresh databases
+            if "is_default" in str(e):
+                logger.warning(
+                    "'is_default' column missing in Income Tax Slab. Skipping filter."
+                )
+                default_slab = frappe.db.get_value(
+                    slab_doctype, {"currency": currency}, "name"
+                )
+            else:
+                raise
         if default_slab:
             return default_slab
         if create_if_missing:
             setup_income_tax_slab()
-            default_slab = frappe.db.get_value(
-                slab_doctype, {"currency": currency, "is_default": 1}, "name"
-            )
+            try:
+                default_slab = frappe.db.get_value(
+                    slab_doctype, {"currency": currency, "is_default": 1}, "name"
+                )
+            except (DoesNotExistError, Exception) as e:
+                if "is_default" in str(e):
+                    logger.warning(
+                        "'is_default' column missing in Income Tax Slab. Skipping filter."
+                    )
+                    default_slab = frappe.db.get_value(
+                        slab_doctype, {"currency": currency}, "name"
+                    )
+                else:
+                    raise
             return default_slab
         return None
     except Exception as e:
