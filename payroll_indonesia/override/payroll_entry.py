@@ -16,7 +16,7 @@ from frappe.utils import getdate
 from hrms.payroll.doctype.payroll_entry.payroll_entry import PayrollEntry
 
 import payroll_indonesia.payroll_indonesia.validations as validations
-import payroll_indonesia.payroll_indonesia.payroll_entry_functions as pe_functions
+import payroll_indonesia.override.payroll_entry_functions as pe_functions
 from payroll_indonesia.config.config import get_live_config
 
 # Optional logger
