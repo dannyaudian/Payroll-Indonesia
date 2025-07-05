@@ -12,7 +12,7 @@ ensuring consistent rule enforcement throughout the application.
 
 import logging
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 import frappe
 from frappe import _
@@ -436,3 +436,47 @@ def validate_ter_rates(ter_category: str) -> None:
             _("No TER rates defined for category: {0}").format(ter_category),
             title="TER Rate Validation",
         )
+
+
+def validate_employee_fields(employee: Union[str, Any]) -> None:
+    """Validate essential fields for an Employee.
+
+    Args:
+        employee: Employee document or ID
+    """
+    try:
+        doc = frappe.get_doc("Employee", employee) if isinstance(employee, str) else employee
+
+        validate_employee_golongan(doc)
+        validate_employee_tax_status(doc)
+
+        if getattr(doc, "npwp", None):
+            if not validate_npwp_format(doc.npwp):
+                frappe.throw(
+                    _("Invalid NPWP format for employee {0}").format(doc.name),
+                    title="NPWP Validation",
+                )
+    except Exception as e:
+        logger.error(f"Employee field validation error: {e}")
+        raise
+
+
+def validate_tax_status(status: str) -> None:
+    """Validate a tax status string against allowed values."""
+    dummy = type("Obj", (), {"status_pajak": status})
+    validate_employee_tax_status(dummy)
+
+
+def validate_pph21_settings(doc: Any) -> None:
+    """Validate PPh 21 Settings document."""
+    try:
+        from payroll_indonesia.payroll_indonesia.tax import pph21_settings as pps
+
+        pps.validate_brackets(doc)
+        pps.validate_ptkp_entries(doc)
+
+        if getattr(doc, "calculation_method", "") == "TER":
+            pps.validate_ter_table(strict=True)
+    except Exception as e:
+        logger.error(f"PPh21 settings validation error: {e}")
+        raise
