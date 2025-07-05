@@ -7,13 +7,8 @@
 Helper functions for Salary Slip processing - without calculator duplication.
 """
 
-# Standard imports
-import logging
 from typing import Any, Dict
 
-# from typing import Any, Dict, List, Optional, Union, Tuple, TYPE_CHECKING
-
-# Frappe imports
 import frappe
 from frappe import _
 from frappe.utils import getdate, flt
@@ -24,13 +19,9 @@ import payroll_indonesia.override.salary_slip.tax_calculator as tax_calc
 import payroll_indonesia.override.salary_slip.ter_calculator as ter_calc
 import payroll_indonesia.override.salary_slip.salary_utils as utils
 
-# import payroll_indonesia.payroll_indonesia.validations as val
-
 # Config
 from payroll_indonesia.config.config import get_live_config
-
-# Logger setup
-logger = logging.getLogger("salary_slip_fn")
+from payroll_indonesia.frappe_helpers import logger
 
 
 def update_component_amount(slip: Any) -> Dict[str, Any]:
@@ -85,10 +76,6 @@ def update_component_amount(slip: Any) -> Dict[str, Any]:
 
         # Set YTD values on slip
         _set_ytd_values(slip, ytd_values)
-
-        # Queue tax summary update if needed
-        if _needs_tax_summary_update(slip):
-            _enqueue_tax_summary_update(slip)
 
         logger.info(f"Updated components for slip {getattr(slip, 'name', 'unknown')}")
         return result
@@ -182,13 +169,13 @@ def _set_ytd_values(slip: Any, ytd_values: Dict[str, float]) -> None:
     """
     # Set YTD values if fields exist
     if hasattr(slip, "ytd_gross_pay"):
-        slip.ytd_gross_pay = ytd_values.get("ytd_gross", 0)
+        slip.ytd_gross_pay = ytd_values.get("ytd", {}).get("ytd_gross", 0)
 
     if hasattr(slip, "ytd_bpjs_deductions"):
-        slip.ytd_bpjs_deductions = ytd_values.get("ytd_bpjs", 0)
+        slip.ytd_bpjs_deductions = ytd_values.get("ytd", {}).get("ytd_bpjs", 0)
 
     if hasattr(slip, "ytd_pph21"):
-        slip.ytd_pph21 = ytd_values.get("ytd_pph21", 0)
+        slip.ytd_pph21 = ytd_values.get("ytd", {}).get("ytd_pph21", 0)
 
     # Try to persist values if document has been saved
     if getattr(slip, "name", "").startswith("new-") is False:
@@ -199,7 +186,11 @@ def _set_ytd_values(slip: Any, ytd_values: Dict[str, float]) -> None:
                 ("ytd_pph21", "ytd_pph21"),
             ]:
                 if hasattr(slip, field):
-                    slip.db_set(field, ytd_values.get(key, 0), update_modified=False)
+                    slip.db_set(
+                        field, 
+                        ytd_values.get("ytd", {}).get(key, 0), 
+                        update_modified=False
+                    )
         except Exception as e:
             logger.warning(f"Could not persist YTD values: {e}")
 
@@ -299,14 +290,14 @@ def _needs_tax_summary_update(slip: Any) -> bool:
     return has_pph21 or has_bpjs
 
 
-def _enqueue_tax_summary_update(slip: Any) -> None:
+def enqueue_tax_summary_update(slip: Any) -> None:
     """
     Enqueue a background job to update the tax summary.
 
     Args:
         slip: Salary slip document
     """
-    # Check document status
+    # Check document status - only process submitted slips
     if getattr(slip, "docstatus", 0) != 1:  # 1 = Submitted
         logger.debug(f"Skip tax summary update for non-submitted slip {slip.name}")
         return
@@ -361,6 +352,7 @@ def initialize_fields(slip: Any) -> None:
         "ytd_gross_pay": 0,
         "ytd_bpjs_deductions": 0,
         "ytd_pph21": 0,
+        "pph21": 0,
     }
 
     # Set default values for fields
@@ -376,84 +368,33 @@ def initialize_fields(slip: Any) -> None:
                     pass  # Ignore errors for unsaved documents
 
 
-def set_tax_ids_from_employee(slip: Any) -> None:
+def salary_slip_post_submit(slip: Any) -> None:
     """
-    Set tax ID fields from employee record.
-
+    Process tasks after salary slip submission.
+    
+    This function handles:
+    - Updating tax summary via background queue
+    - Updating YTD values
+    - Any other post-submission tasks
+    
     Args:
         slip: Salary slip document
     """
-    if not hasattr(slip, "employee") or not slip.employee:
-        return
-
-    # Get employee tax IDs
-    employee_data = frappe.db.get_value("Employee", slip.employee, ["npwp", "ktp"], as_dict=True)
-
-    if not employee_data:
-        return
-
-    # Set NPWP if available
-    if hasattr(slip, "npwp") and not slip.npwp and employee_data.npwp:
-        slip.npwp = employee_data.npwp
-
-        # Try to persist
-        if getattr(slip, "name", "").startswith("new-") is False:
-            try:
-                slip.db_set("npwp", employee_data.npwp, update_modified=False)
-            except Exception:
-                pass
-
-    # Set KTP if available
-    if hasattr(slip, "ktp") and not slip.ktp and employee_data.ktp:
-        slip.ktp = employee_data.ktp
-
-        # Try to persist
-        if getattr(slip, "name", "").startswith("new-") is False:
-            try:
-                slip.db_set("ktp", employee_data.ktp, update_modified=False)
-            except Exception:
-                pass
-
-
-def verify_slip_components(slip: Any) -> Dict[str, Any]:
-    """
-    Verify that all required components are properly set in the salary slip.
-
-    Args:
-        slip: Salary slip document
-
-    Returns:
-        Dict[str, Any]: Verification results
-    """
-    result = {"status": "success", "messages": [], "has_errors": False}
-
-    # Verify BPJS fields
-    bpjs_fields = ["kesehatan_employee", "jht_employee", "jp_employee", "total_bpjs"]
-
-    for field in bpjs_fields:
-        if not hasattr(slip, field):
-            result["messages"].append(f"Missing BPJS field: {field}")
-            result["has_errors"] = True
-            result["status"] = "error"
-        elif getattr(slip, field) is None:
-            result["messages"].append(f"BPJS field {field} is None")
-            result["has_errors"] = True
-            result["status"] = "error"
-
-    # Verify TER settings if using TER
-    if getattr(slip, "is_using_ter", 0):
-        if not getattr(slip, "ter_category", ""):
-            result["messages"].append("Using TER but no category set")
-            result["status"] = "warning"
-
-        if not getattr(slip, "ter_rate", 0):
-            result["messages"].append("Using TER but no rate set")
-            result["status"] = "warning"
-
-    # Check if tax IDs are set if PPh 21 is calculated
-    if flt(getattr(slip, "pph21", 0)) > 0:
-        if not getattr(slip, "npwp", "") and not getattr(slip, "ktp", ""):
-            result["messages"].append("PPh 21 calculated but no NPWP or KTP set")
-            result["status"] = "warning"
-
-    return result
+    try:
+        # Calculate components one more time to ensure latest values
+        update_component_amount(slip)
+        
+        # Check if tax summary update is needed and enqueue it
+        if _needs_tax_summary_update(slip):
+            enqueue_tax_summary_update(slip)
+        
+        # Log completion
+        logger.info(f"Post-submit processing completed for salary slip {slip.name}")
+        
+    except Exception as e:
+        logger.exception(f"Error in post-submit processing for {slip.name}: {e}")
+        # Non-critical function, don't raise to calling function
+        frappe.log_error(
+            f"Error in post-submit processing for {slip.name}: {e}",
+            "Salary Slip Post Submit Error"
+        )

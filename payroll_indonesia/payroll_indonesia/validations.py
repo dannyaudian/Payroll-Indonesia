@@ -10,7 +10,6 @@ This module provides validation functions for various document types,
 ensuring consistent rule enforcement throughout the application.
 """
 
-import logging
 import re
 from typing import Any, Dict, Union
 
@@ -19,234 +18,60 @@ from frappe import _
 from frappe.utils import flt
 
 from payroll_indonesia.config.config import get_live_config
+from payroll_indonesia.frappe_helpers import logger
 
-# Configure logger
-logger = logging.getLogger(__name__)
+__all__ = [
+    # Employee validations
+    "validate_employee_fields",
+    "validate_employee_golongan",
+    
+    # Tax validations
+    "validate_tax_status",
+    
+    # BPJS validations
+    "validate_bpjs_components",
+    "validate_bpjs_account_mapping",
+    
+    # TER validations
+    "validate_ter_rates",
+]
 
+# =====================
+# Employee Validations
+# =====================
 
-def validate_bpjs_settings(doc: Any) -> None:
+def validate_employee_fields(employee: Union[str, Any]) -> None:
     """
-    Validate BPJS Settings document.
+    Validate essential fields for an Employee.
+    
+    Checks for correct golongan, tax status, and NPWP format.
 
     Args:
-        doc: BPJS Settings document
+        employee: Employee document or ID
     """
     try:
-        logger.info(f"Validating BPJS Settings: {getattr(doc, 'name', 'New')}")
+        doc = frappe.get_doc("Employee", employee) if isinstance(employee, str) else employee
 
-        # Get validation rules from config
-        cfg = get_live_config()
-        bpjs_config = cfg.get("bpjs", {})
-        validation_rules = bpjs_config.get("validation", {})
+        validate_employee_golongan(doc)
+        validate_employee_tax_status(doc)
 
-        # Validate percentage fields
-        validate_bpjs_percentages(doc, validation_rules)
-
-        # Validate maximum salary thresholds
-        validate_bpjs_max_salary(doc, validation_rules)
-
-        logger.info("BPJS Settings validation completed successfully")
-    except Exception as e:
-        logger.error(f"BPJS validation error: {str(e)}")
-        raise
-
-
-def validate_bpjs_percentages(doc: Any, validation_rules: Dict[str, Any]) -> None:
-    """
-    Validate BPJS percentage ranges using rules from configuration.
-
-    Args:
-        doc: BPJS Settings document
-        validation_rules: Validation rules from configuration
-    """
-    percentage_limits = validation_rules.get("percentage_limits", {})
-
-    # Fields to validate
-    fields = [
-        "kesehatan_employee_percent",
-        "kesehatan_employer_percent",
-        "jht_employee_percent",
-        "jht_employer_percent",
-        "jp_employee_percent",
-        "jp_employer_percent",
-        "jkk_percent",
-        "jkm_percent",
-    ]
-
-    for field in fields:
-        if not hasattr(doc, field):
-            continue
-
-        value = flt(getattr(doc, field))
-
-        # Get limits from config or use defaults
-        field_limits = percentage_limits.get(field, {})
-        min_val = flt(field_limits.get("min", 0))
-        max_val = flt(field_limits.get("max", 100))
-
-        if value < min_val or value > max_val:
-            logger.info(f"BPJS validation: {field}={value} not in range " f"{min_val}-{max_val}")
-            frappe.throw(_(f"{field} must be between {min_val}% and {max_val}%"))
-
-
-def validate_bpjs_max_salary(doc: Any, validation_rules: Dict[str, Any]) -> None:
-    """
-    Validate BPJS maximum salary thresholds.
-
-    Args:
-        doc: BPJS Settings document
-        validation_rules: Validation rules from configuration
-    """
-    salary_limits = validation_rules.get("salary_limits", {})
-
-    # Fields to validate
-    fields = ["kesehatan_max_salary", "jp_max_salary"]
-
-    for field in fields:
-        if not hasattr(doc, field):
-            continue
-
-        value = flt(getattr(doc, field))
-
-        # Get limits from config or use defaults
-        field_limits = salary_limits.get(field, {})
-        min_val = flt(field_limits.get("min", 0))
-
-        if value < min_val:
-            logger.info(f"BPJS validation: {field}={value} below minimum {min_val}")
-            frappe.throw(_(f"{field} must be at least {min_val}"))
-
-
-def validate_payroll_settings(doc: Any) -> None:
-    """
-    Validate Payroll Indonesia Settings document.
-
-    Args:
-        doc: Payroll Indonesia Settings document
-    """
-    try:
-        logger.info(f"Validating Payroll Indonesia Settings: {getattr(doc, 'name', 'New')}")
-
-        # Get validation rules from config
-        cfg = get_live_config()
-        tax_config = cfg.get("tax", {})
-        validation = tax_config.get("validation", {})
-
-        # Validate TER settings
-        if hasattr(doc, "tax_calculation_method") and hasattr(doc, "use_ter"):
-            if doc.tax_calculation_method == "TER" and not doc.use_ter:
-                # Auto-set use_ter if calculation method is TER
-                logger.info("Auto-enabling TER since calculation method is TER")
-                doc.use_ter = 1
-
-        # Validate biaya jabatan limits
-        validate_biaya_jabatan(doc, validation)
-
-        # Validate tax brackets
-        validate_tax_brackets(doc)
-
-        # Validate TER configuration
-        validate_ter_configuration(doc, tax_config)
-
-        logger.info("Payroll Indonesia Settings validation completed successfully")
-    except Exception as e:
-        logger.error(f"Payroll settings validation error: {str(e)}")
-        raise
-
-
-def validate_biaya_jabatan(doc: Any, validation: Dict[str, Any]) -> None:
-    """
-    Validate biaya jabatan percentage and maximum value.
-
-    Args:
-        doc: Payroll Indonesia Settings document
-        validation: Validation rules from configuration
-    """
-    if not hasattr(doc, "biaya_jabatan_percent"):
-        return
-
-    percent_limits = validation.get("biaya_jabatan_limits", {})
-    min_percent = flt(percent_limits.get("min_percent", 0))
-    max_percent = flt(percent_limits.get("max_percent", 10))
-
-    value = flt(doc.biaya_jabatan_percent)
-
-    if value < min_percent or value > max_percent:
-        logger.info(
-            f"Biaya Jabatan percentage {value} outside of allowed range "
-            f"({min_percent}%-{max_percent}%)"
-        )
-        frappe.throw(
-            _("Biaya Jabatan percentage must be between {0}% and {1}%").format(
-                min_percent, max_percent
-            )
-        )
-
-
-def validate_tax_brackets(doc: Any) -> None:
-    """
-    Validate tax brackets for continuity and logical ordering.
-
-    Args:
-        doc: Payroll Indonesia Settings document
-    """
-    if not hasattr(doc, "tax_brackets_table") or not doc.tax_brackets_table:
-        return
-
-    # Sort by income_from
-    sorted_brackets = sorted(doc.tax_brackets_table, key=lambda x: flt(x.income_from))
-
-    # Check for gaps or overlaps
-    for i in range(len(sorted_brackets) - 1):
-        current = sorted_brackets[i]
-        next_bracket = sorted_brackets[i + 1]
-
-        if flt(current.income_to) != flt(next_bracket.income_from):
-            logger.info(
-                f"Tax bracket gap found: {current.income_to} to " f"{next_bracket.income_from}"
-            )
-            frappe.throw(
-                _("Tax brackets must be continuous. Gap found between {0} and {1}").format(
-                    current.income_to, next_bracket.income_from
+        if getattr(doc, "npwp", None):
+            if not validate_npwp_format(doc.npwp):
+                frappe.throw(
+                    _("Invalid NPWP format for employee {0}").format(doc.name),
+                    title="NPWP Validation",
                 )
-            )
-
-
-def validate_ter_configuration(doc: Any, tax_config: Dict[str, Any]) -> None:
-    """
-    Validate TER configuration if TER is enabled.
-
-    Args:
-        doc: Payroll Indonesia Settings document
-        tax_config: Tax configuration from settings
-    """
-    if not hasattr(doc, "use_ter") or not doc.use_ter:
-        return
-
-    # Check if TER rate table exists and has entries
-    if not hasattr(doc, "ter_rate_table") or not doc.ter_rate_table:
-        logger.info("TER is enabled but no TER rates defined in ter_rate_table")
-        frappe.throw(
-            _(
-                "TER is enabled but no rates are defined in TER Rate Table. "
-                "Please define rates before using this method."
-            )
-        )
-
-    # Check if all three TER categories (A, B, C) have entries
-    ter_categories = {row.status_pajak for row in doc.ter_rate_table}
-    expected_categories = {"TER A", "TER B", "TER C"}
-    missing_categories = expected_categories - ter_categories
-
-    if missing_categories:
-        frappe.throw(
-            _("Missing TER rate entries for categories: {0}").format(", ".join(missing_categories))
-        )
+    except Exception as e:
+        logger.error(f"Employee field validation error: {e}")
+        raise
 
 
 def validate_employee_golongan(doc: Any) -> None:
     """
     Validate employee golongan against maximum allowed for jabatan.
+    
+    Ensures the employee's golongan level does not exceed what is permitted
+    for their job position (jabatan).
 
     Args:
         doc: Employee document
@@ -306,7 +131,10 @@ def validate_employee_golongan(doc: Any) -> None:
 
 def validate_employee_tax_status(doc: Any) -> None:
     """
-    Validate employee tax status.
+    Validate employee tax status against permitted values.
+    
+    Checks if the employee's tax status (status_pajak) is in the list of 
+    valid statuses defined in configuration or constants.
 
     Args:
         doc: Employee document
@@ -342,8 +170,8 @@ def validate_employee_tax_status(doc: Any) -> None:
 
 def validate_npwp_format(npwp: str) -> bool:
     """
-    Validate NPWP format.
-
+    Validate NPWP format using regex pattern from configuration.
+    
     Args:
         npwp: NPWP string to validate
 
@@ -361,11 +189,35 @@ def validate_npwp_format(npwp: str) -> bool:
     return bool(re.match(npwp_format, npwp))
 
 
+# =====================
+# Tax Validations
+# =====================
+
+def validate_tax_status(status: str) -> None:
+    """
+    Validate a tax status string against allowed values.
+    
+    Creates a dummy object with the status_pajak attribute and passes it
+    to the employee tax status validator.
+    
+    Args:
+        status: Tax status string to validate
+    """
+    dummy = type("Obj", (), {"status_pajak": status})
+    validate_employee_tax_status(dummy)
+
+
+# =====================
+# BPJS Validations
+# =====================
+
 def validate_bpjs_components(company: str = None) -> None:
     """
-    Validasi bahwa semua komponen BPJS wajib (Employee dan Employer) sudah ada di sistem.
-    Raise error jika ada yang belum dibuat.
-
+    Validate that all required BPJS components exist in the system.
+    
+    Checks that all required BPJS salary components for both employee and
+    employer contributions are properly created in the system.
+    
     Args:
         company: Optional company name to validate
     """
@@ -394,9 +246,11 @@ def validate_bpjs_components(company: str = None) -> None:
 
 def validate_bpjs_account_mapping(company: str = None) -> None:
     """
-    Validasi bahwa mapping akun BPJS tersedia untuk perusahaan yang aktif.
-    Jika parameter `company` diberikan, maka validasi dilakukan untuk perusahaan tersebut.
-
+    Validate that BPJS account mappings exist for active companies.
+    
+    Checks that BPJS Account Mapping documents exist for the specified company
+    or all companies if none is specified.
+    
     Args:
         company: Optional company name to validate
     """
@@ -417,10 +271,16 @@ def validate_bpjs_account_mapping(company: str = None) -> None:
         )
 
 
+# =====================
+# TER Validations
+# =====================
+
 def validate_ter_rates(ter_category: str) -> None:
     """
     Validate that TER rates are properly defined for a specific category.
-
+    
+    Checks that PPh 21 TER Table contains entries for the specified TER category.
+    
     Args:
         ter_category: TER category to validate (TER A, TER B, TER C)
     """
@@ -436,47 +296,3 @@ def validate_ter_rates(ter_category: str) -> None:
             _("No TER rates defined for category: {0}").format(ter_category),
             title="TER Rate Validation",
         )
-
-
-def validate_employee_fields(employee: Union[str, Any]) -> None:
-    """Validate essential fields for an Employee.
-
-    Args:
-        employee: Employee document or ID
-    """
-    try:
-        doc = frappe.get_doc("Employee", employee) if isinstance(employee, str) else employee
-
-        validate_employee_golongan(doc)
-        validate_employee_tax_status(doc)
-
-        if getattr(doc, "npwp", None):
-            if not validate_npwp_format(doc.npwp):
-                frappe.throw(
-                    _("Invalid NPWP format for employee {0}").format(doc.name),
-                    title="NPWP Validation",
-                )
-    except Exception as e:
-        logger.error(f"Employee field validation error: {e}")
-        raise
-
-
-def validate_tax_status(status: str) -> None:
-    """Validate a tax status string against allowed values."""
-    dummy = type("Obj", (), {"status_pajak": status})
-    validate_employee_tax_status(dummy)
-
-
-def validate_pph21_settings(doc: Any) -> None:
-    """Validate PPh 21 Settings document."""
-    try:
-        from payroll_indonesia.payroll_indonesia.tax import pph21_settings as pps
-
-        pps.validate_brackets(doc)
-        pps.validate_ptkp_entries(doc)
-
-        if getattr(doc, "calculation_method", "") == "TER":
-            pps.validate_ter_table(strict=True)
-    except Exception as e:
-        logger.error(f"PPh21 settings validation error: {e}")
-        raise
