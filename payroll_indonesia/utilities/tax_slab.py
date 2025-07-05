@@ -11,11 +11,12 @@ Provides idempotent setup suitable for running during after_migrate.
 from typing import Optional
 import frappe
 from frappe.utils import getdate
-from payroll_indonesia.frappe_helpers import logger
 from frappe.exceptions import DoesNotExistError
+from payroll_indonesia.frappe_helpers import logger
 
 __all__ = [
     "setup_income_tax_slab",
+    "create_income_tax_slab",
     "get_default_tax_slab",
     "update_salary_structures",
     "update_existing_assignments",
@@ -97,6 +98,102 @@ def setup_income_tax_slab() -> bool:
             "Income Tax Slab Setup Error",
         )
         return False
+
+
+def create_income_tax_slab() -> Optional[str]:
+    """
+    Create Indonesia Income Tax Slab if not already exists.
+    Idempotent: will not create duplicate if already present.
+    Returns the slab name if created or already exists, None if fails.
+    """
+    slab_doctype = "Income Tax Slab"
+    slab_name = "Indonesia Income Tax"
+    currency = "IDR"
+    company = _find_any_company_name()
+    if not frappe.db.table_exists(slab_doctype):
+        logger.warning("Income Tax Slab DocType does not exist. Skipping creation.")
+        return None
+
+    # Check for existing slab by name
+    if frappe.db.exists(slab_doctype, {"slab_name": slab_name}):
+        existing = frappe.db.get_value(slab_doctype, {"slab_name": slab_name}, "name")
+        logger.info(f"Income Tax Slab '{slab_name}' already exists: '{existing}'")
+        return existing
+
+    # Check for existing default slab with same attributes
+    existing_slabs = frappe.get_all(
+        slab_doctype,
+        filters={"currency": currency, "is_default": 1},
+        fields=["name"],
+        limit=1,
+    )
+    if existing_slabs:
+        logger.info(
+            f"Default Income Tax Slab for {currency} already exists: '{existing_slabs[0].name}'"
+        )
+        return existing_slabs[0].name
+
+    try:
+        slab = frappe.new_doc(slab_doctype)
+        slab.slab_name = slab_name
+        slab.company = company or ""
+        slab.is_default = 1
+        slab.enabled = 1
+        slab.income_tax_slab_type = "Regular"
+        slab.currency = currency
+        slab.effective_from = getdate("2023-01-01")
+        slab.flags.ignore_permissions = True
+        slab.flags.ignore_mandatory = True
+
+        # Add standard Indonesian tax brackets
+        slab.append(
+            "slabs",
+            {"from_amount": 0, "to_amount": 60000000, "rate": 5, "fixed_amount": 0},
+        )
+        slab.append(
+            "slabs",
+            {
+                "from_amount": 60000000,
+                "to_amount": 250000000,
+                "rate": 15,
+                "fixed_amount": 0,
+            },
+        )
+        slab.append(
+            "slabs",
+            {
+                "from_amount": 250000000,
+                "to_amount": 500000000,
+                "rate": 25,
+                "fixed_amount": 0,
+            },
+        )
+        slab.append(
+            "slabs",
+            {
+                "from_amount": 500000000,
+                "to_amount": 5000000000,
+                "rate": 30,
+                "fixed_amount": 0,
+            },
+        )
+        slab.append(
+            "slabs",
+            {"from_amount": 5000000000, "to_amount": 0, "rate": 35, "fixed_amount": 0},
+        )
+
+        slab.insert(ignore_permissions=True, ignore_mandatory=True)
+        frappe.db.commit()
+        logger.info(f"Created Income Tax Slab '{slab_name}' successfully.")
+        return slab.name
+    except Exception as e:
+        frappe.db.rollback()
+        logger.error(f"Error creating Income Tax Slab '{slab_name}': {str(e)}")
+        frappe.log_error(
+            f"Error creating Income Tax Slab '{slab_name}': {str(e)}\n{frappe.get_traceback()}",
+            "Income Tax Slab Error",
+        )
+        return None
 
 
 def _find_any_company_name() -> Optional[str]:
