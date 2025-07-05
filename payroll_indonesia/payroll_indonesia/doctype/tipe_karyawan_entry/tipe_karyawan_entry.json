@@ -1,0 +1,16 @@
+{
+    "doctype": "DocType",
+    "module": "Payroll Indonesia",
+    "name": "Tipe Karyawan Entry",
+    "istable": 1,
+    "editable_grid": 1,
+    "fields": [
+      {
+        "fieldname": "tipe_karyawan",
+        "fieldtype": "Data",
+        "label": "Tipe Karyawan",
+        "in_list_view": 1,
+        "reqd": 1
+      }
+    ]
+  }

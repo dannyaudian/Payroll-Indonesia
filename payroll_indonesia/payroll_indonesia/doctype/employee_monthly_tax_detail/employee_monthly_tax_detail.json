@@ -1,0 +1,102 @@
+{
+    "autoname": "hash",
+    "creation": "2025-04-26 18:24:06.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "month",
+        "salary_slip",
+        "column_break_1",
+        "gross_pay",
+        "bpjs_deductions_employee",
+        "bpjs_deductions",
+        "other_deductions",
+        "section_break_1",
+        "tax_amount",
+        "is_using_ter",
+        "ter_rate"
+    ],
+    "fields": [
+        {
+            "fieldname": "month",
+            "fieldtype": "Int",
+            "in_list_view": 1,
+            "label": "Month",
+            "reqd": 1
+        },
+        {
+            "fieldname": "salary_slip",
+            "fieldtype": "Link",
+            "label": "Salary Slip",
+            "options": "Salary Slip"
+        },
+        {
+            "fieldname": "column_break_1",
+            "fieldtype": "Column Break"
+        },
+        {
+            "default": "0",
+            "fieldname": "gross_pay",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Gross Pay",
+            "options": "Company:company:default_currency"
+        },
+        {
+            "default": "0",
+            "fieldname": "bpjs_deductions_employee",
+            "fieldtype": "Currency",
+            "label": "BPJS Deductions (Employee)",
+            "options": "Company:company:default_currency",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "bpjs_deductions",
+            "fieldtype": "Currency",
+            "label": "BPJS Deductions",
+            "options": "Company:company:default_currency"
+        },
+        {
+            "default": "0",
+            "fieldname": "other_deductions",
+            "fieldtype": "Currency",
+            "label": "Other Deductions",
+            "options": "Company:company:default_currency"
+        },
+        {
+            "fieldname": "section_break_1",
+            "fieldtype": "Section Break"
+        },
+        {
+            "default": "0",
+            "fieldname": "tax_amount",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Tax Amount",
+            "options": "Company:company:default_currency"
+        },
+        {
+            "default": "0",
+            "fieldname": "is_using_ter",
+            "fieldtype": "Check",
+            "label": "Using TER"
+        },
+        {
+            "fieldname": "ter_rate",
+            "fieldtype": "Float",
+            "label": "TER Rate (%)",
+            "depends_on": "is_using_ter",
+            "precision": 2
+        }
+    ],
+    "istable": 1,
+    "modified": "2025-04-26 18:24:06.000000",
+    "modified_by": "dannyaudian",
+    "module": "Payroll Indonesia",
+    "name": "Employee Monthly Tax Detail",
+    "owner": "dannyaudian",
+    "permissions": [],
+    "sort_field": "modified",
+    "sort_order": "DESC"
+}

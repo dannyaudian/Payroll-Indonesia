@@ -1,0 +1,148 @@
+{
+    "actions": [],
+    "creation": "2025-04-23 11:46:47",
+    "doctype": "DocType",
+    "editable_grid": 1,
+    "engine": "InnoDB",
+    "field_order": [
+        "employee",
+        "employee_name",
+        "salary_slip",
+        "data_status_section",
+        "is_synced",
+        "last_updated",
+        "section_break_emplv",
+        "kesehatan_employee",
+        "jht_employee",
+        "jp_employee",
+        "section_break_addtl",
+        "kesehatan_employer",
+        "jht_employer",
+        "jp_employer",
+        "jkk",
+        "jkm",
+        "section_break_total",
+        "amount"
+    ],
+    "fields": [
+        {
+            "fieldname": "employee",
+            "fieldtype": "Link",
+            "in_list_view": 1,
+            "label": "Employee",
+            "options": "Employee",
+            "reqd": 1
+        },
+        {
+            "fetch_from": "employee.employee_name",
+            "fieldname": "employee_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Employee Name",
+            "read_only": 1
+        },
+        {
+            "fieldname": "salary_slip",
+            "fieldtype": "Link", 
+            "label": "Salary Slip", 
+            "options": "Salary Slip",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "data_status_section",
+            "fieldtype": "Section Break",
+            "label": "Status Data"
+        },
+        {
+            "default": "0",
+            "fieldname": "is_synced",
+            "fieldtype": "Check",
+            "label": "Tersinkronisasi dengan Salary Slip",
+            "read_only": 1
+        },
+        {
+            "fieldname": "last_updated",
+            "fieldtype": "Datetime",
+            "label": "Terakhir Diupdate",
+            "read_only": 1
+        },
+        {
+            "fieldname": "section_break_emplv",
+            "fieldtype": "Section Break",
+            "label": "Employee Contributions"
+        },
+        {
+            "fieldname": "kesehatan_employee",
+            "fieldtype": "Currency",
+            "label": "BPJS Kesehatan Employee",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "jht_employee",
+            "fieldtype": "Currency",
+            "label": "BPJS JHT Employee",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "jp_employee",
+            "fieldtype": "Currency",
+            "label": "BPJS JP Employee"
+        },
+        {
+            "fieldname": "section_break_addtl",
+            "fieldtype": "Section Break",
+            "label": "Employer Contributions"
+        },
+        {
+            "fieldname": "kesehatan_employer",
+            "fieldtype": "Currency",
+            "label": "BPJS Kesehatan Employer"
+        },
+        {
+            "fieldname": "jht_employer",
+            "fieldtype": "Currency",
+            "label": "BPJS JHT Employer" 
+        },
+        {
+            "fieldname": "jp_employer",
+            "fieldtype": "Currency",
+            "label": "BPJS JP Employer"
+        },
+        {
+            "fieldname": "jkk",
+            "fieldtype": "Currency",
+            "label": "BPJS JKK"
+        },
+        {
+            "fieldname": "jkm",
+            "fieldtype": "Currency",
+            "label": "BPJS JKM"
+        },
+        {
+            "fieldname": "section_break_total",
+            "fieldtype": "Section Break",
+            "label": "Total"
+        },
+        {
+            "fieldname": "amount",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Total Amount",
+            "reqd": 1,
+            "description": "Total dari semua kontribusi BPJS untuk karyawan ini"
+        }
+    ],
+    "istable": 1,
+    "modified": "2025-06-16 09:39:52",
+    "modified_by": "dannyaudian",
+    "module": "Payroll Indonesia",
+    "name": "BPJS Payment Summary Detail",
+    "owner": "Administrator",
+    "permissions": [],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "track_changes": 1,
+    "unique_together": [
+        ["salary_slip", "employee"]
+    ]
+}

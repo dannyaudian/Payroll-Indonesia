@@ -1,0 +1,72 @@
+{
+    "actions": [],
+    "allow_rename": 0,
+    "autoname": "format:TER-{status_pajak}-{income_from}-{###}",
+    "creation": "2025-04-23 12:17:47",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "status_pajak",
+        "income_from",
+        "income_to",
+        "rate",
+        "is_highest_bracket",
+        "description"
+    ],
+    "fields": [
+        {
+            "fieldname": "status_pajak",
+            "fieldtype": "Select",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Kategori TER",
+            "options": "TER A\nTER B\nTER C",
+            "reqd": 1
+        },
+        {
+            "fieldname": "income_from",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Pendapatan Dari",
+            "reqd": 1
+        },
+        {
+            "fieldname": "income_to",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "Pendapatan Hingga",
+            "reqd": 1
+        },
+        {
+            "fieldname": "rate",
+            "fieldtype": "Percent",
+            "in_list_view": 1,
+            "label": "Tarif TER (%)",
+            "reqd": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "is_highest_bracket",
+            "fieldtype": "Check",
+            "label": "Apakah Bracket Tertinggi"
+        },
+        {
+            "fieldname": "description",
+            "fieldtype": "Small Text",
+            "label": "Deskripsi",
+            "default": "Kategori TER berdasarkan PMK 168/2023 untuk perhitungan PPh 21.",
+            "read_only": 1
+        }
+    ],
+    "istable": 1,
+    "links": [],
+    "modified": "2025-05-08 08:32:45",
+    "modified_by": "Administrator",
+    "module": "Payroll Indonesia",
+    "name": "PPh 21 TER Table",
+    "naming_rule": "Expression",
+    "owner": "Administrator",
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": []
+}

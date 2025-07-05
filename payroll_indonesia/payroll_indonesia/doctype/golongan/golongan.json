@@ -1,0 +1,80 @@
+{
+  "actions": [],
+  "autoname": "field:kode_golongan",
+  "creation": "2025-04-22 03:08:59.000000",
+  "doctype": "DocType",
+  "engine": "InnoDB",
+  "field_order": [
+    "kode_golongan",
+    "nama_golongan",
+    "level"
+  ],
+  "fields": [
+    {
+      "fieldname": "kode_golongan",
+      "fieldtype": "Data",
+      "label": "Kode Golongan",
+      "unique": 1,
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "nama_golongan",
+      "fieldtype": "Data",
+      "label": "Nama Golongan",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    },
+    {
+      "fieldname": "level",
+      "fieldtype": "Int",
+      "label": "Level",
+      "reqd": 1,
+      "in_list_view": 1,
+      "in_standard_filter": 1
+    }
+  ],
+  "index_web_pages_for_search": 1,
+  "links": [],
+  "modified": "2025-04-22 03:08:59.000000",
+  "modified_by": "Administrator",
+  "module": "Payroll Indonesia",
+  "name": "Golongan",
+  "naming_rule": "By fieldname",
+  "owner": "Administrator",
+  "permissions": [
+    {
+      "create": 1,
+      "delete": 1,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "HR Manager",
+      "share": 1,
+      "write": 1
+    },
+    {
+      "create": 1,
+      "delete": 0,
+      "email": 1,
+      "export": 1,
+      "print": 1,
+      "read": 1,
+      "report": 1,
+      "role": "HR User",
+      "share": 1,
+      "write": 1
+    }
+  ],
+  "sort_field": "level",
+  "sort_order": "ASC",
+  "title_field": "nama_golongan",
+  "track_changes": 1,
+  "track_seen": 1,
+  "track_views": 1,
+  "states": []
+}

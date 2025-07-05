@@ -1,0 +1,42 @@
+[
+  {
+    "doctype": "Property Setter",
+    "doctype_or_field": "DocField",
+    "doc_type": "Employee",
+    "field_name": "payroll_indonesia_section",
+    "property": "insert_after",
+    "value": "grade",
+    "property_type": "Data",
+    "name": "Employee-payroll_indonesia_section-insert_after"
+  },
+  {
+    "doctype": "Property Setter",
+    "doctype_or_field": "DocField",
+    "doc_type": "Employee", 
+    "field_name": "employment_type",
+    "property": "hidden",
+    "value": "1",
+    "property_type": "Check",
+    "name": "Employee-employment_type-hidden"
+  },
+  {
+    "doctype": "Property Setter",
+    "doctype_or_field": "DocField",
+    "doc_type": "Employee",
+    "field_name": "grade",
+    "property": "hidden",
+    "value": "1",
+    "property_type": "Check",
+    "name": "Employee-grade-hidden"
+  },
+  {
+    "doctype": "Property Setter",
+    "doctype_or_field": "DocField",
+    "doc_type": "Employee",
+    "field_name": "jabatan",
+    "property": "insert_after",
+    "value": "col_break_payroll_id",
+    "property_type": "Data",
+    "name": "Employee-jabatan-insert_after"
+  }
+]

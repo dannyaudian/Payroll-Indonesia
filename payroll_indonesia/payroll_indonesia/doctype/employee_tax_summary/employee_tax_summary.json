@@ -1,0 +1,189 @@
+{
+    "autoname": "hash",
+    "creation": "2025-04-23 11:40:25.000000",
+    "doctype": "DocType",
+    "engine": "InnoDB",
+    "field_order": [
+        "employee_section",
+        "employee",
+        "employee_name",
+        "tax_information_section",
+        "year",
+        "ytd_summary_section",
+        "ytd_gross_pay",
+        "ytd_tax",
+        "ytd_bpjs",
+        "ter_section",
+        "is_using_ter",
+        "ter_rate",
+        "monthly_data_section",
+        "monthly_details",
+        "column_break_hstnb",
+        "title"
+    ],
+    "fields": [
+        {
+            "fieldname": "employee_section",
+            "fieldtype": "Section Break",
+            "label": "Employee Information"
+        },
+        {
+            "fieldname": "employee",
+            "fieldtype": "Link",
+            "in_standard_filter": 1,
+            "label": "Employee",
+            "options": "Employee",
+            "reqd": 1
+        },
+        {
+            "fetch_from": "employee.employee_name",
+            "fieldname": "employee_name",
+            "fieldtype": "Data",
+            "in_list_view": 1,
+            "label": "Employee Name",
+            "read_only": 1
+        },
+        {
+            "fieldname": "tax_information_section",
+            "fieldtype": "Section Break",
+            "label": "Tax Information"
+        },
+        {
+            "fieldname": "year",
+            "fieldtype": "Int",
+            "in_list_view": 1,
+            "in_standard_filter": 1,
+            "label": "Tax Year",
+            "reqd": 1
+        },
+        {
+            "fieldname": "ytd_summary_section",
+            "fieldtype": "Section Break",
+            "label": "Year-to-Date Summary",
+            "collapsible": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "ytd_gross_pay",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "YTD Gross Pay",
+            "options": "Company:company:default_currency",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "ytd_tax",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "YTD PPh 21",
+            "options": "Company:company:default_currency"
+        },
+        {
+            "default": "0",
+            "fieldname": "ytd_bpjs",
+            "fieldtype": "Currency",
+            "in_list_view": 1,
+            "label": "YTD BPJS Deduction",
+            "options": "Company:company:default_currency",
+            "read_only": 1
+        },
+        {
+            "fieldname": "ter_section",
+            "fieldtype": "Section Break",
+            "label": "TER Information",
+            "collapsible": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "is_using_ter",
+            "fieldtype": "Check",
+            "label": "Menggunakan TER",
+            "in_list_view": 1
+        },
+        {
+            "fieldname": "ter_rate",
+            "fieldtype": "Float",
+            "label": "TER Rate (%)",
+            "precision": 2,
+            "depends_on": "is_using_ter"
+        },
+        {
+            "fieldname": "monthly_data_section",
+            "fieldtype": "Section Break",
+            "label": "Monthly Tax Data",
+            "collapsible": 1
+        },
+        {
+            "fieldname": "monthly_details",
+            "fieldtype": "Table",
+            "label": "Monthly Tax Details",
+            "options": "Employee Monthly Tax Detail"
+        },
+        {
+            "fieldname": "column_break_hstnb",
+            "fieldtype": "Column Break"
+        },
+        {
+            "fieldname": "title",
+            "fieldtype": "Data",
+            "hidden": 1,
+            "label": "Title",
+            "no_copy": 1,
+            "print_hide": 1
+        }
+    ],
+    "links": [
+        {
+            "group": "Payroll",
+            "link_doctype": "Salary Slip",
+            "link_fieldname": "employee"
+        }
+    ],
+    "modified": "2025-04-26 18:24:06.000000",
+    "modified_by": "dannyaudian",
+    "module": "Payroll Indonesia",
+    "name": "Employee Tax Summary",
+    "naming_rule": "Random",
+    "owner": "Administrator",
+    "permissions": [
+        {
+            "create": 1,
+            "delete": 1,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "System Manager",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "create": 1,
+            "delete": 0,
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "HR Manager",
+            "share": 1,
+            "write": 1
+        },
+        {
+            "email": 1,
+            "export": 1,
+            "print": 1,
+            "read": 1,
+            "report": 1,
+            "role": "HR User",
+            "share": 1
+        }
+    ],
+    "sort_field": "modified",
+    "sort_order": "DESC",
+    "states": [],
+    "title_field": "title",
+    "track_changes": 1
+}

@@ -1,0 +1,24 @@
+{
+    "doctype": "DocType",
+    "module": "Payroll Indonesia",
+    "name": "PTKP Table Entry",
+    "istable": 1,
+    "editable_grid": 1,
+    "fields": [
+      {
+        "fieldname": "status_pajak",
+        "fieldtype": "Data",
+        "label": "PTKP Status",
+        "in_list_view": 1,
+        "reqd": 1
+      },
+      {
+        "fieldname": "ptkp_amount",
+        "fieldtype": "Currency",
+        "label": "PTKP Amount",
+        "in_list_view": 1,
+        "reqd": 1,
+        "default": 0.0
+      }
+    ]
+  }

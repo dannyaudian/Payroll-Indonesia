@@ -1,0 +1,24 @@
+{
+    "doctype": "DocType",
+    "module": "Payroll Indonesia",
+    "name": "PTKP TER Mapping Entry",
+    "istable": 1,
+    "editable_grid": 1,
+    "fields": [
+      {
+        "fieldname": "ptkp_status",
+        "fieldtype": "Data",
+        "label": "PTKP Status",
+        "in_list_view": 1,
+        "reqd": 1
+      },
+      {
+        "fieldname": "ter_category",
+        "fieldtype": "Select",
+        "label": "TER Category",
+        "options": "TER A\nTER B\nTER C",
+        "in_list_view": 1,
+        "reqd": 1
+      }
+    ]
+  }

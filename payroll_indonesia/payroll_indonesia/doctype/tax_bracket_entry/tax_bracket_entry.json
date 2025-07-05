@@ -1,0 +1,34 @@
+{
+    "doctype": "DocType",
+    "module": "Payroll Indonesia",
+    "name": "Tax Bracket Entry",
+    "istable": 1,
+    "editable_grid": 1,
+    "fields": [
+      {
+        "fieldname": "income_from",
+        "fieldtype": "Currency",
+        "label": "Income From",
+        "in_list_view": 1,
+        "reqd": 1,
+        "default": 0.0
+      },
+      {
+        "fieldname": "income_to",
+        "fieldtype": "Currency",
+        "label": "Income To",
+        "in_list_view": 1,
+        "reqd": 1,
+        "default": 0.0
+      },
+      {
+        "fieldname": "tax_rate",
+        "fieldtype": "Float",
+        "label": "Tax Rate (%)",
+        "in_list_view": 1,
+        "reqd": 1,
+        "default": 0.0,
+        "precision": 2
+      }
+    ]
+  }
