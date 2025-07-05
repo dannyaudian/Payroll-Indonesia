@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-07-03 04:16:21 by dannyaudian
+# Last modified: 2025-07-05 by dannyaudian
 
 from __future__ import unicode_literals
 import frappe
@@ -9,41 +9,32 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, cint, fmt_money
 
-# Import utility functions
-from payroll_indonesia.payroll_indonesia.utils import debug_log
+from payroll_indonesia.frappe_helpers import logger
 
 
 class PPh21TERTable(Document):
     def validate(self):
         """Validate TER rate settings."""
-        # Ensure fields are converted to proper types
         self.income_from = flt(self.income_from)
         self.income_to = flt(self.income_to)
         self.rate = flt(self.rate)
         self.is_highest_bracket = cint(self.is_highest_bracket)
 
-        # Validate required fields
         if not self.status_pajak:
             frappe.throw(_("Kategori TER is required"))
 
-        # Validate status_pajak value is among allowed options
         allowed_ter_categories = ["TER A", "TER B", "TER C"]
         if self.status_pajak not in allowed_ter_categories:
             frappe.throw(
                 _("Kategori TER must be one of: {0}").format(", ".join(allowed_ter_categories))
             )
 
-        # Validate rate is within acceptable range
         if self.rate < 0 or self.rate > 100:
             frappe.throw(_("Tax rate must be between 0 and 100 percent"))
 
-        # Validate income range
         self.validate_range()
-
-        # Check for duplicates
         self.validate_duplicate()
 
-        # Set highest bracket flag if appropriate
         if self.income_to == 0 and not self.is_highest_bracket:
             self.is_highest_bracket = 1
             debug_log(
@@ -51,7 +42,6 @@ class PPh21TERTable(Document):
                 "PPh 21 TER Table",
             )
 
-        # Generate description
         self.generate_description()
 
     def validate_range(self):
@@ -62,7 +52,6 @@ class PPh21TERTable(Document):
         if self.income_to > 0 and self.income_from >= self.income_to:
             frappe.throw(_("Pendapatan Dari must be less than Pendapatan Hingga"))
 
-        # For highest bracket, income_to should be 0
         if self.income_to == 0 and not self.is_highest_bracket:
             self.is_highest_bracket = 1
         elif self.is_highest_bracket and self.income_to > 0:
@@ -75,7 +64,6 @@ class PPh21TERTable(Document):
     def validate_duplicate(self):
         """Check for duplicate status+range combinations."""
         if not self.is_new():
-            # Only check for duplicates when creating new records
             return
 
         exists = frappe.db.exists(
@@ -99,33 +87,25 @@ class PPh21TERTable(Document):
 
     def generate_description(self):
         """Set the description automatically with proper formatting."""
-        # Get TER category explanation
         ter_explanation = self.get_ter_category_explanation()
 
-        # Generate the income range part of the description
         if self.income_from == 0:
-            # Starting from 0
             if self.income_to > 0:
                 income_range = f"≤ {format_currency_idr(self.income_to)}"
             else:
-                # This shouldn't happen (income_from=0, income_to=0)
                 income_range = format_currency_idr(self.income_from)
         elif self.income_to == 0 or self.is_highest_bracket:
-            # Highest bracket
             income_range = f"> {format_currency_idr(self.income_from)}"
         else:
-            # Regular range
             income_range = (
                 f"{format_currency_idr(self.income_from)}-{format_currency_idr(self.income_to)}"
             )
 
-        # Set the description
         self.description = (
             f"{self.status_pajak}: {ter_explanation}, {income_range}, Tarif: {self.rate}%"
         )
 
     def get_ter_category_explanation(self):
-        """Get explanation for TER category."""
         explanations = {
             "TER A": "PTKP TK/0 (Rp 54 juta/tahun)",
             "TER B": "PTKP K/0, TK/1 (Rp 58,5 juta/tahun)",
@@ -134,37 +114,79 @@ class PPh21TERTable(Document):
         return explanations.get(self.status_pajak, "")
 
     def before_save(self):
-        """
-        Final validations and setups before saving.
-        """
-        # Ensure is_highest_bracket is set correctly
         if self.income_to == 0:
             self.is_highest_bracket = 1
-
-        # Ensure description is generated
         if not self.description:
             self.generate_description()
 
 
 def format_currency_idr(amount):
-    """
-    Format amount as Indonesian Rupiah with proper thousand separators.
-
-    Args:
-        amount: The amount to format
-
-    Returns:
-        str: Formatted amount as Rupiah
-    """
     try:
-        # Use fmt_money to format the currency with proper IDR formatting
         return fmt_money(flt(amount), currency="IDR")
     except Exception:
-        # Fallback to simple formatting if fmt_money fails
         try:
-            # Format with thousand separator
             formatted = f"Rp {flt(amount):,.0f}"
-            # Replace commas with dots for Indonesian formatting
             return formatted.replace(",", ".")
         except Exception:
             return f"Rp {amount}"
+
+
+def setup_ter_rates():
+    """
+    Setup default TER rates via Payroll Indonesia Settings and ter_rate_table child table.
+    Clears existing rows and inserts new ones properly linked.
+    """
+    try:
+        logger.info("Starting TER rate setup via Payroll Indonesia Settings...")
+
+        parent = frappe.get_single("Payroll Indonesia Settings")
+        parent.set("ter_rate_table", [])
+
+        default_ter_rates = [
+            # status_pajak, income_from, income_to, rate, is_highest_bracket
+            ("TER A", 0, 60000000, 5, 0),
+            ("TER A", 60000000, 250000000, 15, 0),
+            ("TER A", 250000000, 500000000, 25, 0),
+            ("TER A", 500000000, 0, 30, 1),
+            ("TER B", 0, 60000000, 5, 0),
+            ("TER B", 60000000, 250000000, 15, 0),
+            ("TER B", 250000000, 500000000, 25, 0),
+            ("TER B", 500000000, 0, 30, 1),
+            ("TER C", 0, 60000000, 5, 0),
+            ("TER C", 60000000, 250000000, 15, 0),
+            ("TER C", 250000000, 500000000, 25, 0),
+            ("TER C", 500000000, 0, 30, 1),
+        ]
+
+        for status_pajak, income_from, income_to, rate, is_highest_bracket in default_ter_rates:
+            row = parent.append("ter_rate_table", {})
+            row.status_pajak = status_pajak
+            row.income_from = income_from
+            row.income_to = income_to
+            row.rate = rate
+            row.is_highest_bracket = is_highest_bracket
+            # Description and other fields will be auto-generated on save
+
+        parent.save(ignore_permissions=True)
+        frappe.db.commit()
+
+        logger.info("TER rate setup completed successfully via Payroll Indonesia Settings.")
+        return True
+    except Exception as e:
+        logger.error(f"Error during TER rate setup: {str(e)}")
+        frappe.log_error(
+            f"Error setting up TER rates: {str(e)}\n{frappe.get_traceback()}",
+            "TER Rate Setup Error",
+        )
+        return False
+
+
+# Optionally, call setup_ter_rates() during installation or migration from hooks or setup
+# Example: in setup_module.py or hooks.py, call setup_ter_rates() as needed
+
+# Backwards compatible utility for debugging (if needed)
+def debug_log(msg, title=None):
+    try:
+        logger.debug(f"{title or 'Debug'}: {msg}")
+    except Exception:
+        pass
