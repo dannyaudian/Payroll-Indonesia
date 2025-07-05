@@ -8,17 +8,15 @@ setup_module.py – basic setup routines for Payroll Indonesia.
 Provides minimal setup functions used during installation and migration.
 """
 
-import logging
 from typing import Dict, Any, Optional, List
 
 import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
+from payroll_indonesia.frappe_helpers import logger
 from payroll_indonesia.utilities.tax_slab import setup_income_tax_slab
-
-# Configure logger
-logger = logging.getLogger(__name__)
+from payroll_indonesia.setup.settings_migration import _load_defaults
 
 
 def setup_module() -> bool:
@@ -51,16 +49,60 @@ def setup_module() -> bool:
 
 def setup_accounts() -> bool:
     """
-    Setup accounts and ensure Income Tax Slab exists.
+    Setup accounts and ensure Income Tax Slab and TER rates exist.
     This function can safely be hooked into after_migrate.
+    
+    Returns:
+        bool: Success status of setup operations
     """
-    logger.info("Setting up Payroll Indonesia accounts and Income Tax Slab")
-    result = setup_income_tax_slab()
-    if result:
-        logger.info("Income Tax Slab ensured successfully during account setup")
+    logger.info("Setting up Payroll Indonesia tax infrastructure")
+    
+    results = {
+        "income_tax_slab": False,
+        "pph21_ter": False
+    }
+    
+    # Load defaults for configuration
+    defaults = _load_defaults()
+    if not defaults:
+        logger.warning("Could not load defaults.json, using minimal defaults")
+    
+    # Setup Income Tax Slab
+    try:
+        result = setup_income_tax_slab(defaults)
+        results["income_tax_slab"] = result
+        if result:
+            logger.info("Income Tax Slab setup completed successfully")
+        else:
+            logger.info("Income Tax Slab setup skipped (already exists)")
+    except Exception as e:
+        logger.error(f"Error setting up Income Tax Slab: {str(e)}")
+        frappe.log_error(f"Error setting up Income Tax Slab: {str(e)}", "Tax Setup Error")
+    
+    # Setup PPh 21 TER rates
+    try:
+        # Import here to avoid circular imports
+        from payroll_indonesia.fixtures.setup import setup_pph21_ter
+        
+        result = setup_pph21_ter(defaults)
+        results["pph21_ter"] = result
+        if result:
+            logger.info("PPh 21 TER rates setup completed successfully")
+        else:
+            logger.info("PPh 21 TER rates setup skipped (already exists)")
+    except Exception as e:
+        logger.error(f"Error setting up PPh 21 TER rates: {str(e)}")
+        frappe.log_error(f"Error setting up PPh 21 TER rates: {str(e)}", "TER Setup Error")
+    
+    # Overall success if at least one component was successful
+    success = any(results.values())
+    
+    if success:
+        logger.info("Payroll Indonesia tax infrastructure setup completed")
     else:
-        logger.warning("Income Tax Slab setup failed or skipped")
-    return result
+        logger.warning("Payroll Indonesia tax infrastructure setup completed with warnings")
+    
+    return success
 
 
 def create_custom_workspace() -> bool:
@@ -198,7 +240,6 @@ def ensure_settings_doctype_exists() -> bool:
         settings = frappe.new_doc(settings_name)
         settings.document_name = settings_name
         settings.enabled = 1
-        settings.auto_create_salary_structure = 1
 
         # Set default values
         settings.default_currency = "IDR"
