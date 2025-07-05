@@ -1,0 +1,18 @@
+include MANIFEST.in
+include requirements.txt
+include *.json
+include *.md
+include *.py
+include *.txt
+recursive-include payroll_indonesia *.css
+recursive-include payroll_indonesia *.csv
+recursive-include payroll_indonesia *.html
+recursive-include payroll_indonesia *.ico
+recursive-include payroll_indonesia *.js
+recursive-include payroll_indonesia *.json
+recursive-include payroll_indonesia *.md
+recursive-include payroll_indonesia *.png
+recursive-include payroll_indonesia *.py
+recursive-include payroll_indonesia *.svg
+recursive-include payroll_indonesia *.txt
+recursive-exclude payroll_indonesia *.pyc
