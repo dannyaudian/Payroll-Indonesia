@@ -39,14 +39,22 @@ def setup_income_tax_slab() -> bool:
         return False
 
     # Check if a default slab for IDR exists
-    default_slab = frappe.db.get_value(
-        slab_doctype, {"currency": currency, "is_default": 1}, "name"
-    )
+    has_is_default = frappe.db.has_column(slab_doctype, "is_default")
+    if has_is_default:
+        default_slab = frappe.db.get_value(
+            slab_doctype, {"currency": currency, "is_default": 1}, "name"
+        )
+    else:
+        logger.warning(
+            "'is_default' column missing in Income Tax Slab. Skipping 'is_default=1' filter."
+        )
+        default_slab = frappe.db.get_value(slab_doctype, {"currency": currency}, "name")
+
     if default_slab:
         logger.info(f"Income Tax Slab already exists: '{default_slab}'")
         return True
 
-    # If not, check if any IDR slab exists
+    # If not, check if any IDR slab exists (fallback, mostly redundant here)
     any_slab = frappe.db.get_value(slab_doctype, {"currency": currency}, "name")
     if any_slab:
         logger.info(f"At least one IDR Income Tax Slab exists: '{any_slab}'")
@@ -63,7 +71,7 @@ def setup_income_tax_slab() -> bool:
         slab = frappe.new_doc(slab_doctype)
         slab.slab_name = stub_slab_name
         slab.company = company or ""
-        slab.is_default = 1
+        slab.is_default = 1 if has_is_default else 0
         slab.enabled = 1
         slab.income_tax_slab_type = "Regular"
         slab.currency = currency
@@ -110,6 +118,7 @@ def create_income_tax_slab() -> Optional[str]:
     slab_name = "Indonesia Income Tax"
     currency = "IDR"
     company = _find_any_company_name()
+
     if not frappe.db.table_exists(slab_doctype):
         logger.warning("Income Tax Slab DocType does not exist. Skipping creation.")
         return None
@@ -121,12 +130,24 @@ def create_income_tax_slab() -> Optional[str]:
         return existing
 
     # Check for existing default slab with same attributes
-    existing_slabs = frappe.get_all(
-        slab_doctype,
-        filters={"currency": currency, "is_default": 1},
-        fields=["name"],
-        limit=1,
-    )
+    has_is_default = frappe.db.has_column(slab_doctype, "is_default")
+    if has_is_default:
+        existing_slabs = frappe.get_all(
+            slab_doctype,
+            filters={"currency": currency, "is_default": 1},
+            fields=["name"],
+            limit=1,
+        )
+    else:
+        logger.warning(
+            "'is_default' column missing in Income Tax Slab. Skipping 'is_default=1' filter."
+        )
+        existing_slabs = frappe.get_all(
+            slab_doctype,
+            filters={"currency": currency},
+            fields=["name"],
+            limit=1,
+        )
     if existing_slabs:
         logger.info(
             f"Default Income Tax Slab for {currency} already exists: '{existing_slabs[0].name}'"
@@ -137,7 +158,7 @@ def create_income_tax_slab() -> Optional[str]:
         slab = frappe.new_doc(slab_doctype)
         slab.slab_name = slab_name
         slab.company = company or ""
-        slab.is_default = 1
+        slab.is_default = 1 if has_is_default else 0
         slab.enabled = 1
         slab.income_tax_slab_type = "Regular"
         slab.currency = currency
@@ -213,39 +234,42 @@ def get_default_tax_slab(create_if_missing=True) -> Optional[str]:
     slab_doctype = "Income Tax Slab"
     currency = "IDR"
     try:
+        has_is_default = frappe.db.has_column(slab_doctype, "is_default")
         try:
-            default_slab = frappe.db.get_value(
-                slab_doctype, {"currency": currency, "is_default": 1}, "name"
-            )
-        except (DoesNotExistError, Exception) as e:
-            # Column might not exist on fresh databases
-            if "is_default" in str(e):
+            if has_is_default:
+                default_slab = frappe.db.get_value(
+                    slab_doctype, {"currency": currency, "is_default": 1}, "name"
+                )
+            else:
                 logger.warning(
-                    "'is_default' column missing in Income Tax Slab. Skipping filter."
+                    "'is_default' column missing in Income Tax Slab. Skipping 'is_default=1' filter."
                 )
                 default_slab = frappe.db.get_value(
                     slab_doctype, {"currency": currency}, "name"
                 )
-            else:
-                raise
+        except (DoesNotExistError, Exception) as e:
+            logger.error(f"Error fetching Income Tax Slab: {str(e)}")
+            return None
+
         if default_slab:
             return default_slab
         if create_if_missing:
             setup_income_tax_slab()
             try:
-                default_slab = frappe.db.get_value(
-                    slab_doctype, {"currency": currency, "is_default": 1}, "name"
-                )
-            except (DoesNotExistError, Exception) as e:
-                if "is_default" in str(e):
+                if has_is_default:
+                    default_slab = frappe.db.get_value(
+                        slab_doctype, {"currency": currency, "is_default": 1}, "name"
+                    )
+                else:
                     logger.warning(
-                        "'is_default' column missing in Income Tax Slab. Skipping filter."
+                        "'is_default' column missing in Income Tax Slab. Skipping 'is_default=1' filter."
                     )
                     default_slab = frappe.db.get_value(
                         slab_doctype, {"currency": currency}, "name"
                     )
-                else:
-                    raise
+            except (DoesNotExistError, Exception) as e:
+                logger.error(f"Error fetching Income Tax Slab after setup: {str(e)}")
+                return None
             return default_slab
         return None
     except Exception as e:
