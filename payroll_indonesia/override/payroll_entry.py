@@ -7,7 +7,6 @@
 Controller for Payroll Entry customization for Indonesian payroll.
 """
 
-import logging
 from typing import Any, Dict
 
 import frappe
@@ -18,9 +17,7 @@ from hrms.payroll.doctype.payroll_entry.payroll_entry import PayrollEntry
 import payroll_indonesia.payroll_indonesia.validations as validations
 import payroll_indonesia.override.payroll_entry_functions as pe_functions
 from payroll_indonesia.config.config import get_live_config
-
-# Optional logger
-logger = logging.getLogger(__name__)
+from payroll_indonesia.frappe_helpers import logger
 
 
 class CustomPayrollEntry(PayrollEntry):
@@ -87,7 +84,17 @@ class CustomPayrollEntry(PayrollEntry):
         if employee_ids:
             # Validate employee fields
             for emp_id in employee_ids:
-                validations.validate_employee_fields(emp_id)
+                try:
+                    validations.validate_employee_fields(emp_id)
+                except AttributeError:
+                    # Handle missing validation function gracefully
+                    logger.warning(
+                        f"validate_employee_fields not found in validations module. "
+                        f"Skipping validation for {emp_id}"
+                    )
+                except Exception as e:
+                    logger.error(f"Error validating employee {emp_id}: {str(e)}")
+                    raise
 
     def _validate_config(self) -> None:
         """
@@ -125,11 +132,13 @@ class CustomPayrollEntry(PayrollEntry):
             # Log result
             if result.get("status") == "success":
                 logger.info(
-                    f"Successfully processed Payroll Entry {self.name}: " f"{result.get('message')}"
+                    f"Successfully processed Payroll Entry {self.name}: "
+                    f"{result.get('message')}"
                 )
             else:
                 logger.warning(
-                    f"Partially processed Payroll Entry {self.name}: " f"{result.get('message')}"
+                    f"Partially processed Payroll Entry {self.name}: "
+                    f"{result.get('message')}"
                 )
 
                 # Show message to user
@@ -217,52 +226,3 @@ class CustomPayrollEntry(PayrollEntry):
 
         # Additional validation for Indonesian payroll
         self._validate_employees()
-
-
-def setup_hooks() -> None:
-    """
-    Set up hooks to override standard PayrollEntry functionality.
-    """
-    try:
-        # Override standard PayrollEntry with CustomPayrollEntry
-        frappe.model.override.make_property_setter(
-            "Payroll Entry", "validate", "CustomPayrollEntry.validate", "Data"
-        )
-
-        frappe.model.override.make_property_setter(
-            "Payroll Entry", "on_submit", "CustomPayrollEntry.on_submit", "Data"
-        )
-
-        logger.info("Indonesian Payroll Entry hooks set up successfully")
-    except Exception as e:
-        logger.exception(f"Error setting up Payroll Entry hooks: {e}")
-        frappe.msgprint(
-            _(
-                "Warning: Could not set up Payroll Entry hooks. "
-                "Some features may not work correctly."
-            ),
-            indicator="orange",
-        )
-
-
-# Set up hooks when module is loaded
-setup_hooks()
-
-
-def _ensure_custom_entry(doc: Any) -> CustomPayrollEntry:
-    """Ensure ``doc`` is treated as :class:`CustomPayrollEntry`."""
-    if not isinstance(doc, CustomPayrollEntry):
-        doc.__class__ = CustomPayrollEntry
-    return doc
-
-
-def validate(doc, method=None):
-    """Payroll Entry validate hook."""
-    entry = _ensure_custom_entry(doc)
-    entry.validate()
-
-
-def on_submit(doc, method=None):
-    """Payroll Entry on_submit hook."""
-    entry = _ensure_custom_entry(doc)
-    entry.on_submit()

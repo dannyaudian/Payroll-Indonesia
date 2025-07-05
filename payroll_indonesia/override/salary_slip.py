@@ -7,7 +7,6 @@
 Salary Slip override for Indonesian payroll.
 """
 
-import logging
 from typing import Any, Dict
 
 import frappe
@@ -26,11 +25,10 @@ import payroll_indonesia.payroll_indonesia.validations as validations
 # Import utilities
 from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.override.salary_slip.salary_utils import calculate_ytd_and_ytm
+from payroll_indonesia.frappe_helpers import logger
 
-logger = logging.getLogger("salary_slip")
 
-
-class IndonesiaSalarySlip(SalarySlip):
+class IndonesiaPayrollSalarySlip(SalarySlip):
     """
     Enhanced Salary Slip for Indonesian Payroll.
     Supports BPJS and PPh 21 tax calculations.
@@ -95,6 +93,7 @@ class IndonesiaSalarySlip(SalarySlip):
             "koreksi_pph21": 0,
             "ytd_gross_pay": 0,
             "ytd_bpjs_deductions": 0,
+            "pph21": 0,
         }
 
         # Set default values for missing fields
@@ -178,10 +177,13 @@ class IndonesiaSalarySlip(SalarySlip):
             ytd_values = calculate_ytd_and_ytm(self)
 
             if hasattr(self, "ytd_gross_pay"):
-                self.ytd_gross_pay = ytd_values.get("ytd_gross", 0)
+                self.ytd_gross_pay = ytd_values.get("ytd", {}).get("ytd_gross", 0)
 
             if hasattr(self, "ytd_bpjs_deductions"):
-                self.ytd_bpjs_deductions = ytd_values.get("ytd_bpjs", 0)
+                self.ytd_bpjs_deductions = ytd_values.get("ytd", {}).get("ytd_bpjs", 0)
+
+            if hasattr(self, "ytd_pph21"):
+                self.ytd_pph21 = ytd_values.get("ytd", {}).get("ytd_pph21", 0)
 
             logger.debug(f"YTD values calculated for {self.name}")
         except Exception as e:
@@ -347,7 +349,9 @@ class IndonesiaSalarySlip(SalarySlip):
 
             # Update employee record
             frappe.db.set_value(
-                "Employee", self.employee, {"ytd_pph21": new_ytd_pph21, "ytd_bpjs": new_ytd_bpjs}
+                "Employee", 
+                self.employee, 
+                {"ytd_pph21": new_ytd_pph21, "ytd_bpjs": new_ytd_bpjs}
             )
 
             logger.debug(
@@ -357,33 +361,3 @@ class IndonesiaSalarySlip(SalarySlip):
         except Exception as e:
             logger.warning(f"Error updating employee YTD records: {e}")
             # Non-critical error, continue processing
-
-
-def setup_hooks() -> None:
-    """
-    Set up hooks to override standard Salary Slip functionality.
-    """
-    try:
-        # Override standard SalarySlip class with our implementation
-        frappe.model.override.make_property_setter(
-            "Salary Slip", "validate", "IndonesiaSalarySlip.validate", "Data"
-        )
-
-        frappe.model.override.make_property_setter(
-            "Salary Slip", "on_submit", "IndonesiaSalarySlip.on_submit", "Data"
-        )
-
-        logger.info("Indonesian Salary Slip hooks set up successfully")
-    except Exception as e:
-        logger.exception(f"Error setting up Salary Slip hooks: {e}")
-        frappe.msgprint(
-            _(
-                "Warning: Could not set up Salary Slip hooks. "
-                "Some features may not work correctly."
-            ),
-            indicator="orange",
-        )
-
-
-# Set up hooks when module is loaded
-setup_hooks()

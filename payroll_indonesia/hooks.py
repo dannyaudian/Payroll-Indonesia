@@ -20,7 +20,7 @@ required_apps = ["erpnext", "hrms"]
 before_install = "payroll_indonesia.fixtures.setup.before_install"
 after_install = "payroll_indonesia.fixtures.setup.after_install"
 after_sync = "payroll_indonesia.fixtures.setup.after_sync"
-after_migrate = "payroll_indonesia.fixtures.setup.setup_accounts"
+after_migrate = "payroll_indonesia.setup.setup_module.setup_accounts"
 
 # List view JS
 doctype_list_js = {
@@ -35,14 +35,8 @@ doc_events = {
         "validate": "payroll_indonesia.override.employee.validate",
         "on_update": "payroll_indonesia.override.employee.on_update",
     },
-    "Payroll Entry": {
-        "validate": "payroll_indonesia.override.payroll_entry.validate",
-        "on_submit": "payroll_indonesia.override.payroll_entry.on_submit",
-    },
     "Salary Slip": {
         "validate": "payroll_indonesia.override.salary_slip_functions.update_component_amount",
-        "on_submit": "payroll_indonesia.override.salary_slip.payroll_controller.on_submit",
-        "on_cancel": "payroll_indonesia.override.salary_slip.payroll_controller.on_cancel",
         "after_insert": "payroll_indonesia.override.salary_slip_functions.initialize_fields",
     },
     "BPJS Account Mapping": {
@@ -64,8 +58,8 @@ doc_events = {
 }
 
 # ❸ Override DocType classes
-doctype_class = {
-    "Salary Slip": "payroll_indonesia.override.salary_slip.IndonesiaSalarySlip",
+override_doctype_class = {
+    "Salary Slip": "payroll_indonesia.override.salary_slip.IndonesiaPayrollSalarySlip",
     "Payroll Entry": "payroll_indonesia.override.payroll_entry.CustomPayrollEntry",
     "Employee": "payroll_indonesia.override.employee.EmployeeOverride",
 }
