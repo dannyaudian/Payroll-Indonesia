@@ -552,12 +552,13 @@ def setup_pph21_ter(config, force_update=False):
         raise
 
 
-def setup_income_tax_slab(config):
+def setup_income_tax_slab(config, force_update=False):
     """
     Create Income Tax Slab for Indonesia using config data.
 
     Args:
         config: Configuration dictionary from defaults.json
+        force_update: Update existing record if it already exists
 
     Returns:
         bool: True if successful, False otherwise
@@ -567,7 +568,9 @@ def setup_income_tax_slab(config):
         return False
 
     try:
-        if frappe.db.exists("Income Tax Slab", {"currency": "IDR", "is_default": 1}):
+        slab_name = "Indonesia Income Tax"
+        slab_exists = frappe.db.exists("Income Tax Slab", slab_name)
+        if slab_exists and not force_update:
             logger.info("Income Tax Slab already exists")
             return True
 
@@ -585,9 +588,13 @@ def setup_income_tax_slab(config):
             logger.warning("No tax brackets found in configuration")
             raise ValidationError("No tax brackets found in configuration")
 
-        tax_slab = frappe.new_doc("Income Tax Slab")
-        tax_slab.name = "Indonesia Income Tax"
-        tax_slab.title = "Indonesia Income Tax"
+        if slab_exists:
+            tax_slab = frappe.get_doc("Income Tax Slab", slab_name)
+            tax_slab.slabs = []
+        else:
+            tax_slab = frappe.new_doc("Income Tax Slab")
+            tax_slab.name = slab_name
+            tax_slab.title = slab_name
         tax_slab.effective_from = getdate("2023-01-01")
         tax_slab.company = company
         tax_slab.currency = config.get("defaults", {}).get("currency", "IDR")
@@ -606,13 +613,16 @@ def setup_income_tax_slab(config):
 
         tax_slab.flags.ignore_permissions = True
         tax_slab.flags.ignore_mandatory = True
-        tax_slab.insert()
-
-        logger.info(f"Created income tax slab: {tax_slab.name}")
+        if slab_exists:
+            tax_slab.save(ignore_permissions=True)
+            logger.info(f"Updated income tax slab: {tax_slab.name}")
+        else:
+            tax_slab.insert()
+            logger.info(f"Created income tax slab: {tax_slab.name}")
         return True
 
     except Exception as e:
-        logger.error(f"Error creating income tax slab: {str(e)}")
+        logger.error(f"Error creating or updating income tax slab: {str(e)}")
         raise
 
 
