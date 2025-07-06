@@ -4,7 +4,7 @@ Payroll Indonesia by PT. Innovasi Terbaik Bangsa is an ERPNext v15 payroll modul
 
 ## 🚀 Key Features
 
-* **🛠 ERPNext HRM Integration:** Fully integrated with Salary Component, Salary Structure, Salary Slip, Payroll Entry, Employee Tax Summary, and Payroll Indonesia Settings modules.
+* **🛠 ERPNext HR Integration:** Works with ERPNext's standard HR module (Salary Component, Salary Structure, Salary Slip, Payroll Entry) and adds custom DocTypes such as Employee Tax Summary and Payroll Indonesia Settings. No separate HRMS app is required.
 * **💡 Automated BPJS Calculation:** Automatic calculation of BPJS Kesehatan (Healthcare) and Ketenagakerjaan (Employment Security - JHT, JP, JKK, JKM) complying with the latest regulations, with validation for contribution percentages and maximum salary limits.
 * **📊 PPh 21 Calculation:** Supports TER (PMK 168/2023) and monthly progressive methods, special calculations for December for annual SPT reporting, including validation for PTKP and Tax Bracket settings.
 * **⚡ Memory Optimization:** Efficient YTD and YTM calculations, comprehensive error handling to manage RAM usage, and complete integration with dedicated calculation modules.
@@ -13,8 +13,9 @@ Payroll Indonesia by PT. Innovasi Terbaik Bangsa is an ERPNext v15 payroll modul
 
 ### ✅ Prerequisites
 
-* ERPNext v15
-* Frappe Framework v15
+* Python 3.10 or higher
+* Frappe Framework v15 or later
+* ERPNext v15 or later
 
 ### 📌 Installation via GitHub
 
