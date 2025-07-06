@@ -571,9 +571,7 @@ def get_or_create_account(
         f"{account_name} - {frappe.db.get_value('Company', company, 'abbr')}"
     )
 
-    if frappe.db.exists(
-        "Account", {"name": account_name_with_company, "company": company}
-    ):
+    if frappe.db.exists("Account", {"name": account_name_with_company, "company": company}):
         return account_name_with_company
 
     if not parent_account:
@@ -583,9 +581,7 @@ def get_or_create_account(
             parent_account = find_parent_account(company, root_type, account_type)
 
     if not parent_account:
-        frappe.throw(
-            f"Could not find a parent account for {account_name} ({root_type})"
-        )
+        frappe.throw(f"Could not find a parent account for {account_name} ({root_type})")
 
     new_account = frappe.new_doc("Account")
     new_account.account_name = account_name
@@ -601,9 +597,7 @@ def get_or_create_account(
     return new_account.name
 
 
-def find_parent_account(
-    company: str, root_type: str, account_type: Optional[str] = None
-) -> str:
+def find_parent_account(company: str, root_type: str, account_type: Optional[str] = None) -> str:
     """Locate a suitable parent account for a new account."""
 
     filters = {"company": company, "is_group": 1, "root_type": root_type}
@@ -611,9 +605,7 @@ def find_parent_account(
     if account_type:
         specific_filters = filters.copy()
         specific_filters["account_type"] = account_type
-        specific_accounts = frappe.get_all(
-            "Account", filters=specific_filters, fields=["name"]
-        )
+        specific_accounts = frappe.get_all("Account", filters=specific_filters, fields=["name"])
         if specific_accounts:
             return specific_accounts[0].name
 
@@ -674,4 +666,3 @@ def create_parent_expense_account(company: str) -> str:
     account.insert()
 
     return account.name
-
