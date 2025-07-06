@@ -78,9 +78,9 @@ def setup_accounts() -> bool:
             if key not in defaults:
                 defaults[key] = value
     
-    # Setup Income Tax Slab with new signature
+    # Setup Income Tax Slab
     try:
-        result = setup_income_tax_slab(defaults)
+        result = setup_income_tax_slab()
         results["income_tax_slab"] = result
         if result:
             logger.info("Income Tax Slab setup completed successfully")
