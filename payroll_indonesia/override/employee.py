@@ -5,6 +5,15 @@
 
 import frappe
 from frappe import _
+from hrms.payroll.doctype.employee.employee import Employee
+
+
+class EmployeeOverride(Employee):
+    """Custom Employee class for Payroll Indonesia."""
+
+    pass
+
+__all__ = ["EmployeeOverride", "validate", "on_update", "create_custom_fields"]
 
 
 def validate(doc, method):
