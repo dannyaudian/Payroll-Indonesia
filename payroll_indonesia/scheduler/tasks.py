@@ -17,8 +17,12 @@ scheduler_events = {
 
 import logging
 import frappe
+from frappe import _
+from frappe.utils import cint
 from frappe.utils import getdate, add_months, get_first_day, get_last_day
 import payroll_indonesia.utilities.cache_utils as cache_utils
+from payroll_indonesia.frappe_helpers import logger
+from payroll_indonesia.config.config import doctype_defined
 
 __all__ = ["daily_job", "monthly_job", "yearly_job"]
 
@@ -134,31 +138,43 @@ def yearly_job():
 
 
 def check_bpjs_settings():
-    """Check BPJS settings and account mappings for all companies"""
+    """
+    Check if BPJS Settings are properly configured in Payroll Indonesia Settings.
+    
+    Returns:
+        bool: True if settings exist and are configured, False otherwise
+    """
+    if not doctype_defined("Payroll Indonesia Settings"):
+        logger.warning("Payroll Indonesia Settings doctype not found")
+        return False
+    
     try:
-        # Check if BPJS Settings exists
-        if not frappe.db.exists("BPJS Settings", None):
-            logger.warning("BPJS Settings not found")
-            return
-
-        # Get all companies
-        companies = frappe.get_all("Company", pluck="name")
-
-        for company in companies:
-            # Check BPJS Account Mapping
-            mapping = frappe.db.exists("BPJS Account Mapping", {"company": company})
-            if not mapping:
-                logger.warning(f"BPJS Account Mapping missing for company: {company}")
-
-                # Create default mapping if possible
-                try:
-                    create_default_mapping(company)
-                    logger.info(f"Created default BPJS mapping for: {company}")
-                except Exception as e:
-                    logger.error(f"Failed to create BPJS mapping for {company}: {str(e)}")
+        # For Single DocTypes, the correct approach is to use get_single
+        settings = frappe.get_single("Payroll Indonesia Settings")
+        
+        # Check if essential BPJS settings are configured
+        required_fields = [
+            "kesehatan_employee_percent",
+            "kesehatan_employer_percent",
+            "jht_employee_percent",
+            "jht_employer_percent",
+            "jp_employee_percent",
+            "jp_employer_percent",
+            "jkk_percent",
+            "jkm_percent"
+        ]
+        
+        for field in required_fields:
+            if not hasattr(settings, field) or not settings.get(field):
+                logger.warning(f"Missing required BPJS setting: {field}")
+                return False
+        
+        # Settings exist and are configured
+        return True
+        
     except Exception as e:
         logger.error(f"Error checking BPJS settings: {str(e)}")
-        raise
+        return False
 
 
 def create_bpjs_summaries(date_obj=None):

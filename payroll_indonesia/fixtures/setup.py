@@ -512,6 +512,43 @@ def setup_pph21_ter(config, force_update=False):
                 logger.info("TER categories already setup for PMK 168/2023")
                 return True
 
+        # Clear existing TER rates
+        settings.ter_rate_table = []
+
+        ter_rates = config.get("ter_rates", {})
+        if not ter_rates:
+            logger.warning("No TER rates found in configuration")
+            raise ValidationError("No TER rates found in configuration")
+
+        count = 0
+        for status, rates in ter_rates.items():
+            # Skip metadata
+            if status == "metadata":
+                continue
+
+            for rate_data in rates:
+                settings.append(
+                    "ter_rate_table",
+                    {
+                        "status_pajak": status,
+                        "income_from": flt(rate_data["income_from"]),
+                        "income_to": flt(rate_data["income_to"]),
+                        "rate": flt(rate_data["rate"]),
+                        "description": f"{status} - {flt(rate_data['income_from']):,.0f} to {flt(rate_data['income_to']):,.0f}",
+                        "is_highest_bracket": cint(rate_data.get("is_highest_bracket", 0))
+                    },
+                )
+                count += 1
+
+        settings.flags.ignore_permissions = True
+        settings.save(ignore_permissions=True)
+
+        logger.info(f"Processed {count} TER rates successfully")
+        return count > 0
+
+    except Exception as e:
+        logger.error(f"Error setting up TER rates: {str(e)}")
+        raise
 
 def setup_income_tax_slab(config, force_update=False):
     """
