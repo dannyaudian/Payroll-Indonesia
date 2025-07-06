@@ -44,19 +44,19 @@ def calculate_bpjs(
 ) -> int:
     """
     Backward-compat helper lazily importing real calculator to avoid circular imports.
-    
+
     Args:
         base_salary: The base salary amount for calculation
         rate_percent: The BPJS rate percentage (e.g., 1.0 for 1%)
         max_salary: Optional maximum salary cap for the calculation
-        
+
     Returns:
         int: The calculated BPJS amount as a rounded integer (IDR has no cents)
     """
     from payroll_indonesia.override.salary_slip.bpjs_calculator import (
         calculate_bpjs as _real_calc,  # noqa: F401
     )
-    
+
     return _real_calc(base_salary, rate_percent, max_salary=max_salary)
 
 
@@ -383,13 +383,13 @@ def create_parent_liability_account(company: str) -> Optional[str]:
 
     abbr = frappe.db.get_value("Company", company, "abbr")
     account_name = f"Statutory Payables - {abbr}"
-    
+
     if frappe.db.exists("Account", account_name):
         return account_name
-    
+
     # Find parent account
     parent_account = find_parent_account(company, "Liability")
-    
+
     # Create account
     account = frappe.new_doc("Account")
     account.account_name = "Statutory Payables"
@@ -398,10 +398,10 @@ def create_parent_liability_account(company: str) -> Optional[str]:
     account.account_type = "Tax"
     account.is_group = 1
     account.root_type = "Liability"
-    
+
     account.flags.ignore_permissions = True
     account.insert()
-    
+
     return account.name
 
 
@@ -420,13 +420,13 @@ def create_parent_expense_account(company: str) -> Optional[str]:
 
     abbr = frappe.db.get_value("Company", company, "abbr")
     account_name = f"Employee Benefits - {abbr}"
-    
+
     if frappe.db.exists("Account", account_name):
         return account_name
-    
+
     # Find parent account
     parent_account = find_parent_account(company, "Expense")
-    
+
     # Create account
     account = frappe.new_doc("Account")
     account.account_name = "Employee Benefits"
@@ -435,10 +435,10 @@ def create_parent_expense_account(company: str) -> Optional[str]:
     account.account_type = "Expense Account"
     account.is_group = 1
     account.root_type = "Expense"
-    
+
     account.flags.ignore_permissions = True
     account.insert()
-    
+
     return account.name
 
 
