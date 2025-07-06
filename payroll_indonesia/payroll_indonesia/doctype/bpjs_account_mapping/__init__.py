@@ -1,1 +1,1 @@
-# This file marks the golongan doctype directory as a Python package
+# This file marks the BPJS Account Mapping doctype directory as a Python package
