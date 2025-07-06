@@ -9,6 +9,7 @@ Controller module for Indonesia Payroll Salary Slip class.
 
 import frappe
 from frappe import _
+from frappe.utils import getdate, date_diff
 from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
 from payroll_indonesia.override.salary_slip_functions import (
     salary_slip_post_submit, 
@@ -40,10 +41,12 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             # Initialize fields first
             initialize_fields(self)
             
+            # Ensure required fields are set
+            self._ensure_required_fields()
+            
             # Handle date details if needed
             if not getattr(self, "salary_slip_based_on_timesheet", False):
-                if hasattr(self, "get_date_details"):
-                    self.get_date_details()
+                self._set_date_details()
             
             # Skip payroll period validation which is called in parent validate
             
@@ -73,6 +76,50 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         except Exception as e:
             logger.exception(f"Error validating salary slip {self.name}: {e}")
             frappe.throw(_("Error validating salary slip: {0}").format(str(e)))
+
+    def _ensure_required_fields(self):
+        """Ensure all required fields are set with default values if missing."""
+        # Check for salary structure
+        if not getattr(self, "salary_structure", None):
+            logger.warning(f"Salary structure not set for {self.name}")
+            
+        # Set default values for essential fields if missing
+        if not getattr(self, "total_working_days", None):
+            self.total_working_days = 22
+            logger.debug(f"Set default total_working_days=22 for {self.name}")
+            
+        if not getattr(self, "payment_days", None):
+            self.payment_days = self.total_working_days
+            logger.debug(f"Set payment_days={self.payment_days} for {self.name}")
+
+    def _set_date_details(self):
+        """Set date details for the salary slip."""
+        try:
+            # Call get_date_details if available
+            if hasattr(self, "get_date_details"):
+                self.get_date_details()
+                return
+                
+            # Fallback implementation if get_date_details is not available
+            if not self.start_date or not self.end_date:
+                logger.warning(f"Missing start_date or end_date for {self.name}")
+                return
+                
+            # Calculate total_working_days if not already set
+            if not getattr(self, "total_working_days", None):
+                self.total_working_days = date_diff(self.end_date, self.start_date) + 1
+                
+            # Set payment_days if not already set
+            if not getattr(self, "payment_days", None):
+                self.payment_days = self.total_working_days
+                
+            logger.debug(
+                f"Date details set for {self.name}: "
+                f"total_working_days={self.total_working_days}, "
+                f"payment_days={self.payment_days}"
+            )
+        except Exception as e:
+            logger.warning(f"Error setting date details for {self.name}: {e}")
 
     def _safe_call(self, method_name):
         """Safely call a method if it exists."""
