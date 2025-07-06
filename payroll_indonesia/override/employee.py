@@ -10,8 +10,7 @@ in Frappe/ERPNext core code.
 """
 
 import inspect
-import sys
-from typing import Any, Dict, List, Optional, Type, Tuple
+from typing import Any, Dict, List, Optional, Type
 
 import frappe
 from frappe import _
@@ -20,8 +19,12 @@ from payroll_indonesia.frappe_helpers import logger
 
 # Define paths to try for Employee class import
 PATHS_TO_TRY = [
+    # ERPNext v15+ path
+    "erpnext.setup.doctype.employee.employee.Employee",
+    # HRMS paths
     "hrms.hr.doctype.employee.employee.Employee",
     "hrms.payroll.doctype.employee.employee.Employee",
+    # Legacy ERPNext paths
     "erpnext.hr.doctype.employee.employee.Employee",
     "erpnext.payroll.doctype.employee.employee.Employee",
 ]
