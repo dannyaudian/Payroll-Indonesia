@@ -10,7 +10,7 @@ in Frappe/ERPNext core code.
 """
 
 import inspect
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Optional, Type
 
 import frappe
 from frappe import _
@@ -56,6 +56,8 @@ def _import_employee() -> Optional[Type]:
                 employee_class.__name__ == "Employee"):
                 logger.info(f"Successfully imported Employee class from: {path}")
                 employee_classes.append((path, employee_class))
+                # Break after first successful import for efficiency
+                break
         except ImportError as e:
             errors.append(f"ImportError for {path}: {str(e)}")
         except AttributeError as e:

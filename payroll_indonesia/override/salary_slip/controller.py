@@ -79,9 +79,9 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
 
     def _ensure_required_fields(self):
         """Ensure all required fields are set with default values if missing."""
-        # Check for salary structure
+        # Check and set salary structure if missing
         if not getattr(self, "salary_structure", None):
-            logger.warning(f"Salary structure not set for {self.name}")
+            self._set_salary_structure()
             
         # Set default values for essential fields if missing
         if not getattr(self, "total_working_days", None):
@@ -91,6 +91,51 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         if not getattr(self, "payment_days", None):
             self.payment_days = self.total_working_days
             logger.debug(f"Set payment_days={self.payment_days} for {self.name}")
+
+    def _set_salary_structure(self):
+        """
+        Set salary_structure from Salary Structure Assignment.
+        
+        Searches for an active assignment for the employee, company, and period.
+        """
+        if not getattr(self, "employee", None) or not getattr(self, "company", None):
+            logger.warning(f"Cannot set salary_structure: missing employee or company for {self.name}")
+            return
+            
+        try:
+            # Build filters for Salary Structure Assignment
+            filters = {
+                "employee": self.employee,
+                "company": self.company,
+                "docstatus": 1
+            }
+            
+            # Add date filter if start_date is available
+            if getattr(self, "start_date", None):
+                filters["from_date"] = ["<=", self.start_date]
+                
+            # Get the most recent assignment
+            assignment = frappe.get_all(
+                "Salary Structure Assignment",
+                filters=filters,
+                fields=["salary_structure"],
+                order_by="from_date desc",
+                limit=1
+            )
+            
+            if assignment and assignment[0].salary_structure:
+                self.salary_structure = assignment[0].salary_structure
+                logger.info(
+                    f"Set salary_structure={self.salary_structure} for {self.name} "
+                    f"from Salary Structure Assignment"
+                )
+            else:
+                logger.warning(
+                    f"No active Salary Structure Assignment found for "
+                    f"employee {self.employee}, company {self.company}"
+                )
+        except Exception as e:
+            logger.warning(f"Error setting salary_structure for {self.name}: {e}")
 
     def _set_date_details(self):
         """Set date details for the salary slip."""
