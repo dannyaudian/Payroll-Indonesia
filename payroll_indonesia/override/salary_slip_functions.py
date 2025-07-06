@@ -97,6 +97,16 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
     # Check TER settings and set is_using_ter flag
     settings = frappe.get_cached_doc("Payroll Indonesia Settings")
     is_ter_employee = str(getattr(doc, "status_pajak", "")).upper().startswith("TER")
+
+    # Log key TER-related values for easier debugging of tax calculation logic
+    logger.info(
+        "TER debugging - settings.use_ter: %s, settings.tax_calculation_method: %s, "
+        "status_pajak: %s, is_ter_employee: %s",
+        settings.use_ter,
+        settings.tax_calculation_method,
+        getattr(doc, "status_pajak", "NONE"),
+        is_ter_employee,
+    )
     
     if settings.tax_calculation_method == "TER" and settings.use_ter and is_ter_employee:
         doc.is_using_ter = 1
