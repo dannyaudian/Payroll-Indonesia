@@ -19,6 +19,10 @@ from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.payroll_indonesia import utils as pi_utils
 from payroll_indonesia.constants import BIAYA_JABATAN_PERCENT, BIAYA_JABATAN_MAX
 from payroll_indonesia.override.salary_slip.ter_calculator import calculate_monthly_pph_with_ter
+from payroll_indonesia.override.salary_slip.tax_calculator import (
+    calculate_monthly_pph_progressive,
+    calculate_december_pph,
+)
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -41,7 +45,7 @@ __all__ = [
     "update_employee_history",  # alias
     "update_component_amount",
     "salary_slip_post_submit",
-    "initialize_fields",  # Added back to fix import error
+    "initialize_fields",  # Keep this to avoid import errors
 ]
 
 
@@ -94,42 +98,25 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
     config = get_live_config()
     bpjs_config = config.get("bpjs", {})
     
-    # Check TER settings and set is_using_ter flag
+    # Ensure gross pay is calculated
+    if not doc.gross_pay:
+        doc.gross_pay = _calculate_gross_pay(doc)
+        logger.debug(f"Calculated gross pay: {doc.gross_pay}")
+    
+    # Determine TER eligibility
     settings = frappe.get_cached_doc("Payroll Indonesia Settings")
-    is_ter_employee = str(getattr(doc, "status_pajak", "")).upper().startswith("TER")
-
+    status_pajak = str(getattr(doc, "status_pajak", "")).upper()
+    is_ter_employee = status_pajak.startswith("TER")
+    
     # Log key TER-related values for easier debugging of tax calculation logic
     logger.info(
         "TER debugging - settings.use_ter: %s, settings.tax_calculation_method: %s, "
         "status_pajak: %s, is_ter_employee: %s",
         settings.use_ter,
         settings.tax_calculation_method,
-        getattr(doc, "status_pajak", "NONE"),
+        status_pajak,
         is_ter_employee,
     )
-    
-    if settings.tax_calculation_method == "TER" and settings.use_ter and is_ter_employee:
-        doc.is_using_ter = 1
-        calculate_monthly_pph_with_ter(doc)
-        logger.info(f"TER method applied for {doc.name}")
-    else:
-        doc.is_using_ter = 0
-        # Progressive tax will be calculated later in calculate_tax_amount
-        logger.info(f"Progressive method applied for {doc.name}")
-    
-    # Ensure employee doc is available for tax calculations
-    if not hasattr(doc, "employee_doc") and doc.employee:
-        try:
-            doc.employee_doc = frappe.get_doc("Employee", doc.employee)
-            logger.debug(f"Loaded employee_doc for {doc.employee}")
-        except Exception as e:
-            logger.exception(f"Error loading employee doc for {doc.employee}: {e}")
-            # Continue anyway, but log the issue
-    
-    # Set gross pay if not already set
-    if not doc.gross_pay:
-        doc.gross_pay = _calculate_gross_pay(doc)
-        logger.debug(f"Calculated gross pay: {doc.gross_pay}")
     
     # Process BPJS and tax components
     try:
@@ -140,8 +127,27 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
         # Update deduction amounts
         _update_deduction_amounts(doc, bpjs_components, bpjs_config)
         
-        # Calculate tax and update fields
-        tax_amount = calculate_tax_amount(doc)
+        # Apply tax calculation based on method
+        if settings.tax_calculation_method == "TER" and settings.use_ter and is_ter_employee:
+            doc.is_using_ter = 1
+            calculate_monthly_pph_with_ter(doc)
+            result = getattr(doc, "ter_result", {}) or {}
+            tax_amount = result.get("monthly_tax", 0.0)
+            logger.info(f"TER method applied for {doc.name} - tax: {tax_amount}")
+        else:
+            doc.is_using_ter = 0
+            if getattr(doc, "is_december_override", 0):
+                result = calculate_december_pph(doc)
+                tax_amount = result.get("correction", 0.0)
+                logger.info(f"December correction applied for {doc.name} - tax: {tax_amount}")
+            else:
+                result = calculate_monthly_pph_progressive(doc)
+                tax_amount = result.get("monthly_tax", 0.0)
+                logger.info(f"Progressive method applied for {doc.name} - tax: {tax_amount}")
+        
+        # Update PPh 21 component
+        _update_component_amount(doc, "PPh 21", tax_amount)
+        doc.pph21 = tax_amount
         
         # Calculate netto (needed for tax calculation)
         biaya_jabatan = min(doc.gross_pay * (BIAYA_JABATAN_PERCENT / 100), BIAYA_JABATAN_MAX)
@@ -310,10 +316,17 @@ def _update_deduction_amounts(doc, components: Dict[str, float], bpjs_config: Di
             deduction.amount = components.get("jp_employee", 0)
             logger.debug(f"Updated BPJS JP Employee: {deduction.amount}")
         
-        # Handle PPh 21
-        elif component_name == "PPh 21":
-            # Will be updated by calculate_tax_amount later
-            pass
+        # Handle employer components for reporting
+        elif component_name == "BPJS Kesehatan Employer":
+            deduction.amount = components.get("kesehatan_employer", 0)
+        elif component_name == "BPJS JHT Employer":
+            deduction.amount = components.get("jht_employer", 0)
+        elif component_name == "BPJS JP Employer":
+            deduction.amount = components.get("jp_employer", 0)
+        elif component_name == "BPJS JKK":
+            deduction.amount = components.get("jkk", 0)
+        elif component_name == "BPJS JKM":
+            deduction.amount = components.get("jkm", 0)
 
 
 def _update_ytd_values(doc) -> None:
@@ -407,85 +420,23 @@ def salary_slip_post_submit(doc, method: Optional[str] = None) -> None:
         logger.exception(f"Error in post-submit processing for {doc.name}: {e}")
 
 
-def calculate_tax_amount(doc) -> float:
-    """Calculate the PPh 21 tax amount for the given Salary Slip.
-
-    A deduction row with ``salary_component`` exactly ``"PPh 21"`` must exist
-    in ``doc.deductions``. If this row is missing or the component name is
-    misspelled, the function will return ``0.0`` and the tax calculation will be
-    skipped. This behavior is intentional so that payroll slips without the
-    correct component do not accidentally accrue tax.
-
+def _update_component_amount(doc, component_name: str, amount: float) -> None:
+    """
+    Update the amount of a salary component in deductions.
+    
     Args:
         doc: The Salary Slip document
-
-    Returns:
-        float: Calculated tax amount
+        component_name: Name of the salary component
+        amount: Amount to set
     """
-    try:
-        # Get configuration
-        config = get_live_config()
-        tax_config = config.get("tax", {})
-        
-        # Basic validation
-        if not tax_config:
-            logger.warning("Tax configuration not found")
-            return 0.0
-        
-        # Find PPh 21 component
-        pph21_component = None
-        for deduction in doc.deductions:
-            if deduction.salary_component == "PPh 21":
-                pph21_component = deduction
-                break
-        
-        if not pph21_component:
-            logger.debug(f"PPh 21 component not found in Salary Slip {doc.name}")
-            return 0.0
-        
-        # Calculate tax based on method
-        tax_amount = 0.0
-        
-        # Check if using TER method
-        if getattr(doc, "is_using_ter", 0) == 1:
-            try:
-                # Tax calculation was already done in update_component_amount
-                # Just retrieve the result from the TER calculation
-                result = getattr(doc, "ter_result", {}) or {}
-                tax_amount = result.get("monthly_tax", 0.0)
-            except Exception as e:
-                logger.exception(f"Error retrieving TER tax for {doc.name}: {e}")
-        # Check for December override
-        elif hasattr(doc, "is_december_override") and doc.is_december_override:
-            try:
-                from payroll_indonesia.override.salary_slip.tax_calculator import (
-                    calculate_december_pph
-                )
-                result = calculate_december_pph(doc)
-                tax_amount = result.get("correction", 0.0)
-            except Exception as e:
-                logger.exception(f"Error calculating December tax for {doc.name}: {e}")
-        # Default to Progressive
-        else:
-            try:
-                from payroll_indonesia.override.salary_slip.tax_calculator import (
-                    calculate_monthly_pph_progressive
-                )
-                result = calculate_monthly_pph_progressive(doc)
-                tax_amount = result.get("monthly_tax", 0.0)
-            except Exception as e:
-                logger.exception(f"Error calculating Progressive tax for {doc.name}: {e}")
-        
-        # Update component and document field
-        pph21_component.amount = tax_amount
-        doc.pph21 = tax_amount
-        
-        logger.debug(f"Calculated tax amount: {tax_amount} for Salary Slip {doc.name}")
-        return tax_amount
+    if not hasattr(doc, "deductions"):
+        return
     
-    except Exception as e:
-        logger.exception(f"Error calculating tax amount for {doc.name}: {e}")
-        return 0.0
+    for deduction in doc.deductions:
+        if deduction.salary_component == component_name:
+            deduction.amount = amount
+            logger.debug(f"Updated {component_name}: {amount}")
+            break
 
 
 def _get_component_amount(doc, component_name: str) -> float:
@@ -519,10 +470,17 @@ def _get_or_create_tax_row(slip) -> Tuple[Any, Any]:
     Returns:
         Tuple containing (child row, parent doc)
     """
-    # Fetch or create parent Employee Tax Summary
+    # Get employee and company
     employee = slip.employee
     company = slip.company
-    fiscal_year = slip.fiscal_year
+    
+    # Derive fiscal year from start_date if not present
+    fiscal_year = getattr(slip, "fiscal_year", None)
+    if not fiscal_year and hasattr(slip, "start_date"):
+        fiscal_year = getdate(slip.start_date).year
+    
+    if not fiscal_year:
+        fiscal_year = getdate(slip.posting_date).year
     
     filters = {
         "employee": employee,
@@ -541,9 +499,14 @@ def _get_or_create_tax_row(slip) -> Tuple[Any, Any]:
         summary.fiscal_year = fiscal_year
     
     # Find or create the monthly detail row
-    month = slip.month
-    row = None
+    month = getattr(slip, "month", None)
+    if not month and hasattr(slip, "start_date"):
+        month = getdate(slip.start_date).month
     
+    if not month:
+        month = getdate(slip.posting_date).month
+    
+    row = None
     for detail in summary.monthly_details:
         if detail.month == month:
             row = detail
