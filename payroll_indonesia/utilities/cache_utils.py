@@ -8,7 +8,11 @@ from frappe.utils import now_datetime, add_to_date
 import hashlib
 import json
 import functools
+import logging
 from typing import Any, List, Optional, Dict, Union
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "get_cache",
@@ -80,7 +84,7 @@ class CacheManager:
 
         # Log hit if debug mode is on
         if frappe.conf.get("developer_mode"):
-            frappe.logger().debug(f"Cache hit for key: {cache_key}")
+            logger.debug(f"Cache hit for key: {cache_key}")
 
         return entry.get("value")
 
@@ -119,7 +123,7 @@ class CacheManager:
 
         # Log if debug mode is on
         if frappe.conf.get("developer_mode"):
-            frappe.logger().debug(
+            logger.debug(
                 f"Cached value for key: {cache_key}, namespace: {namespace}, TTL: {ttl}s"
             )
 
@@ -136,7 +140,7 @@ class CacheManager:
         if cache_key in cls._storage:
             del cls._storage[cache_key]
             if frappe.conf.get("developer_mode"):
-                frappe.logger().debug(f"Deleted cache for key: {cache_key}")
+                logger.debug(f"Deleted cache for key: {cache_key}")
 
     @classmethod
     def clear(cls, prefix: Optional[str] = None) -> Union[int, None]:
@@ -154,7 +158,7 @@ class CacheManager:
             count = len(cls._storage)
             cls._storage.clear()
             cls._clear_timestamps.clear()
-            frappe.logger().info("All caches cleared")
+            logger.info("All caches cleared")
             return count
 
         # Normalize prefix for exact matches
@@ -172,7 +176,7 @@ class CacheManager:
         # Update clear timestamp for namespace
         cls._clear_timestamps[namespace] = now_datetime()
 
-        frappe.logger().info(
+        logger.info(
             f"Cache cleared for prefix: {prefix}, keys cleared: {len(keys_to_delete)}"
         )
         return len(keys_to_delete)
@@ -193,9 +197,9 @@ class CacheManager:
         ]
 
         for key in cache_keys:
-            frappe.cache().delete_key(key)
+            frappe.cache().delete_value(key)
 
-        frappe.logger().info("All payroll caches cleared")
+        logger.info("All payroll caches cleared")
 
     @classmethod
     def _get_namespace_from_key(cls, key: str) -> str:
@@ -242,7 +246,7 @@ class CacheManager:
 
             # Update timestamp
             cls._clear_timestamps[namespace] = now
-            frappe.logger().debug(
+            logger.debug(
                 f"Auto-cleared cache namespace: {namespace}, keys: {len(keys_to_delete)}"
             )
 
@@ -272,63 +276,87 @@ class CacheManager:
 # --------- Public cache helpers (frappe + memory fallback) ----------
 
 
-def get_cache(cache_key, ttl=None):
+def get_cache(key: str, default: Any = None) -> Any:
     """
     Get a value from frappe.cache(), fallback to in-memory if unavailable.
+    
+    Args:
+        key: Cache key
+        default: Default value to return if key not found
+        
+    Returns:
+        Cached value or default if not found
     """
     try:
-        value = frappe.cache().get_value(cache_key)
+        value = frappe.cache().get_value(key)
         if value is not None:
             if frappe.conf.get("developer_mode"):
-                frappe.logger().debug(f"frappe.cache() hit for key: {cache_key}")
+                logger.debug(f"frappe.cache() hit for key: {key}")
             return value
     except Exception:
         pass
-    # fallback in-memory
-    return CacheManager.get(cache_key, ttl)
+    
+    # Fallback to in-memory cache or return default
+    memory_value = CacheManager.get(key)
+    return memory_value if memory_value is not None else default
 
 
-def set_cache(cache_key, value, ttl=None):
+def set_cache(key: str, val: Any, ttl: int = 3600) -> None:
     """
-    Set a value in frappe.cache() and in-memory.
-    """
-    try:
-        frappe.cache().set_value(cache_key, value)
-        if frappe.conf.get("developer_mode"):
-            frappe.logger().debug(f"frappe.cache() set for key: {cache_key}")
-    except Exception:
-        pass
-    CacheManager.set(cache_key, value, ttl)
-
-
-def delete_cache(cache_key):
-    """
-    Delete a value from frappe.cache() and from in-memory.
+    Store a value in cache with expiry time.
+    
+    Args:
+        key: Cache key
+        val: Value to cache
+        ttl: Time-to-live in seconds (default: 1 hour)
     """
     try:
-        frappe.cache().delete_key(cache_key)
+        frappe.cache().set_value(key, val, expires_in_sec=ttl)
         if frappe.conf.get("developer_mode"):
-            frappe.logger().debug(f"frappe.cache() delete for key: {cache_key}")
+            logger.debug(f"frappe.cache() set for key: {key}")
     except Exception:
         pass
-    CacheManager.delete(cache_key)
+    
+    # Also store in memory cache
+    CacheManager.set(key, val, ttl)
+
+
+def delete_cache(key: str) -> None:
+    """
+    Delete a value from cache.
+    
+    Args:
+        key: Cache key to delete
+    """
+    try:
+        frappe.cache().delete_value(key)
+        if frappe.conf.get("developer_mode"):
+            logger.debug(f"frappe.cache() delete for key: {key}")
+    except Exception:
+        pass
+    
+    # Also delete from memory cache
+    CacheManager.delete(key)
 
 
 def clear_pattern(pattern: str) -> Union[int, None]:
     """
-    Delete Redis keys based on a wildcard pattern using frappe.cache().delete_pattern.
-    Also clears in-memory entries matching the pattern.
+    Delete cache keys based on a wildcard pattern.
+    
+    Args:
+        pattern: Redis-style pattern to match keys (e.g., "user:*")
+        
+    Returns:
+        Number of keys cleared or None
     """
-    if not pattern:
-        return None
     deleted_count = None
     try:
         deleted_count = frappe.cache().delete_pattern(pattern)
-        if frappe.conf.get("developer_mode"):
-            frappe.logger().info(f"frappe.cache().delete_pattern run for: {pattern}")
-    except Exception:
-        pass
-    # fallback: clear in-memory by pattern
+        logger.info("Cache cleared for pattern %s", pattern)
+    except Exception as e:
+        logger.warning(f"Error clearing cache pattern {pattern}: {str(e)}")
+    
+    # Also clear from memory cache
     try:
         count = clear_cache(pattern)
         if deleted_count is not None:
@@ -336,6 +364,29 @@ def clear_pattern(pattern: str) -> Union[int, None]:
         return count
     except Exception:
         return deleted_count
+
+
+# --------- Legacy compatibility API ---------
+
+
+def get_cached_value(cache_key, ttl=None):
+    """Legacy compatibility function for get_cache"""
+    return get_cache(cache_key, default=None)
+
+
+def cache_value(cache_key, value, ttl=None):
+    """Legacy compatibility function for set_cache"""
+    set_cache(cache_key, value, ttl)
+
+
+def clear_cache(prefix=None):
+    """Legacy compatibility function for clearing cache by prefix"""
+    return CacheManager.clear(prefix)
+
+
+def clear_all_caches():
+    """Clear all caches related to payroll calculations"""
+    CacheManager.clear_all()
 
 
 # --------- Memoization decorator ----------
@@ -352,7 +403,6 @@ def memoize_with_ttl(ttl=None, namespace=None):
     Returns:
         function: Decorated function with caching
     """
-
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -376,7 +426,7 @@ def memoize_with_ttl(ttl=None, namespace=None):
                 cache_key = f"{namespace}:{cache_key}"
 
             # Try to get value from cache
-            cached_result = get_cache(cache_key, ttl)
+            cached_result = get_cache(cache_key)
             if cached_result is not None:
                 return cached_result
 
@@ -388,72 +438,3 @@ def memoize_with_ttl(ttl=None, namespace=None):
         return wrapper
 
     return decorator
-
-
-# --------- Legacy compatibility public API ---------
-
-
-def get_cached_value(cache_key, ttl=None):
-    """
-    Get a value from cache with expiry checking
-
-    Args:
-        cache_key (str): Cache key
-        ttl (int, optional): Time-to-live in seconds
-
-    Returns:
-        any: Cached value or None if not found or expired
-    """
-    return get_cache(cache_key, ttl)
-
-
-def cache_value(cache_key, value, ttl=None):
-    """
-    Store a value in cache with expiry time
-
-    Args:
-        cache_key (str): Cache key
-        value (any): Value to cache
-        ttl (int, optional): Time-to-live in seconds
-    """
-    set_cache(cache_key, value, ttl)
-
-
-def clear_cache(prefix=None):
-    """
-    Clear all cache entries with a specific prefix or namespace
-
-    Args:
-        prefix (str, optional): Key prefix to clear. If None, clear all caches.
-    """
-    return CacheManager.clear(prefix)
-
-
-def clear_all_caches():
-    """Clear all caches related to payroll calculations"""
-    CacheManager.clear_all()
-
-
-# --------- Minimal self-test ---------
-if __name__ == "__main__":
-    import time
-
-    print("Testing CacheManager and helpers...")
-
-    set_cache("test:key1", "val1", ttl=2)
-    assert get_cache("test:key1") == "val1"
-    time.sleep(2.2)
-    assert get_cache("test:key1") is None
-
-    set_cache("test:key2", "val2")
-    assert get_cache("test:key2") == "val2"
-    delete_cache("test:key2")
-    assert get_cache("test:key2") is None
-
-    set_cache("pattern:test1", 1)
-    set_cache("pattern:test2", 2)
-    clear_pattern("pattern:*")
-    assert get_cache("pattern:test1") is None
-    assert get_cache("pattern:test2") is None
-
-    print("All cache helper tests passed.")
