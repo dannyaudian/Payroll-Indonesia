@@ -32,6 +32,7 @@ __all__ = [
     "get_formatted_currency",
     "write_json_file_if_enabled",
     "cache_get_settings",
+    "update_employee_tax_summary",
 ]
 
 # Configure logger
@@ -578,6 +579,16 @@ def get_ter_rate_from_child(category: str, annual_income: float) -> float:
         f"using fallback {fallback_rate}%"
     )
     return fallback_rate
+
+
+@safe_execute(default_value=None)
+def update_employee_tax_summary(employee: str, salary_slip: str) -> Optional[str]:
+    """Wrapper to update Employee Tax Summary from a Salary Slip."""
+    from payroll_indonesia.payroll_indonesia.doctype.employee_tax_summary.employee_tax_summary import (
+        create_from_salary_slip,
+    )
+
+    return create_from_salary_slip(salary_slip)
 
 
 # For backward compatibility
