@@ -18,6 +18,7 @@ from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.frappe_helpers import logger
 from payroll_indonesia.payroll_indonesia import utils as pi_utils
 from payroll_indonesia.constants import BIAYA_JABATAN_PERCENT, BIAYA_JABATAN_MAX
+from payroll_indonesia.override.salary_slip.ter_calculator import calculate_monthly_pph_with_ter
 
 # Import calculate_bpjs function for easier reference
 calc_bpjs = pi_utils.calculate_bpjs
@@ -88,6 +89,18 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
     # Get configuration
     config = get_live_config()
     bpjs_config = config.get("bpjs", {})
+    
+    # Check TER settings and set is_using_ter flag
+    settings = frappe.get_cached_doc("Payroll Indonesia Settings")
+    if (settings.use_ter and settings.tax_calculation_method == "TER" and 
+            getattr(doc, "status_pajak", "").startswith("TER")):
+        doc.is_using_ter = 1
+        calculate_monthly_pph_with_ter(doc)
+        logger.info(f"TER method applied for {doc.name}")
+    else:
+        doc.is_using_ter = 0
+        # Progressive tax will be calculated later
+        logger.info(f"Progressive method applied for {doc.name}")
     
     # Ensure employee doc is available for tax calculations
     if not hasattr(doc, "employee_doc") and doc.employee:
@@ -415,28 +428,20 @@ def calculate_tax_amount(doc) -> float:
             logger.debug(f"PPh 21 component not found in Salary Slip {doc.name}")
             return 0.0
         
-        # Get tax method
-        tax_method = "Progressive"
-        if hasattr(doc, "is_using_ter") and doc.is_using_ter:
-            tax_method = "TER"
-        elif hasattr(doc, "is_december_override") and doc.is_december_override:
-            tax_method = "December"
-        
         # Calculate tax based on method
         tax_amount = 0.0
         
-        # Import tax calculation functions dynamically to avoid circular imports
-        if tax_method == "TER":
+        # Check if using TER method
+        if getattr(doc, "is_using_ter", 0) == 1:
             try:
-                from payroll_indonesia.override.salary_slip.ter_calculator import (
-                    calculate_monthly_pph_with_ter
-                )
-                result = calculate_monthly_pph_with_ter(doc)
+                # Tax calculation was already done in update_component_amount
+                # Just retrieve the result from the TER calculation
+                result = getattr(doc, "ter_result", {}) or {}
                 tax_amount = result.get("monthly_tax", 0.0)
             except Exception as e:
-                logger.exception(f"Error calculating TER tax for {doc.name}: {e}")
-        
-        elif tax_method == "December":
+                logger.exception(f"Error retrieving TER tax for {doc.name}: {e}")
+        # Check for December override
+        elif hasattr(doc, "is_december_override") and doc.is_december_override:
             try:
                 from payroll_indonesia.override.salary_slip.tax_calculator import (
                     calculate_december_pph
@@ -445,8 +450,8 @@ def calculate_tax_amount(doc) -> float:
                 tax_amount = result.get("correction", 0.0)
             except Exception as e:
                 logger.exception(f"Error calculating December tax for {doc.name}: {e}")
-        
-        else:  # Progressive
+        # Default to Progressive
+        else:
             try:
                 from payroll_indonesia.override.salary_slip.tax_calculator import (
                     calculate_monthly_pph_progressive
