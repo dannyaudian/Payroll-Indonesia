@@ -16,16 +16,11 @@ scheduler_events = {
 """
 
 import logging
-
-# from datetime import datetime
-
 import frappe
-
-# from frappe import _
 from frappe.utils import getdate, add_months, get_first_day, get_last_day
+import payroll_indonesia.utilities.cache_utils as cache_utils
 
-# from payroll_indonesia.override.salary_slip import bpjs_calculator, tax_calculator
-# from payroll_indonesia.payroll_indonesia import utils
+__all__ = ["daily_job", "monthly_job", "yearly_job"]
 
 logger = logging.getLogger("payroll_tasks")
 
@@ -234,24 +229,36 @@ def create_default_mapping(company):
 def validate_tax_cache():
     """Validate tax cache and clear if necessary"""
     try:
-        # Clear cache for YTD totals older than 24 hours
-        from payroll_indonesia.utilities.cache_utils import clear_pattern
-
-        clear_pattern("ytd:*")
-        clear_pattern("tax_summary:*")
-
-        # Log cache clearing
-        logger.info("Cleared tax calculation cache")
+        # Clear cache for various patterns using the new cache_utils
+        cache_patterns = [
+            "ytd:*",
+            "tax_summary:*",
+            "salary_slip:*"
+        ]
+        
+        for pattern in cache_patterns:
+            try:
+                cleared = cache_utils.clear_pattern(pattern)
+                logger.info(f"Cleared {cleared or 0} keys with pattern '{pattern}'")
+            except Exception as e:
+                logger.warning(f"Error clearing cache pattern '{pattern}': {str(e)}")
+        
+        logger.info("Tax calculation cache validation completed")
     except Exception as e:
         logger.error(f"Error validating tax cache: {str(e)}")
         raise
 
 
 def clear_caches():
-    # logika untuk menghapus cache
-    pass
+    """Clear all payroll related caches"""
+    try:
+        cache_utils.clear_all_caches()
+        logger.info("All payroll caches cleared successfully")
+    except Exception as e:
+        logger.warning(f"Error clearing all caches: {str(e)}")
 
 
 def cleanup_logs():
-    # logika untuk membersihkan log
+    """Clean up old logs from the system"""
+    # Placeholder for log cleanup logic
     pass

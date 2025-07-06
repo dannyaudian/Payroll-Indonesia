@@ -34,10 +34,7 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             # Call parent validation first
             super().validate()
             
-            # Future: add Indonesia-specific validation logic
-            # This will be implemented via helpers to keep this controller clean
-            
-            logger.info(f"Validation completed for {self.name}")
+            logger.info(f"Indonesia payroll validation completed for {self.name}")
         except Exception as e:
             logger.exception(f"Error validating salary slip {self.name}: {e}")
             frappe.throw(_("Error validating salary slip: {0}").format(str(e)))
@@ -46,10 +43,7 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         """
         Process document on submission.
         
-        Executes post-submission tasks such as:
-        - Standard salary slip submission processing
-        - Indonesian tax and BPJS record updates
-        - Tax summary generation
+        Executes standard submission and then post-submission tasks for Indonesian payroll.
         """
         try:
             # Call parent submission handler first

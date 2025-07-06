@@ -7,7 +7,7 @@
 
 from __future__ import unicode_literals
 
-from .salary_slip import IndonesiaPayrollSalarySlip
+from .controller import IndonesiaPayrollSalarySlip
 from .salary_utils import calculate_ytd_and_ytm
 from . import bpjs_calculator as bpjs_calc
 from . import tax_calculator as tax_calc

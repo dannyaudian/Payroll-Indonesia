@@ -36,8 +36,18 @@ def validate(doc, method=None):
 
 
 def on_update(doc, method=None):
-    """Clear cached mapping for the updated company."""
-    frappe.cache().delete_value(f"bpjs_mapping_{doc.company}")
+    """
+    Global on_update hook for BPJS Account Mapping document.
+    Called by hooks after document is updated.
+
+    Args:
+        doc: The document being updated
+        method: The method that triggered this hook (optional)
+    """
+    doc.on_update()
+    
+    # Optionally sync to settings
+    sync_to_settings(doc)
 
 
 def sync_to_settings(doc, method=None):

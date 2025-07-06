@@ -9,6 +9,6 @@ Salary Slip override for Indonesian payroll.
 Re-exports IndonesiaPayrollSalarySlip from the override.salary_slip package.
 """
 
-from payroll_indonesia.override.salary_slip.salary_slip import IndonesiaPayrollSalarySlip
+from payroll_indonesia.override.salary_slip.controller import IndonesiaPayrollSalarySlip
 
 __all__ = ["IndonesiaPayrollSalarySlip"]
