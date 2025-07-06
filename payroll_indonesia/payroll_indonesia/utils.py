@@ -527,3 +527,151 @@ def get_ter_rate_from_child(category: str, annual_income: float) -> float:
 
 # For backward compatibility
 create_account = get_or_create_account
+
+
+# ---------------------------------------------------------------------------
+# Compatibility helpers
+# ---------------------------------------------------------------------------
+
+# Import the actual BPJS calculator implementation for backward compatibility
+from payroll_indonesia.override.salary_slip.bpjs_calculator import (
+    calculate_bpjs as _calc_bpjs,
+)
+
+__all__ = [
+    "calculate_bpjs",
+    "get_or_create_account",
+    "find_parent_account",
+    "create_parent_liability_account",
+    "create_parent_expense_account",
+]
+
+
+def calculate_bpjs(
+    base_salary: float,
+    rate_percent: float,
+    max_salary: Optional[float] = None,
+) -> float:
+    """Wrapper for BPJS calculation used by legacy templates."""
+
+    return _calc_bpjs(base_salary, rate_percent, max_salary)
+
+
+def get_or_create_account(
+    company: str,
+    account_name: str,
+    account_type: str,
+    is_group: int = 0,
+    root_type: str = "Expense",
+    parent_account: Optional[str] = None,
+) -> str:
+    """Simple helper to get or create an Account."""
+
+    account_name_with_company = (
+        f"{account_name} - {frappe.db.get_value('Company', company, 'abbr')}"
+    )
+
+    if frappe.db.exists(
+        "Account", {"name": account_name_with_company, "company": company}
+    ):
+        return account_name_with_company
+
+    if not parent_account:
+        if root_type == "Liability":
+            parent_account = find_parent_account(company, "Liability", "Tax")
+        else:
+            parent_account = find_parent_account(company, root_type, account_type)
+
+    if not parent_account:
+        frappe.throw(
+            f"Could not find a parent account for {account_name} ({root_type})"
+        )
+
+    new_account = frappe.new_doc("Account")
+    new_account.account_name = account_name
+    new_account.company = company
+    new_account.parent_account = parent_account
+    new_account.account_type = account_type
+    new_account.is_group = is_group
+    new_account.root_type = root_type
+
+    new_account.flags.ignore_permissions = True
+    new_account.insert()
+
+    return new_account.name
+
+
+def find_parent_account(
+    company: str, root_type: str, account_type: Optional[str] = None
+) -> str:
+    """Locate a suitable parent account for a new account."""
+
+    filters = {"company": company, "is_group": 1, "root_type": root_type}
+
+    if account_type:
+        specific_filters = filters.copy()
+        specific_filters["account_type"] = account_type
+        specific_accounts = frappe.get_all(
+            "Account", filters=specific_filters, fields=["name"]
+        )
+        if specific_accounts:
+            return specific_accounts[0].name
+
+    accounts = frappe.get_all("Account", filters=filters, fields=["name"])
+    if accounts:
+        return accounts[0].name
+
+    if root_type == "Expense":
+        return f"Expenses - {frappe.db.get_value('Company', company, 'abbr')}"
+    if root_type == "Liability":
+        return f"Liabilities - {frappe.db.get_value('Company', company, 'abbr')}"
+    return f"{root_type} - {frappe.db.get_value('Company', company, 'abbr')}"
+
+
+def create_parent_liability_account(company: str) -> str:
+    """Create a parent liability account for tax and BPJS payables."""
+
+    abbr = frappe.db.get_value("Company", company, "abbr")
+    account_name = f"Statutory Payables - {abbr}"
+
+    if frappe.db.exists("Account", account_name):
+        return account_name
+
+    parent_account = find_parent_account(company, "Liability")
+    account = frappe.new_doc("Account")
+    account.account_name = "Statutory Payables"
+    account.company = company
+    account.parent_account = parent_account
+    account.account_type = "Tax"
+    account.is_group = 1
+    account.root_type = "Liability"
+
+    account.flags.ignore_permissions = True
+    account.insert()
+
+    return account.name
+
+
+def create_parent_expense_account(company: str) -> str:
+    """Create a parent expense account for employee benefits."""
+
+    abbr = frappe.db.get_value("Company", company, "abbr")
+    account_name = f"Employee Benefits - {abbr}"
+
+    if frappe.db.exists("Account", account_name):
+        return account_name
+
+    parent_account = find_parent_account(company, "Expense")
+    account = frappe.new_doc("Account")
+    account.account_name = "Employee Benefits"
+    account.company = company
+    account.parent_account = parent_account
+    account.account_type = "Expense Account"
+    account.is_group = 1
+    account.root_type = "Expense"
+
+    account.flags.ignore_permissions = True
+    account.insert()
+
+    return account.name
+
