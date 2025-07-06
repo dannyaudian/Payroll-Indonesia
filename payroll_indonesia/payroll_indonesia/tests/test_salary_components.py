@@ -3,7 +3,9 @@
 # For license information, please see license.txt
 
 import unittest
-import frappe
+import pytest
+
+frappe = pytest.importorskip("frappe")
 from frappe.utils import flt, getdate
 from payroll_indonesia.override.salary_slip.salary_slip_functions import update_component_amount
 

@@ -24,6 +24,18 @@ bench --site your_site.local install-app payroll_indonesia
 bench migrate
 ```
 
+### 🧪 Local Development Setup
+
+For running unit tests or hacking on the app without a full bench environment,
+install the Python dependencies directly:
+
+```bash
+./scripts/install_dependencies.sh
+```
+
+This installs `frappe` and `erpnext` from `requirements.txt` so that `pytest`
+can run outside of a bench instance.
+
 ### 🛠 Initial Setup
 
 1. **🔄 Database Migration:** Run the database migration before setup:
