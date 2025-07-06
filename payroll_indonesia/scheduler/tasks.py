@@ -140,18 +140,18 @@ def yearly_job():
 def check_bpjs_settings():
     """
     Check if BPJS Settings are properly configured in Payroll Indonesia Settings.
-    
+
     Returns:
         bool: True if settings exist and are configured, False otherwise
     """
     if not doctype_defined("Payroll Indonesia Settings"):
         logger.warning("Payroll Indonesia Settings doctype not found")
         return False
-    
+
     try:
         # For Single DocTypes, the correct approach is to use get_single
         settings = frappe.get_single("Payroll Indonesia Settings")
-        
+
         # Check if essential BPJS settings are configured
         required_fields = [
             "kesehatan_employee_percent",
@@ -161,17 +161,17 @@ def check_bpjs_settings():
             "jp_employee_percent",
             "jp_employer_percent",
             "jkk_percent",
-            "jkm_percent"
+            "jkm_percent",
         ]
-        
+
         for field in required_fields:
             if not hasattr(settings, field) or not settings.get(field):
                 logger.warning(f"Missing required BPJS setting: {field}")
                 return False
-        
+
         # Settings exist and are configured
         return True
-        
+
     except Exception as e:
         logger.error(f"Error checking BPJS settings: {str(e)}")
         return False
@@ -246,19 +246,15 @@ def validate_tax_cache():
     """Validate tax cache and clear if necessary"""
     try:
         # Clear cache for various patterns using the new cache_utils
-        cache_patterns = [
-            "ytd:*",
-            "tax_summary:*",
-            "salary_slip:*"
-        ]
-        
+        cache_patterns = ["ytd:*", "tax_summary:*", "salary_slip:*"]
+
         for pattern in cache_patterns:
             try:
                 cleared = cache_utils.clear_pattern(pattern)
                 logger.info(f"Cleared {cleared or 0} keys with pattern '{pattern}'")
             except Exception as e:
                 logger.warning(f"Error clearing cache pattern '{pattern}': {str(e)}")
-        
+
         logger.info("Tax calculation cache validation completed")
     except Exception as e:
         logger.error(f"Error validating tax cache: {str(e)}")

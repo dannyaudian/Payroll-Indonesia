@@ -186,11 +186,7 @@ def _set_ytd_values(slip: Any, ytd_values: Dict[str, float]) -> None:
                 ("ytd_pph21", "ytd_pph21"),
             ]:
                 if hasattr(slip, field):
-                    slip.db_set(
-                        field, 
-                        ytd_values.get("ytd", {}).get(key, 0), 
-                        update_modified=False
-                    )
+                    slip.db_set(field, ytd_values.get("ytd", {}).get(key, 0), update_modified=False)
         except Exception as e:
             logger.warning(f"Could not persist YTD values: {e}")
 
@@ -371,30 +367,29 @@ def initialize_fields(slip: Any) -> None:
 def salary_slip_post_submit(slip: Any) -> None:
     """
     Process tasks after salary slip submission.
-    
+
     This function handles:
     - Updating tax summary via background queue
     - Updating YTD values
     - Any other post-submission tasks
-    
+
     Args:
         slip: Salary slip document
     """
     try:
         # Calculate components one more time to ensure latest values
         update_component_amount(slip)
-        
+
         # Check if tax summary update is needed and enqueue it
         if _needs_tax_summary_update(slip):
             enqueue_tax_summary_update(slip)
-        
+
         # Log completion
         logger.info(f"Post-submit processing completed for salary slip {slip.name}")
-        
+
     except Exception as e:
         logger.exception(f"Error in post-submit processing for {slip.name}: {e}")
         # Non-critical function, don't raise to calling function
         frappe.log_error(
-            f"Error in post-submit processing for {slip.name}: {e}",
-            "Salary Slip Post Submit Error"
+            f"Error in post-submit processing for {slip.name}: {e}", "Salary Slip Post Submit Error"
         )

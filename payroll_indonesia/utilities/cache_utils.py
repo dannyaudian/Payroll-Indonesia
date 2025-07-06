@@ -22,6 +22,7 @@ __all__ = [
     "memoize_with_ttl",
 ]
 
+
 # Main cache implementation as a class
 class CacheManager:
     """Cache manager for Payroll Indonesia module with namespace support"""
@@ -270,6 +271,7 @@ class CacheManager:
 
 # --------- Public cache helpers (frappe + memory fallback) ----------
 
+
 def get_cache(cache_key, ttl=None):
     """
     Get a value from frappe.cache(), fallback to in-memory if unavailable.
@@ -338,6 +340,7 @@ def clear_pattern(pattern: str) -> Union[int, None]:
 
 # --------- Memoization decorator ----------
 
+
 def memoize_with_ttl(ttl=None, namespace=None):
     """
     Decorator to memoize a function with TTL (time-to-live) caching
@@ -388,6 +391,7 @@ def memoize_with_ttl(ttl=None, namespace=None):
 
 
 # --------- Legacy compatibility public API ---------
+
 
 def get_cached_value(cache_key, ttl=None):
     """

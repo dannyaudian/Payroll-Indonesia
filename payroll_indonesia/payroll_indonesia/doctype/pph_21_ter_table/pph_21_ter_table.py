@@ -184,6 +184,7 @@ def setup_ter_rates():
 # Optionally, call setup_ter_rates() during installation or migration from hooks or setup
 # Example: in setup_module.py or hooks.py, call setup_ter_rates() as needed
 
+
 # Backwards compatible utility for debugging (if needed)
 def debug_log(msg, title=None):
     try:

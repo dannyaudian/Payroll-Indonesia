@@ -133,7 +133,7 @@ def create_salary_slip(employee_data: Dict[str, Any], entry: Any) -> str:
 
     # Find active salary structure
     salary_structure = None
-    
+
     # Query for salary structure assignment
     structure = frappe.db.sql(
         """
@@ -148,18 +148,13 @@ def create_salary_slip(employee_data: Dict[str, Any], entry: Any) -> str:
         AND ss.company = %s
         AND IFNULL(ss.payroll_frequency, '') = %s
         """,
-        (
-            employee_data.get("employee"), 
-            entry.posting_date, 
-            entry.company, 
-            entry.payroll_frequency
-        ),
+        (employee_data.get("employee"), entry.posting_date, entry.company, entry.payroll_frequency),
         as_dict=True,
     )
-    
+
     if structure:
         salary_structure = structure[0].salary_structure
-    
+
     # Create new salary slip
     slip = frappe.new_doc("Salary Slip")
     slip.salary_slip_based_on_timesheet = getattr(entry, "salary_slip_based_on_timesheet", 0)
@@ -171,7 +166,7 @@ def create_salary_slip(employee_data: Dict[str, Any], entry: Any) -> str:
     slip.company = entry.company
     slip.posting_date = entry.posting_date
     slip.payroll_entry = entry.name
-    
+
     # Set salary structure if found
     if salary_structure:
         slip.salary_structure = salary_structure

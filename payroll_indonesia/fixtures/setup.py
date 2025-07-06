@@ -291,6 +291,7 @@ def setup_payroll_settings():
         logger.error(f"Error setting up Payroll Indonesia Settings: {str(e)}")
         raise
 
+
 def setup_accounts(config=None, specific_company=None):
     """
     Set up GL accounts for Indonesian payroll from config.
@@ -535,7 +536,7 @@ def setup_pph21_ter(config, force_update=False):
                         "income_to": flt(rate_data["income_to"]),
                         "rate": flt(rate_data["rate"]),
                         "description": f"{status} - {flt(rate_data['income_from']):,.0f} to {flt(rate_data['income_to']):,.0f}",
-                        "is_highest_bracket": cint(rate_data.get("is_highest_bracket", 0))
+                        "is_highest_bracket": cint(rate_data.get("is_highest_bracket", 0)),
                     },
                 )
                 count += 1
@@ -549,6 +550,7 @@ def setup_pph21_ter(config, force_update=False):
     except Exception as e:
         logger.error(f"Error setting up TER rates: {str(e)}")
         raise
+
 
 def setup_income_tax_slab(config, force_update=False):
     """

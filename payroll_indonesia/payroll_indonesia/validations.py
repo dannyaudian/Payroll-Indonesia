@@ -24,14 +24,11 @@ __all__ = [
     # Employee validations
     "validate_employee_fields",
     "validate_employee_golongan",
-    
     # Tax validations
     "validate_tax_status",
-    
     # BPJS validations
     "validate_bpjs_components",
     "validate_bpjs_account_mapping",
-    
     # TER validations
     "validate_ter_rates",
 ]
@@ -40,10 +37,11 @@ __all__ = [
 # Employee Validations
 # =====================
 
+
 def validate_employee_fields(employee: Union[str, Any]) -> None:
     """
     Validate essential fields for an Employee.
-    
+
     Checks for correct golongan, tax status, and NPWP format.
 
     Args:
@@ -69,7 +67,7 @@ def validate_employee_fields(employee: Union[str, Any]) -> None:
 def validate_employee_golongan(doc: Any) -> None:
     """
     Validate employee golongan against maximum allowed for jabatan.
-    
+
     Ensures the employee's golongan level does not exceed what is permitted
     for their job position (jabatan).
 
@@ -132,8 +130,8 @@ def validate_employee_golongan(doc: Any) -> None:
 def validate_employee_tax_status(doc: Any) -> None:
     """
     Validate employee tax status against permitted values.
-    
-    Checks if the employee's tax status (status_pajak) is in the list of 
+
+    Checks if the employee's tax status (status_pajak) is in the list of
     valid statuses defined in configuration or constants.
 
     Args:
@@ -171,7 +169,7 @@ def validate_employee_tax_status(doc: Any) -> None:
 def validate_npwp_format(npwp: str) -> bool:
     """
     Validate NPWP format using regex pattern from configuration.
-    
+
     Args:
         npwp: NPWP string to validate
 
@@ -193,13 +191,14 @@ def validate_npwp_format(npwp: str) -> bool:
 # Tax Validations
 # =====================
 
+
 def validate_tax_status(status: str) -> None:
     """
     Validate a tax status string against allowed values.
-    
+
     Creates a dummy object with the status_pajak attribute and passes it
     to the employee tax status validator.
-    
+
     Args:
         status: Tax status string to validate
     """
@@ -211,13 +210,14 @@ def validate_tax_status(status: str) -> None:
 # BPJS Validations
 # =====================
 
+
 def validate_bpjs_components(company: str = None) -> None:
     """
     Validate that all required BPJS components exist in the system.
-    
+
     Checks that all required BPJS salary components for both employee and
     employer contributions are properly created in the system.
-    
+
     Args:
         company: Optional company name to validate
     """
@@ -247,10 +247,10 @@ def validate_bpjs_components(company: str = None) -> None:
 def validate_bpjs_account_mapping(company: str = None) -> None:
     """
     Validate that BPJS account mappings exist for active companies.
-    
+
     Checks that BPJS Account Mapping documents exist for the specified company
     or all companies if none is specified.
-    
+
     Args:
         company: Optional company name to validate
     """
@@ -275,12 +275,13 @@ def validate_bpjs_account_mapping(company: str = None) -> None:
 # TER Validations
 # =====================
 
+
 def validate_ter_rates(ter_category: str) -> None:
     """
     Validate that TER rates are properly defined for a specific category.
-    
+
     Checks that PPh 21 TER Table contains entries for the specified TER category.
-    
+
     Args:
         ter_category: TER category to validate (TER A, TER B, TER C)
     """

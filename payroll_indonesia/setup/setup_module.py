@@ -52,17 +52,14 @@ def setup_accounts() -> bool:
     """
     Setup accounts and ensure Income Tax Slab and TER rates exist.
     This function can safely be hooked into after_migrate.
-    
+
     Returns:
         bool: Success status of setup operations
     """
     logger.info("Setting up Payroll Indonesia tax infrastructure")
-    
-    results = {
-        "income_tax_slab": False,
-        "pph21_ter": False
-    }
-    
+
+    results = {"income_tax_slab": False, "pph21_ter": False}
+
     # Get defaults from Frappe system defaults
     try:
         defaults = frappe.defaults.get_defaults()
@@ -70,7 +67,7 @@ def setup_accounts() -> bool:
     except Exception as e:
         logger.warning(f"Could not get system defaults, falling back to config: {str(e)}")
         defaults = {}
-    
+
     # Supplement with app-specific defaults if needed
     config_defaults = _load_defaults()
     if config_defaults:
@@ -78,7 +75,7 @@ def setup_accounts() -> bool:
         for key, value in config_defaults.items():
             if key not in defaults:
                 defaults[key] = value
-    
+
     # Setup Income Tax Slab with new signature
     try:
         result = setup_income_tax_slab(defaults)
@@ -90,12 +87,12 @@ def setup_accounts() -> bool:
     except Exception as e:
         logger.error(f"Error setting up Income Tax Slab: {str(e)}")
         frappe.log_error(f"Error setting up Income Tax Slab: {str(e)}", "Tax Setup Error")
-    
+
     # Setup PPh 21 TER rates
     try:
         # Import here to avoid circular imports
         from payroll_indonesia.fixtures.setup import setup_pph21_ter
-        
+
         result = setup_pph21_ter(defaults)
         results["pph21_ter"] = result
         if result:
@@ -105,15 +102,15 @@ def setup_accounts() -> bool:
     except Exception as e:
         logger.error(f"Error setting up PPh 21 TER rates: {str(e)}")
         frappe.log_error(f"Error setting up PPh 21 TER rates: {str(e)}", "TER Setup Error")
-    
+
     # Overall success if at least one component was successful
     success = any(results.values())
-    
+
     if success:
         logger.info("Payroll Indonesia tax infrastructure setup completed")
     else:
         logger.warning("Payroll Indonesia tax infrastructure setup completed with warnings")
-    
+
     return success
 
 

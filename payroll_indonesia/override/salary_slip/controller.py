@@ -19,7 +19,7 @@ __all__ = ["IndonesiaPayrollSalarySlip"]
 class IndonesiaPayrollSalarySlip(SalarySlip):
     """
     Enhanced Salary Slip for Indonesian Payroll.
-    
+
     Extends the standard Salary Slip with support for Indonesian tax regulations,
     BPJS calculations, and year-end tax corrections.
     """
@@ -27,13 +27,13 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     def validate(self):
         """
         Validate salary slip with Indonesian payroll requirements.
-        
+
         Performs standard validation and prepares for Indonesian-specific calculations.
         """
         try:
             # Call parent validation first
             super().validate()
-            
+
             logger.info(f"Indonesia payroll validation completed for {self.name}")
         except Exception as e:
             logger.exception(f"Error validating salary slip {self.name}: {e}")
@@ -42,16 +42,16 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     def on_submit(self):
         """
         Process document on submission.
-        
+
         Executes standard submission and then post-submission tasks for Indonesian payroll.
         """
         try:
             # Call parent submission handler first
             super().on_submit()
-            
+
             # Run post-submit processing via helper function
             salary_slip_post_submit(self)
-            
+
             logger.info(f"Salary slip {self.name} submitted successfully")
         except Exception as e:
             logger.exception(f"Error submitting salary slip {self.name}: {e}")

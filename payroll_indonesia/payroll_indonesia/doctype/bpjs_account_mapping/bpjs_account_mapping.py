@@ -45,7 +45,7 @@ def on_update(doc, method=None):
         method: The method that triggered this hook (optional)
     """
     doc.on_update()
-    
+
     # Optionally sync to settings
     sync_to_settings(doc)
 
@@ -53,7 +53,7 @@ def on_update(doc, method=None):
 def sync_to_settings(doc, method=None):
     """
     Sync BPJS Account Mapping to Payroll Indonesia Settings.
-    
+
     Args:
         doc: The BPJS Account Mapping document
         method: The method that triggered this hook (optional)

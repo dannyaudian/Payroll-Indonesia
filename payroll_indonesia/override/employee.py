@@ -28,12 +28,12 @@ class EmployeeOverride(Document):
     Custom Employee class for Payroll Indonesia.
     Using Document as base class to avoid import errors.
     """
-    
+
     def validate(self):
         # Call parent validation if possible
         if Employee and issubclass(self.__class__, Employee):
             super().validate()
-        
+
         # Perform our custom validation
         validate(self)
 
@@ -111,13 +111,13 @@ def on_update(doc, method=None):
 def create_custom_fields():
     """
     Create custom fields for Employee doctype based on custom_fields.json.
-    
+
     This function doesn't need to define all fields manually as they'll be created
     from the JSON fixture file during migration/setup.
     """
     try:
         from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
-        
+
         # Only create critical fields that might be needed before fixture sync
         custom_fields = {
             "Employee": [
@@ -148,10 +148,12 @@ def create_custom_fields():
         # Create minimal fields - full set will come from fixtures
         create_custom_fields(custom_fields)
         frappe.msgprint(
-            _("Basic Payroll Indonesia custom fields created. Full set will be created from fixtures."),
-            alert=True
+            _(
+                "Basic Payroll Indonesia custom fields created. Full set will be created from fixtures."
+            ),
+            alert=True,
         )
-        
+
         return True
 
     except Exception as e:

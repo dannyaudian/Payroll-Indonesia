@@ -132,13 +132,11 @@ class CustomPayrollEntry(PayrollEntry):
             # Log result
             if result.get("status") == "success":
                 logger.info(
-                    f"Successfully processed Payroll Entry {self.name}: "
-                    f"{result.get('message')}"
+                    f"Successfully processed Payroll Entry {self.name}: " f"{result.get('message')}"
                 )
             else:
                 logger.warning(
-                    f"Partially processed Payroll Entry {self.name}: "
-                    f"{result.get('message')}"
+                    f"Partially processed Payroll Entry {self.name}: " f"{result.get('message')}"
                 )
 
                 # Show message to user
