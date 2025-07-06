@@ -19,6 +19,7 @@ from frappe.utils import getdate, flt, cint
 from payroll_indonesia.frappe_helpers import logger
 import payroll_indonesia.override.salary_structure as salary_structure
 from payroll_indonesia.config.config import get_config as get_default_config
+from payroll_indonesia.config.config import doctype_defined
 from payroll_indonesia.setup.settings_migration import migrate_all_settings, _load_defaults
 
 
@@ -261,8 +262,8 @@ def setup_payroll_settings():
     """
     try:
         # Ensure the settings document exists
-        if not frappe.db.table_exists("Payroll Indonesia Settings"):
-            logger.warning("Payroll Indonesia Settings table does not exist yet")
+        if not doctype_defined("Payroll Indonesia Settings"):
+            logger.warning("Payroll Indonesia Settings doctype not found")
             return False
 
         if not frappe.db.exists("Payroll Indonesia Settings", "Payroll Indonesia Settings"):
@@ -289,7 +290,6 @@ def setup_payroll_settings():
     except Exception as e:
         logger.error(f"Error setting up Payroll Indonesia Settings: {str(e)}")
         raise
-
 
 def setup_accounts(config=None, specific_company=None):
     """
@@ -498,8 +498,8 @@ def setup_pph21_ter(config, force_update=False):
     Returns:
         bool: True if successful, False otherwise
     """
-    if not frappe.db.table_exists("Payroll Indonesia Settings"):
-        logger.warning("Payroll Indonesia Settings table does not exist")
+    if not doctype_defined("Payroll Indonesia Settings"):
+        logger.warning("Payroll Indonesia Settings doctype not found")
         return False
 
     try:
@@ -511,45 +511,6 @@ def setup_pph21_ter(config, force_update=False):
             if cats.issubset(existing):
                 logger.info("TER categories already setup for PMK 168/2023")
                 return True
-
-        # Clear existing TER rates
-        settings.ter_rate_table = []
-
-        ter_rates = config.get("ter_rates", {})
-        if not ter_rates:
-            logger.warning("No TER rates found in configuration")
-            raise ValidationError("No TER rates found in configuration")
-
-        count = 0
-        for status, rates in ter_rates.items():
-            # Skip metadata
-            if status == "metadata":
-                continue
-
-            for rate_data in rates:
-                settings.append(
-                    "ter_rate_table",
-                    {
-                        "status_pajak": status,
-                        "income_from": flt(rate_data["income_from"]),
-                        "income_to": flt(rate_data["income_to"]),
-                        "rate": flt(rate_data["rate"]),
-                        "description": f"{status} - {flt(rate_data['income_from']):,.0f} to {flt(rate_data['income_to']):,.0f}",
-                        "is_highest_bracket": cint(rate_data.get("is_highest_bracket", 0)),
-                        "pmk_168": 1,
-                    },
-                )
-                count += 1
-
-        settings.flags.ignore_permissions = True
-        settings.save(ignore_permissions=True)
-
-        logger.info(f"Processed {count} TER rates successfully")
-        return count > 0
-
-    except Exception as e:
-        logger.error(f"Error setting up TER rates: {str(e)}")
-        raise
 
 
 def setup_income_tax_slab(config, force_update=False):

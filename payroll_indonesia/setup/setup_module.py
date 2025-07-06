@@ -17,6 +17,7 @@ from frappe.utils import now_datetime
 from payroll_indonesia.frappe_helpers import logger
 from payroll_indonesia.utilities.tax_slab import setup_income_tax_slab
 from payroll_indonesia.setup.settings_migration import _load_defaults
+from payroll_indonesia.config.config import doctype_defined
 
 
 def setup_module() -> bool:
@@ -78,9 +79,9 @@ def setup_accounts() -> bool:
             if key not in defaults:
                 defaults[key] = value
     
-    # Setup Income Tax Slab
+    # Setup Income Tax Slab with new signature
     try:
-        result = setup_income_tax_slab()
+        result = setup_income_tax_slab(defaults)
         results["income_tax_slab"] = result
         if result:
             logger.info("Income Tax Slab setup completed successfully")
@@ -127,7 +128,7 @@ def create_custom_workspace() -> bool:
         logger.info("Setting up Payroll Indonesia workspace")
 
         # Check if workspace DocType exists
-        if not frappe.db.table_exists("Workspace"):
+        if not frappe.db.exists("DocType", "Workspace"):
             logger.warning("Workspace DocType does not exist")
             return False
 
@@ -190,7 +191,7 @@ def setup_default_modules() -> bool:
         logger.info("Setting up default modules")
 
         # Check if Module Def DocType exists
-        if not frappe.db.table_exists("Module Def"):
+        if not frappe.db.exists("DocType", "Module Def"):
             logger.warning("Module Def DocType does not exist")
             return False
 
@@ -235,9 +236,9 @@ def ensure_settings_doctype_exists() -> bool:
     try:
         logger.info("Ensuring Payroll Indonesia Settings exists")
 
-        # Check if DocType exists
-        if not frappe.db.table_exists("Payroll Indonesia Settings"):
-            logger.warning("Payroll Indonesia Settings DocType does not exist")
+        # Use doctype_defined to check if the DocType exists
+        if not doctype_defined("Payroll Indonesia Settings"):
+            logger.warning("Payroll Indonesia Settings DocType is not defined")
             return False
 
         settings_name = "Payroll Indonesia Settings"

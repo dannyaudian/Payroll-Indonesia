@@ -9,15 +9,35 @@ Provides functions to load configuration from defaults.json and live settings.
 """
 
 import json
-import logging
 import os
 from typing import Dict, Any, Optional
 
-# Configure logger
-logger = logging.getLogger(__name__)
+import frappe
+from payroll_indonesia.frappe_helpers import logger
+
+__all__ = [
+    "get_config",
+    "get_live_config",
+    "get_config_value",
+    "reset_config_cache",
+    "doctype_defined",
+]
 
 # Global cache for config
 _config_cache: Optional[Dict[str, Any]] = None
+
+
+def doctype_defined(doctype: str) -> bool:
+    """
+    Check if a DocType is defined in the system.
+
+    Args:
+        doctype: The DocType name to check
+
+    Returns:
+        bool: True if the DocType exists, False otherwise
+    """
+    return bool(frappe.db.exists("DocType", doctype))
 
 
 def get_config() -> Dict[str, Any]:
@@ -67,10 +87,8 @@ def get_live_config() -> Dict[str, Any]:
     config = get_config()
 
     try:
-        import frappe
-
-        # Check if table exists
-        if frappe.db.table_exists("Payroll Indonesia Settings"):
+        # Check if DocType exists using the new helper
+        if doctype_defined("Payroll Indonesia Settings"):
             settings_name = "Payroll Indonesia Settings"
 
             # Check if settings document exists
