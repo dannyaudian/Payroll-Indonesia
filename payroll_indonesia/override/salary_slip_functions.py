@@ -13,7 +13,6 @@ from typing import Dict, List, Optional, Any, Union, Tuple
 import frappe
 from frappe import _
 from frappe.utils import flt, cint, getdate
-from frappe.utils.background_jobs import enqueue
 
 from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.frappe_helpers import logger
@@ -23,16 +22,21 @@ from payroll_indonesia.constants import BIAYA_JABATAN_PERCENT, BIAYA_JABATAN_MAX
 # Import calculate_bpjs function for easier reference
 calc_bpjs = pi_utils.calculate_bpjs
 
+# Define employer BPJS components
+EMPLOYER_COMPONENTS = [
+    "BPJS Kesehatan Employer",
+    "BPJS JHT Employer",
+    "BPJS JP Employer",
+    "BPJS JKK",
+    "BPJS JKM",
+]
+
 # Define public API
 __all__ = [
+    "update_tax_summary",
+    "update_employee_history",  # alias
     "update_component_amount",
-    "initialize_fields",
     "salary_slip_post_submit",
-    "calculate_monthly_pro_rata",
-    "calculate_tax_amount",
-    "calculate_employer_contributions",
-    "get_salary_components_from_structure",
-    "enqueue_tax_summary_update",
 ]
 
 
@@ -124,6 +128,9 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
         
     except Exception as e:
         logger.exception(f"Error updating component amounts for {doc.name}: {e}")
+    
+    # Update tax summary
+    update_tax_summary(doc)
     
     # Update totals after modifying components
     try:
@@ -351,7 +358,7 @@ def salary_slip_post_submit(doc, method: Optional[str] = None) -> None:
     """
     Process salary slip after submission.
 
-    Creates necessary accounting entries and updates employee records.
+    Updates employee tax summary records.
 
     Args:
         doc: The Salary Slip document
@@ -363,17 +370,8 @@ def salary_slip_post_submit(doc, method: Optional[str] = None) -> None:
         # Ensure fields are initialized
         initialize_fields(doc)
         
-        # Update employee historical data
-        update_employee_history(doc)
-        
-        # Calculate and store employer contributions
-        contributions = calculate_employer_contributions(doc)
-        if contributions:
-            store_employer_contributions(doc, contributions)
-        
-        # Enqueue tax summary update if needed
-        if doc.docstatus == 1:
-            enqueue_tax_summary_update(doc)
+        # Update tax summary
+        update_tax_summary(doc)
         
         logger.debug(f"Post-submit processing completed for Salary Slip {doc.name}")
     
@@ -381,95 +379,8 @@ def salary_slip_post_submit(doc, method: Optional[str] = None) -> None:
         logger.exception(f"Error in post-submit processing for {doc.name}: {e}")
 
 
-def _needs_tax_summary_update(slip) -> bool:
-    """
-    Check if tax summary needs to be updated.
-    
-    Args:
-        slip: The Salary Slip document
-        
-    Returns:
-        bool: True if tax summary needs to be updated
-    """
-    # Always update if slip is submitted
-    if getattr(slip, "docstatus", 0) != 1:
-        return False
-    
-    # Check if any deductions exist
-    if hasattr(slip, "deductions") and slip.deductions:
-        # Check for any tax or BPJS components with amount > 0
-        for deduction in slip.deductions:
-            component_name = getattr(deduction, "salary_component", "")
-            component_amount = flt(getattr(deduction, "amount", 0))
-            
-            if component_amount > 0 and component_name in [
-                "PPh 21", "BPJS Kesehatan Employee", "BPJS JHT Employee", "BPJS JP Employee"
-            ]:
-                return True
-    
-    return False
-
-
-def enqueue_tax_summary_update(slip) -> None:
-    """
-    Enqueue tax summary update for background processing.
-    
-    Args:
-        slip: The Salary Slip document
-    """
-    if not _needs_tax_summary_update(slip):
-        logger.debug(f"Tax summary update not needed for {slip.name}")
-        return
-    
-    try:
-        logger.debug(f"Enqueueing tax summary update for {slip.name}")
-        
-        # Enqueue the update function
-        enqueue(
-            "payroll_indonesia.payroll_indonesia.utils.update_employee_tax_summary",
-            employee=slip.employee,
-            salary_slip=slip.name,
-            queue="short",
-            timeout=300
-        )
-        
-        logger.info(f"Tax summary update enqueued for {slip.name}")
-    
-    except Exception as e:
-        logger.exception(f"Error enqueueing tax summary update for {slip.name}: {e}")
-
-
-def calculate_monthly_pro_rata(doc) -> float:
-    """
-    Calculate pro-rata factor for partial month work.
-
-    Args:
-        doc: The Salary Slip document
-
-    Returns:
-        float: Pro-rata factor (0.0-1.0)
-    """
-    try:
-        if not doc.start_date or not doc.end_date:
-            return 1.0
-        
-        # Get working days info
-        total_working_days = cint(doc.total_working_days) or 22
-        payment_days = flt(doc.payment_days) or total_working_days
-        
-        # Calculate pro-rata factor
-        pro_rata = min(1.0, max(0.0, payment_days / total_working_days))
-        
-        logger.debug(f"Calculated pro-rata factor: {pro_rata} for Salary Slip {doc.name}")
-        return pro_rata
-    
-    except Exception as e:
-        logger.exception(f"Error calculating pro-rata for {doc.name}: {e}")
-        return 1.0
-
-
 def calculate_tax_amount(doc) -> float:
-    """Calculate the PPh 21 tax amount for the given Salary Slip.
+    """Calculate the PPh 21 tax amount for the given Salary Slip.
 
     A deduction row with ``salary_component`` exactly ``"PPh 21"`` must exist
     in ``doc.deductions``. If this row is missing or the component name is
@@ -557,207 +468,116 @@ def calculate_tax_amount(doc) -> float:
         return 0.0
 
 
-def calculate_employer_contributions(doc) -> Dict[str, float]:
+def update_tax_summary(doc) -> None:
     """
-    Calculate employer BPJS contributions.
-
-    Args:
-        doc: The Salary Slip document
-
-    Returns:
-        Dict[str, float]: Employer contribution amounts by component
-    """
-    try:
-        # Get configuration
-        config = get_live_config()
-        bpjs_config = config.get("bpjs", {})
-        
-        if not bpjs_config:
-            logger.warning("BPJS configuration not found")
-            return {}
-        
-        contributions = {}
-        base_salary = doc.gross_pay or 0
-        
-        # Calculate BPJS Kesehatan Employer
-        contributions["BPJS Kesehatan Employer"] = calc_bpjs(
-            base_salary,
-            bpjs_config.get("kesehatan_employer_percent", 4.0),
-            max_salary=bpjs_config.get("kesehatan_max_salary", 12000000),
-        )
-        
-        # Calculate BPJS JHT Employer
-        contributions["BPJS JHT Employer"] = calc_bpjs(
-            base_salary, bpjs_config.get("jht_employer_percent", 3.7)
-        )
-        
-        # Calculate BPJS JP Employer
-        contributions["BPJS JP Employer"] = calc_bpjs(
-            base_salary,
-            bpjs_config.get("jp_employer_percent", 2.0),
-            max_salary=bpjs_config.get("jp_max_salary", 9077600),
-        )
-        
-        # Calculate BPJS JKK
-        contributions["BPJS JKK"] = calc_bpjs(base_salary, bpjs_config.get("jkk_percent", 0.24))
-        
-        # Calculate BPJS JKM
-        contributions["BPJS JKM"] = calc_bpjs(base_salary, bpjs_config.get("jkm_percent", 0.3))
-        
-        # Calculate total
-        contributions["total"] = sum(
-            amount for key, amount in contributions.items() if key != "total"
-        )
-        
-        logger.debug(f"Calculated employer contributions: {contributions}")
-        return contributions
+    Update Employee Tax Summary with salary slip data.
     
-    except Exception as e:
-        logger.exception(f"Error calculating employer contributions for {doc.name}: {e}")
-        return {}
-
-
-def get_salary_components_from_structure(structure_name: str) -> Dict[str, List[Dict]]:
-    """
-    Get salary components from a salary structure.
-
-    Args:
-        structure_name: Name of the salary structure
-
-    Returns:
-        Dict[str, List[Dict]]: Dictionary with earnings and deductions
-    """
-    if not structure_name:
-        return {"earnings": [], "deductions": []}
-    
-    result = {"earnings": [], "deductions": []}
-    
-    try:
-        structure = frappe.get_doc("Salary Structure", structure_name)
-        
-        # Process earnings
-        for earning in structure.earnings:
-            result["earnings"].append(
-                {
-                    "salary_component": earning.salary_component,
-                    "abbr": earning.abbr or "",
-                    "amount": flt(earning.amount),
-                    "formula": earning.formula or "",
-                    "condition": earning.condition or "",
-                }
-            )
-        
-        # Process deductions
-        for deduction in structure.deductions:
-            result["deductions"].append(
-                {
-                    "salary_component": deduction.salary_component,
-                    "abbr": deduction.abbr or "",
-                    "amount": flt(deduction.amount),
-                    "formula": deduction.formula or "",
-                    "condition": deduction.condition or "",
-                }
-            )
-    
-    except Exception as e:
-        logger.exception(f"Error retrieving components from structure {structure_name}: {e}")
-    
-    return result
-
-
-def update_employee_history(doc) -> None:
-    """
-    Update employee's historical salary and tax data.
-
     Args:
         doc: The Salary Slip document
     """
-    if not doc.employee:
+    if not doc.employee or not doc.company:
         return
     
     try:
-        # Get year of salary slip
-        slip_year = getdate(doc.posting_date).year
+        # Find or create tax summary
+        summary = _get_or_create_tax_summary(doc.employee, doc.company)
         
-        # Get existing history or create new
-        history_name = f"{doc.employee}-{slip_year}"
-        if frappe.db.exists("Employee Salary History", history_name):
-            history = frappe.get_doc("Employee Salary History", history_name)
-        else:
-            history = frappe.new_doc("Employee Salary History")
-            history.employee = doc.employee
-            history.year = slip_year
-            history.ytd_gross = 0
-            history.ytd_tax = 0
+        # Find or create monthly detail row
+        row = _get_or_create_monthly_detail(summary, doc.month, doc.fiscal_year)
         
-        # Update YTD amounts
-        history.ytd_gross += flt(doc.gross_pay)
+        # Calculate taxable income and tax withheld
+        taxable_income = flt(doc.gross_pay) or 0
+        tax_withheld = 0.0
         
-        # Update YTD tax
-        tax_amount = 0.0
-        # Try to get from pph21 field first
+        # Get tax withheld from pph21 field or deductions
         if hasattr(doc, "pph21"):
-            tax_amount = flt(doc.pph21)
+            tax_withheld = flt(doc.pph21) or 0
         else:
-            # Otherwise, look for PPh 21 in deductions
             for deduction in doc.deductions:
                 if deduction.salary_component == "PPh 21":
-                    tax_amount = flt(deduction.amount)
+                    tax_withheld = flt(deduction.amount) or 0
                     break
         
-        history.ytd_tax += tax_amount
+        # Calculate employer BPJS share
+        employer_share = 0.0
+        for deduction in doc.deductions:
+            if deduction.salary_component in EMPLOYER_COMPONENTS:
+                employer_share += flt(deduction.amount) or 0
         
-        # Save history
-        history.flags.ignore_permissions = True
-        history.save()
+        # Update row values
+        row.taxable_income = taxable_income
+        row.tax_withheld = tax_withheld
+        row.bpjs_employer_share = employer_share
         
-        logger.debug(
-            f"Updated salary history for employee {doc.employee}: "
-            f"gross +{doc.gross_pay}, tax +{tax_amount}"
+        # Save the documents
+        summary.save(ignore_permissions=True)
+        
+        logger.info(
+            f"Stored employer BPJS share {employer_share} in tax summary "
+            f"({row.month}/{row.fiscal_year}) for {doc.employee}"
         )
     
     except Exception as e:
-        logger.exception(f"Error updating employee history for {doc.employee}: {e}")
+        logger.exception(f"Error updating tax summary for {doc.employee}: {e}")
 
 
-def store_employer_contributions(doc, contributions: Dict[str, float]) -> None:
+def _get_or_create_tax_summary(employee: str, company: str) -> Any:
     """
-    Store employer contributions in custom doctype.
-
+    Get or create Employee Tax Summary for an employee.
+    
     Args:
-        doc: The Salary Slip document
-        contributions: Dictionary of contribution amounts
+        employee: Employee ID
+        company: Company ID
+        
+    Returns:
+        Employee Tax Summary document
     """
-    if not contributions:
-        return
+    # Look for existing tax summary
+    filters = {"employee": employee, "company": company}
+    existing = frappe.get_all("Employee Tax Summary", filters=filters, limit=1)
     
-    try:
-        # Check if employer contribution doc exists
-        existing = frappe.db.exists("Employer Contribution", {"salary_slip": doc.name})
-        
-        if existing:
-            contribution_doc = frappe.get_doc("Employer Contribution", existing)
-        else:
-            contribution_doc = frappe.new_doc("Employer Contribution")
-            contribution_doc.salary_slip = doc.name
-            contribution_doc.employee = doc.employee
-            contribution_doc.posting_date = doc.posting_date
-        
-        # Update contribution amounts
-        for component, amount in contributions.items():
-            if component != "total":
-                field_name = component.lower().replace(" ", "_")
-                if hasattr(contribution_doc, field_name):
-                    setattr(contribution_doc, field_name, amount)
-        
-        # Set total
-        contribution_doc.total_contribution = contributions.get("total", 0)
-        
-        # Save document
-        contribution_doc.flags.ignore_permissions = True
-        contribution_doc.save()
-        
-        logger.debug(f"Stored employer contributions for Salary Slip {doc.name}")
+    if existing:
+        return frappe.get_doc("Employee Tax Summary", existing[0].name)
     
-    except Exception as e:
-        logger.exception(f"Error storing employer contributions for {doc.name}: {e}")
+    # Create new tax summary
+    summary = frappe.new_doc("Employee Tax Summary")
+    summary.employee = employee
+    summary.company = company
+    
+    return summary
+
+
+def _get_or_create_monthly_detail(summary, month: int, fiscal_year: int) -> Any:
+    """
+    Get or create monthly detail row in tax summary.
+    
+    Args:
+        summary: Employee Tax Summary document
+        month: Month number (1-12)
+        fiscal_year: Fiscal year
+        
+    Returns:
+        Employee Monthly Tax Detail row
+    """
+    # Look for existing row
+    row = None
+    for detail in summary.monthly_details:
+        if detail.month == month and detail.fiscal_year == fiscal_year:
+            row = detail
+            break
+    
+    # Create new row if not found
+    if not row:
+        row = summary.append("monthly_details", {
+            "month": month,
+            "fiscal_year": fiscal_year,
+            "taxable_income": 0,
+            "tax_withheld": 0,
+            "bpjs_employer_share": 0
+        })
+    
+    return row
+
+
+# Alias for backward compatibility
+update_employee_history = update_tax_summary
