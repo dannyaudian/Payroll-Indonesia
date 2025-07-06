@@ -39,6 +39,11 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             logger.exception(f"Error validating salary slip {self.name}: {e}")
             frappe.throw(_("Error validating salary slip: {0}").format(str(e)))
 
+    def calculate_totals(self) -> None:
+        """Backward-compat wrapper used by salary_slip_functions."""
+        # Recompute earnings, deductions, and net pay
+        self.calculate_net_pay()
+
     def on_submit(self):
         """
         Process document on submission.
