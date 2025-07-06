@@ -68,6 +68,16 @@ setup.after_install()
 * Automatically available default salary structure named **"Struktur Gaji Tetap G1"**.
 * Earnings and deductions components comply with standard Indonesian regulations (BPJS, PPh21).
 
+## 📅 Payroll Period
+
+Each Payroll Entry in ERPNext must belong to a defined **Payroll Period**. If you get validation errors that the Payroll Period is missing or out of range, create one first.
+
+1. Open **Payroll Period** list via **HR > Payroll > Payroll Period**.
+2. Click **New**, set the Start Date and End Date, then Save.
+3. Select this Payroll Period when creating your Payroll Entry.
+
+For more details, see the [Payroll Period documentation](https://docs.erpnext.com/docs/user/manual/en/payroll/payroll-period).
+
 ## 🔄 Optimization and Revision
 
 The Payroll Indonesia module is modularly optimized to provide top performance and maintain a clear, integrated code structure across modules such as BPJS Settings, PPh21 Settings, Salary Slip, Employee Tax Summary, and Payroll Indonesia Settings. All configurations adhere to current standards, ensuring accuracy in calculations and validations.
