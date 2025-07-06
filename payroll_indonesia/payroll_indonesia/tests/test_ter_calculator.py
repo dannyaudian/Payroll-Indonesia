@@ -3,7 +3,9 @@
 # For license information, please see license.txt
 
 import unittest
-import frappe
+import pytest
+
+frappe = pytest.importorskip("frappe")
 from frappe.utils import flt, getdate, add_months
 from payroll_indonesia.override.salary_slip.ter_calculator import (
     calculate_monthly_pph_with_ter,

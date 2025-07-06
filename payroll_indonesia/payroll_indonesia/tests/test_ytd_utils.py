@@ -3,7 +3,9 @@
 # For license information, please see license.txt
 
 import unittest
-import frappe
+import pytest
+
+frappe = pytest.importorskip("frappe")
 from frappe.utils import flt, getdate, add_months, get_first_day, get_last_day
 from payroll_indonesia.payroll_indonesia.utils import (
     get_ytd_total_taxable_income,
