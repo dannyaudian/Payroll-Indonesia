@@ -97,6 +97,12 @@ The Payroll Indonesia module is modularly optimized to provide top performance a
 * Efficient and clear logging using Python’s logging module.
 * Modular design featuring specialized utilities for BPJS, PPh21, YTD calculations, and field validations.
 
+The `update_employee_tax_summary` helper ensures each employee's tax records stay
+in sync with submitted Salary Slips. When a slip is finalized, the
+`enqueue_tax_summary_update` function schedules this update as a background job
+so heavy calculations run asynchronously via Frappe’s queue without blocking
+user actions.
+
 ## 📢 Status
 
 Actively developed and deployed across diverse production environments. For issue reporting and feature requests, visit our [GitHub Repository](https://github.com/dannyaudian/payroll_indonesia).
