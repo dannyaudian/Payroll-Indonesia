@@ -469,8 +469,13 @@ def calculate_monthly_pro_rata(doc) -> float:
 
 
 def calculate_tax_amount(doc) -> float:
-    """
-    Calculate PPh 21 tax amount.
+    """Calculate the PPh 21 tax amount for the given Salary Slip.
+
+    A deduction row with ``salary_component`` exactly ``"PPh 21"`` must exist
+    in ``doc.deductions``. If this row is missing or the component name is
+    misspelled, the function will return ``0.0`` and the tax calculation will be
+    skipped. This behavior is intentional so that payroll slips without the
+    correct component do not accidentally accrue tax.
 
     Args:
         doc: The Salary Slip document
