@@ -5,6 +5,7 @@
 
 import frappe
 from frappe.utils import now_datetime
+from payroll_indonesia.frappe_helpers import logger
 
 # from frappe import _
 
@@ -41,9 +42,9 @@ def update_salary_structures():
 
     # Additional console output for interactive use
     if count:
-        print(f"Successfully updated {count} Salary Structures")
+        logger.info(f"Successfully updated {count} Salary Structures")
     else:
-        print("No Salary Structures were updated")
+        logger.info("No Salary Structures were updated")
 
     return count
 
@@ -62,9 +63,9 @@ def update_existing_assignments():
 
     # Additional console output for interactive use
     if count:
-        print(f"Successfully updated {count} Salary Structure Assignments")
+        logger.info(f"Successfully updated {count} Salary Structure Assignments")
     else:
-        print("No Salary Structure Assignments were updated")
+        logger.info("No Salary Structure Assignments were updated")
 
     return count
 
@@ -82,12 +83,14 @@ def check_salary_structure_tax_method():
         fields=["name", "tax_calculation_method", "income_tax_slab"],
     )
 
-    print(f"\nFound {len(structures)} active Salary Structures:")
+    logger.info(f"\nFound {len(structures)} active Salary Structures:")
     for idx, ss in enumerate(structures, 1):
-        print(f"{idx}. {ss.name}")
-        print(f"   - Tax Calculation Method: {ss.tax_calculation_method or 'None'}")
-        print(f"   - Income Tax Slab: {ss.income_tax_slab or 'None'}")
-        print()
+        logger.info(f"{idx}. {ss.name}")
+        logger.info(
+            f"   - Tax Calculation Method: {ss.tax_calculation_method or 'None'}"
+        )
+        logger.info(f"   - Income Tax Slab: {ss.income_tax_slab or 'None'}")
+        logger.info("")
 
     return structures
 
@@ -105,13 +108,13 @@ def check_salary_structure_assignments():
         fields=["name", "employee", "employee_name", "salary_structure", "income_tax_slab"],
     )
 
-    print(f"\nFound {len(assignments)} Salary Structure Assignments:")
+    logger.info(f"\nFound {len(assignments)} Salary Structure Assignments:")
     for idx, ssa in enumerate(assignments, 1):
-        print(f"{idx}. {ssa.name}")
-        print(f"   - Employee: {ssa.employee} ({ssa.employee_name})")
-        print(f"   - Salary Structure: {ssa.salary_structure}")
-        print(f"   - Income Tax Slab: {ssa.income_tax_slab or 'None'}")
-        print()
+        logger.info(f"{idx}. {ssa.name}")
+        logger.info(f"   - Employee: {ssa.employee} ({ssa.employee_name})")
+        logger.info(f"   - Salary Structure: {ssa.salary_structure}")
+        logger.info(f"   - Income Tax Slab: {ssa.income_tax_slab or 'None'}")
+        logger.info("")
 
     return assignments
 
@@ -129,29 +132,31 @@ def fix_all_salary_structures_and_assignments():
         bool: True if successful, False otherwise
     """
     timestamp = now_datetime().strftime("%Y-%m-%d %H:%M:%S")
-    print(f"[{timestamp}] Starting comprehensive fix for Salary Structures and Assignments...")
+    logger.info(
+        f"[{timestamp}] Starting comprehensive fix for Salary Structures and Assignments..."
+    )
 
     # Step 1: Create or get default Income Tax Slab
     tax_slab_name = get_default_tax_slab()
     if not tax_slab_name:
-        print("Failed to get or create default Income Tax Slab.")
+        logger.warning("Failed to get or create default Income Tax Slab.")
         return False
 
-    print(f"[{timestamp}] Using Income Tax Slab: {tax_slab_name}")
+    logger.info(f"[{timestamp}] Using Income Tax Slab: {tax_slab_name}")
 
     # Step 2: Update all Salary Structures
-    print(f"[{timestamp}] Updating Salary Structures...")
+    logger.info(f"[{timestamp}] Updating Salary Structures...")
     ss_count = update_salary_structures()
 
     # Step 3: Update all Salary Structure Assignments
-    print(f"[{timestamp}] Updating Salary Structure Assignments...")
+    logger.info(f"[{timestamp}] Updating Salary Structure Assignments...")
     ssa_count = update_existing_assignments()
 
     # Summary
-    print(f"\n[{timestamp}] Fix process completed:")
-    print(f"- Income Tax Slab: {tax_slab_name}")
-    print(f"- Salary Structures updated: {ss_count}")
-    print(f"- Salary Structure Assignments updated: {ssa_count}")
+    logger.info(f"\n[{timestamp}] Fix process completed:")
+    logger.info(f"- Income Tax Slab: {tax_slab_name}")
+    logger.info(f"- Salary Structures updated: {ss_count}")
+    logger.info(f"- Salary Structure Assignments updated: {ssa_count}")
 
     return True
 
@@ -220,27 +225,27 @@ def diagnose_salary_structures():
                     {"name": ssa.name, "employee": ssa.employee, "employee_name": ssa.employee_name}
                 )
 
-        # Print summary
-        print("\nSalary Structure Diagnosis:")
-        print(f"- Default Tax Slab: {default_slab or 'None'}")
-        print(
+        # Print summary using logger
+        logger.info("\nSalary Structure Diagnosis:")
+        logger.info(f"- Default Tax Slab: {default_slab or 'None'}")
+        logger.info(
             f"- Salary Structures: {results['structures']['total']} total, {results['structures']['with_tax_slab']} with tax slab, {results['structures']['with_manual_method']} with manual method"
         )
-        print(
+        logger.info(
             f"- Assignments: {results['assignments']['total']} total, {results['assignments']['with_tax_slab']} with tax slab"
         )
 
         if results["structures"]["issues"]:
-            print(f"- {len(results['structures']['issues'])} structures with issues")
+            logger.info(f"- {len(results['structures']['issues'])} structures with issues")
 
         if results["assignments"]["issues"]:
-            print(f"- {len(results['assignments']['issues'])} assignments with issues")
+            logger.info(f"- {len(results['assignments']['issues'])} assignments with issues")
 
         return results
 
     except Exception as e:
         frappe.log_error(f"Error diagnosing salary structures: {str(e)}", "Maintenance Error")
-        print(f"Error diagnosing salary structures: {str(e)}")
+        logger.warning(f"Error diagnosing salary structures: {str(e)}")
         return {"error": str(e)}
 
 
@@ -271,43 +276,49 @@ def clean_obsolete_bpjs_docs():
                         if record_count > 0:
                             frappe.db.sql(f"DELETE FROM `tab{doctype}`")
                             results["records_deleted"][doctype] = record_count
-                            print(f"[{timestamp}] Deleted {record_count} records from {doctype}")
+                            logger.info(
+                                f"[{timestamp}] Deleted {record_count} records from {doctype}"
+                            )
                     except Exception as e:
                         error_msg = f"Error deleting records from {doctype}: {str(e)}"
                         results["errors"].append(error_msg)
-                        print(f"[{timestamp}] {error_msg}")
+                        logger.warning(f"[{timestamp}] {error_msg}")
                         continue
 
                     # Then delete the DocType itself
                     frappe.delete_doc("DocType", doctype, force=1, ignore_permissions=True)
                     results["doctypes_deleted"].append(doctype)
-                    print(f"[{timestamp}] Successfully deleted obsolete DocType: {doctype}")
+                    logger.info(
+                        f"[{timestamp}] Successfully deleted obsolete DocType: {doctype}"
+                    )
             except Exception as e:
                 error_msg = f"Error deleting DocType {doctype}: {str(e)}"
                 results["errors"].append(error_msg)
-                print(f"[{timestamp}] {error_msg}")
+                logger.warning(f"[{timestamp}] {error_msg}")
 
         # Output summary
         if results["doctypes_deleted"]:
-            print(
+            logger.info(
                 f"\n[{timestamp}] Successfully deleted {len(results['doctypes_deleted'])} obsolete DocTypes:"
             )
             for dt in results["doctypes_deleted"]:
-                print(f"- {dt}")
+                logger.info(f"- {dt}")
         else:
-            print(f"\n[{timestamp}] No obsolete DocTypes found to delete.")
+            logger.info(f"\n[{timestamp}] No obsolete DocTypes found to delete.")
 
         if results["errors"]:
-            print(f"\n[{timestamp}] Encountered {len(results['errors'])} errors during cleanup:")
+            logger.info(
+                f"\n[{timestamp}] Encountered {len(results['errors'])} errors during cleanup:"
+            )
             for error in results["errors"]:
-                print(f"- {error}")
+                logger.info(f"- {error}")
 
         return results
 
     except Exception as e:
         error_msg = f"Error in clean_obsolete_bpjs_docs: {str(e)}"
         frappe.log_error(error_msg, "Maintenance Error")
-        print(f"[{timestamp}] {error_msg}")
+        logger.warning(f"[{timestamp}] {error_msg}")
         results["errors"].append(error_msg)
         return results
 
@@ -332,28 +343,28 @@ def run_maintenance():
     }
 
     try:
-        print(f"[{timestamp}] Starting Payroll Indonesia maintenance tasks...")
+        logger.info(f"[{timestamp}] Starting Payroll Indonesia maintenance tasks...")
 
         # Step 1: Clean up obsolete BPJS DocTypes
-        print(f"[{timestamp}] Cleaning up obsolete BPJS DocTypes...")
+        logger.info(f"[{timestamp}] Cleaning up obsolete BPJS DocTypes...")
         bpjs_cleanup_results = clean_obsolete_bpjs_docs()
         results["bpjs_cleanup"] = bpjs_cleanup_results
 
         # Step 2: Fix Salary Structures and Assignments
-        print(f"[{timestamp}] Fixing Salary Structures and Assignments...")
+        logger.info(f"[{timestamp}] Fixing Salary Structures and Assignments...")
         salary_fix_success = fix_all_salary_structures_and_assignments()
         results["salary_structures"] = {"success": salary_fix_success}
 
         # Overall success
         results["success"] = True
 
-        print(f"[{timestamp}] Maintenance tasks completed successfully.")
+        logger.info(f"[{timestamp}] Maintenance tasks completed successfully.")
         return results
 
     except Exception as e:
         error_msg = f"Error running maintenance tasks: {str(e)}"
         frappe.log_error(error_msg, "Maintenance Error")
-        print(f"[{timestamp}] {error_msg}")
+        logger.warning(f"[{timestamp}] {error_msg}")
         results["error"] = error_msg
         results["success"] = False
         return results
