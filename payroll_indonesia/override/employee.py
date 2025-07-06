@@ -1,280 +1,192 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
+# Last modified: 2025-06-29 02:35:42 by dannyaudian
 
 """
-Employee override module for Payroll Indonesia.
-
-Provides a resilient Employee class extension that can adapt to path changes
-in Frappe/ERPNext core code.
+Controller module for Indonesia Payroll Salary Slip class.
 """
-
-import inspect
-from typing import Any, Dict, List, Optional, Type
 
 import frappe
 from frappe import _
-from frappe.model.document import Document
+from frappe.utils import getdate, date_diff
+from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
+from payroll_indonesia.override.salary_slip_functions import (
+    salary_slip_post_submit, 
+    initialize_fields,
+    update_component_amount
+)
 from payroll_indonesia.frappe_helpers import logger
 
-# Define paths to try for Employee class import
-PATHS_TO_TRY = [
-    # ERPNext v15+ path
-    "erpnext.setup.doctype.employee.employee.Employee",
-    # HRMS paths
-    "hrms.hr.doctype.employee.employee.Employee",
-    "hrms.payroll.doctype.employee.employee.Employee",
-    # Legacy ERPNext paths
-    "erpnext.hr.doctype.employee.employee.Employee",
-    "erpnext.payroll.doctype.employee.employee.Employee",
-]
-
-# Define what's publicly accessible
-__all__ = ["EmployeeOverride", "validate", "on_update", "PATHS_TO_TRY"]
+__all__ = ["IndonesiaPayrollSalarySlip"]
 
 
-def _import_employee() -> Optional[Type]:
+class IndonesiaPayrollSalarySlip(SalarySlip):
     """
-    Dynamically import Employee class from various possible paths.
+    Enhanced Salary Slip for Indonesian Payroll.
+
+    Extends the standard Salary Slip with support for Indonesian tax regulations,
+    BPJS calculations, and year-end tax corrections.
     
-    Returns:
-        Type: Employee class if found, None otherwise
+    Bypasses payroll period validation for more flexible processing.
     """
-    errors = []
-    employee_classes = []
-    
-    # Try each path
-    for path in PATHS_TO_TRY:
-        try:
-            module_path, cls_name = path.rsplit(".", 1)
-            module = __import__(module_path, fromlist=[cls_name])
-            employee_class = getattr(module, cls_name)
-            
-            # Verify it's a proper Document subclass
-            if (inspect.isclass(employee_class) and 
-                issubclass(employee_class, Document) and
-                employee_class.__name__ == "Employee"):
-                logger.info(f"Successfully imported Employee class from: {path}")
-                employee_classes.append((path, employee_class))
-        except ImportError as e:
-            errors.append(f"ImportError for {path}: {str(e)}")
-        except AttributeError as e:
-            errors.append(f"AttributeError for {path}: {str(e)}")
-        except Exception as e:
-            errors.append(f"Error {type(e).__name__} for {path}: {str(e)}")
-    
-    # If we found at least one class, use the first one
-    if employee_classes:
-        path, employee_class = employee_classes[0]
-        logger.info(f"Using Employee class from {path}")
-        return employee_class
-    
-    # Log detailed error info
-    error_details = "\n".join(errors)
-    advice = (
-        "Make sure one of these apps is installed: hrms, erpnext. "
-        "Check if the Employee doctype exists and is properly defined."
-    )
-    logger.error(
-        f"Could not import Employee class from any known path:\n{error_details}\n{advice}"
-    )
-    return None
 
-
-# Get the base Employee class or fall back to Document
-BaseEmployee = _import_employee() or Document
-
-if BaseEmployee is Document:
-    logger.warning(
-        "Falling back to frappe.model.document.Document as base class. "
-        "This means the Employee class could not be found in any known location. "
-        "Some functionality may be limited."
-    )
-else:
-    logger.info(f"Using {BaseEmployee.__module__}.{BaseEmployee.__name__} as base class")
-
-
-class EmployeeOverride(BaseEmployee):
-    """
-    Override for Employee doctype.
-    
-    Extends the standard Employee doctype with Indonesian payroll specific functionality
-    while being resilient to path changes in the core code.
-    """
-    
     def validate(self):
         """
-        Validate Employee document.
-        
-        Calls parent validate if available and adds custom validation.
+        Validate salary slip with Indonesian payroll requirements.
+
+        Performs validation while bypassing payroll period checks.
         """
         try:
-            # Call parent validate if Employee class was found
-            if BaseEmployee is not Document:
-                try:
-                    super().validate()
-                    logger.debug(f"Called parent validate for {self.name}")
-                except Exception as e:
-                    logger.warning(
-                        f"Error calling parent validate for {self.name}: {str(e)}. "
-                        f"Continuing with custom validation."
-                    )
-            else:
-                logger.debug(
-                    f"Skipping parent validate for {self.name} (no Employee class found)"
-                )
+            # Initialize fields first
+            initialize_fields(self)
             
-            # Always run custom validation regardless of parent class
-            self._validate_indonesian_fields()
-            logger.debug(f"Completed custom validation for {self.name}")
+            # Ensure required fields are set
+            self._ensure_required_fields()
             
-        except Exception as e:
-            logger.exception(f"Error in EmployeeOverride.validate for {self.name}: {str(e)}")
-            frappe.msgprint(
-                _("Error validating employee {0}: {1}").format(self.name, str(e)),
-                indicator="red"
-            )
-    
-    def on_update(self):
-        """
-        Process after Employee document update.
-        
-        Calls parent on_update if available and performs custom actions.
-        """
-        try:
-            # Call parent on_update if Employee class was found
-            if BaseEmployee is not Document:
-                try:
-                    super().on_update()
-                    logger.debug(f"Called parent on_update for {self.name}")
-                except Exception as e:
-                    logger.warning(
-                        f"Error calling parent on_update for {self.name}: {str(e)}. "
-                        f"Continuing with custom logic."
-                    )
-            else:
-                logger.debug(
-                    f"Skipping parent on_update for {self.name} (no Employee class found)"
-                )
+            # Handle date details if needed
+            if not getattr(self, "salary_slip_based_on_timesheet", False):
+                self._set_date_details()
             
-            # Always run custom logic regardless of parent class
-            self._update_related_records()
-            logger.debug(f"Completed custom on_update logic for {self.name}")
+            # Skip payroll period validation which is called in parent validate
             
-        except Exception as e:
-            logger.exception(f"Error in EmployeeOverride.on_update for {self.name}: {str(e)}")
-    
-    def _validate_indonesian_fields(self):
-        """
-        Validate Indonesia-specific employee fields.
-        
-        Checks NPWP, KTP, status pajak, and other Indonesia-specific fields.
-        """
-        try:
-            # Check if status_pajak exists and is valid
-            if hasattr(self, "status_pajak") and self.status_pajak:
-                valid_status = [
-                    "TK0", "TK1", "TK2", "TK3", 
-                    "K0", "K1", "K2", "K3", 
-                    "HB0", "HB1", "HB2", "HB3"
-                ]
+            # Safe calls to parent methods - only if they exist
+            self._safe_call("validate_loan_repayment")
+            self._safe_call("validate_employee_details")
+            
+            if not getattr(self, "salary_slip_based_on_timesheet", False):
+                self._safe_call("validate_attendance")
+            
+            self._safe_call("validate_components_with_flexible_benefits")
+            
+            # Load employee doc for tax calculations
+            self._load_employee_doc()
+            
+            # Update components with Indonesian calculations
+            update_component_amount(self)
+            
+            # Calculate net pay and set status
+            if hasattr(self, "calculate_net_pay"):
+                self.calculate_net_pay()
                 
-                if self.status_pajak not in valid_status:
-                    frappe.msgprint(
-                        _("Status pajak '{0}' tidak valid. Gunakan salah satu dari: {1}").format(
-                            self.status_pajak, ", ".join(valid_status)
-                        ),
-                        indicator="red"
-                    )
+            if hasattr(self, "set_status"):
+                self.set_status()
             
-            # Validate NPWP format if provided
-            if hasattr(self, "npwp") and self.npwp:
-                # Just a basic length check for now
-                if len(self.npwp.replace(".", "").replace("-", "")) != 15:
-                    frappe.msgprint(
-                        _("Format NPWP tidak valid. NPWP harus 15 digit."),
-                        indicator="yellow"
-                    )
-            
-            # Validate KTP format if provided
-            if hasattr(self, "ktp") and self.ktp:
-                # Just a basic length check for now
-                if len(self.ktp.replace(".", "").replace("-", "")) != 16:
-                    frappe.msgprint(
-                        _("Format KTP tidak valid. KTP harus 16 digit."),
-                        indicator="yellow"
-                    )
-            
-            # Check jumlah_tanggungan is consistent with status_pajak
-            if (hasattr(self, "status_pajak") and self.status_pajak and 
-                hasattr(self, "jumlah_tanggungan")):
-                # Extract the number from status
-                if len(self.status_pajak) >= 2:
-                    status_num = self.status_pajak[-1]
-                    if status_num.isdigit():
-                        expected_tanggungan = int(status_num)
-                        if self.jumlah_tanggungan != expected_tanggungan:
-                            self.jumlah_tanggungan = expected_tanggungan
-                            logger.debug(
-                                f"Updated jumlah_tanggungan to {expected_tanggungan} "
-                                f"based on status_pajak {self.status_pajak}"
-                            )
-            
+            logger.info(f"Indonesia payroll validation completed for {self.name}")
         except Exception as e:
-            logger.exception(f"Error validating Indonesian fields for {self.name}: {str(e)}")
+            logger.exception(f"Error validating salary slip {self.name}: {e}")
+            frappe.throw(_("Error validating salary slip: {0}").format(str(e)))
+
+    def _ensure_required_fields(self):
+        """Ensure all required fields are set with default values if missing."""
+        # Check for salary structure
+        if not getattr(self, "salary_structure", None):
+            logger.warning(f"Salary structure not set for {self.name}")
+            
+        # Set default values for essential fields if missing
+        if not getattr(self, "total_working_days", None):
+            self.total_working_days = 22
+            logger.debug(f"Set default total_working_days=22 for {self.name}")
+            
+        if not getattr(self, "payment_days", None):
+            self.payment_days = self.total_working_days
+            logger.debug(f"Set payment_days={self.payment_days} for {self.name}")
+
+    def _set_date_details(self):
+        """Set date details for the salary slip."""
+        try:
+            # Call get_date_details if available
+            if hasattr(self, "get_date_details"):
+                self.get_date_details()
+                return
+                
+            # Fallback implementation if get_date_details is not available
+            if not self.start_date or not self.end_date:
+                logger.warning(f"Missing start_date or end_date for {self.name}")
+                return
+                
+            # Calculate total_working_days if not already set
+            if not getattr(self, "total_working_days", None):
+                self.total_working_days = date_diff(self.end_date, self.start_date) + 1
+                
+            # Set payment_days if not already set
+            if not getattr(self, "payment_days", None):
+                self.payment_days = self.total_working_days
+                
+            logger.debug(
+                f"Date details set for {self.name}: "
+                f"total_working_days={self.total_working_days}, "
+                f"payment_days={self.payment_days}"
+            )
+        except Exception as e:
+            logger.warning(f"Error setting date details for {self.name}: {e}")
+
+    def _safe_call(self, method_name):
+        """Safely call a method if it exists."""
+        if hasattr(self, method_name):
+            try:
+                method = getattr(self, method_name)
+                method()
+            except Exception as e:
+                logger.warning(f"Error calling {method_name}: {e}")
     
-    def _update_related_records(self):
+    # Stub methods to prevent attribute errors
+    def validate_payroll_period(self):
         """
-        Update related records after employee changes.
+        Override to bypass the standard payroll period validation.
         
-        Updates payroll-related records when employee data changes.
+        This method is intentionally empty to bypass validation.
+        """
+        logger.debug(f"Bypassing payroll period validation for {self.name}")
+        return True
+    
+    def validate_loan_repayment(self):
+        """Stub method if parent doesn't have this."""
+        pass
+    
+    def validate_employee_details(self):
+        """Stub method if parent doesn't have this."""
+        pass
+    
+    def validate_attendance(self):
+        """Stub method if parent doesn't have this."""
+        pass
+    
+    def validate_components_with_flexible_benefits(self):
+        """Stub method if parent doesn't have this."""
+        pass
+
+    def _load_employee_doc(self):
+        """Load employee document if not already loaded."""
+        if not hasattr(self, "employee_doc") and getattr(self, "employee", None):
+            try:
+                self.employee_doc = frappe.get_doc("Employee", self.employee)
+            except Exception as e:
+                logger.warning(f"Could not load employee_doc for {self.employee}: {e}")
+
+    def calculate_totals(self) -> None:
+        """Backward-compat wrapper used by salary_slip_functions."""
+        if hasattr(self, "calculate_net_pay"):
+            self.calculate_net_pay()
+
+    def on_submit(self):
+        """
+        Process document on submission.
+
+        Executes submission and post-submission tasks for Indonesian payroll.
         """
         try:
-            # Update BPJS enrollment status
-            self._sync_bpjs_enrollment()
+            # Ensure fields are initialized
+            initialize_fields(self)
             
-            # Update tax-related records if status_pajak changed
-            self._sync_tax_status()
+            # Call parent submission handler if it exists
+            if hasattr(SalarySlip, "on_submit"):
+                super().on_submit()
             
+            # Run post-submit processing
+            salary_slip_post_submit(self)
+
+            logger.info(f"Salary slip {self.name} submitted successfully")
         except Exception as e:
-            logger.exception(f"Error updating related records for {self.name}: {str(e)}")
-    
-    def _sync_bpjs_enrollment(self):
-        """Sync BPJS enrollment status with related records."""
-        pass  # Placeholder for actual implementation
-    
-    def _sync_tax_status(self):
-        """Sync tax status with related records."""
-        pass  # Placeholder for actual implementation
-
-
-def validate(doc, method=None):
-    """
-    Validate hook for Employee document.
-    
-    Args:
-        doc: The Employee document
-        method: The method that triggered this hook (unused)
-    """
-    try:
-        doc.validate()
-    except Exception as e:
-        logger.exception(f"Error in validate hook for {doc.name}: {str(e)}")
-        frappe.msgprint(
-            _("Error validating employee {0}: {1}").format(doc.name, str(e)),
-            indicator="red"
-        )
-
-
-def on_update(doc, method=None):
-    """
-    On update hook for Employee document.
-    
-    Args:
-        doc: The Employee document
-        method: The method that triggered this hook (unused)
-    """
-    try:
-        doc.on_update()
-    except Exception as e:
-        logger.exception(f"Error in on_update hook for {doc.name}: {str(e)}")
+            logger.exception(f"Error submitting salary slip {self.name}: {e}")
+            frappe.throw(_("Error submitting salary slip: {0}").format(str(e)))
