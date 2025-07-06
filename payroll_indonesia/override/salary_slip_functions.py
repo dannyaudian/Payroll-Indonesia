@@ -16,7 +16,10 @@ from frappe.utils import flt, cint, getdate
 
 from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.frappe_helpers import logger
-from payroll_indonesia.payroll_indonesia.utils import calculate_bpjs
+from payroll_indonesia.payroll_indonesia import utils as pi_utils
+
+# Import calculate_bpjs function for easier reference
+calc_bpjs = pi_utils.calculate_bpjs
 
 # Define public API
 __all__ = [
@@ -76,17 +79,17 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
 
         # Handle BPJS Kesehatan Employee
         if component_name == "BPJS Kesehatan Employee" and bpjs_config:
-            bpjs_amount = calculate_bpjs(
+            bpjs_amount = calc_bpjs(
                 doc.gross_pay,
                 bpjs_config.get("kesehatan_employee_percent", 1.0),
-                bpjs_config.get("kesehatan_max_salary", 12000000),
+                max_salary=bpjs_config.get("kesehatan_max_salary", 12000000),
             )
             deduction.amount = bpjs_amount
             logger.debug(f"Updated BPJS Kesehatan Employee: {bpjs_amount}")
 
         # Handle BPJS JHT Employee
         elif component_name == "BPJS JHT Employee" and bpjs_config:
-            bpjs_amount = calculate_bpjs(
+            bpjs_amount = calc_bpjs(
                 doc.gross_pay, bpjs_config.get("jht_employee_percent", 2.0)
             )
             deduction.amount = bpjs_amount
@@ -94,10 +97,10 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
 
         # Handle BPJS JP Employee
         elif component_name == "BPJS JP Employee" and bpjs_config:
-            bpjs_amount = calculate_bpjs(
+            bpjs_amount = calc_bpjs(
                 doc.gross_pay,
                 bpjs_config.get("jp_employee_percent", 1.0),
-                bpjs_config.get("jp_max_salary", 9077600),
+                max_salary=bpjs_config.get("jp_max_salary", 9077600),
             )
             deduction.amount = bpjs_amount
             logger.debug(f"Updated BPJS JP Employee: {bpjs_amount}")
@@ -223,29 +226,29 @@ def calculate_employer_contributions(doc) -> Dict[str, float]:
     base_salary = doc.gross_pay or 0
 
     # Calculate BPJS Kesehatan Employer
-    contributions["BPJS Kesehatan Employer"] = calculate_bpjs(
+    contributions["BPJS Kesehatan Employer"] = calc_bpjs(
         base_salary,
         bpjs_config.get("kesehatan_employer_percent", 4.0),
-        bpjs_config.get("kesehatan_max_salary", 12000000),
+        max_salary=bpjs_config.get("kesehatan_max_salary", 12000000),
     )
 
     # Calculate BPJS JHT Employer
-    contributions["BPJS JHT Employer"] = calculate_bpjs(
+    contributions["BPJS JHT Employer"] = calc_bpjs(
         base_salary, bpjs_config.get("jht_employer_percent", 3.7)
     )
 
     # Calculate BPJS JP Employer
-    contributions["BPJS JP Employer"] = calculate_bpjs(
+    contributions["BPJS JP Employer"] = calc_bpjs(
         base_salary,
         bpjs_config.get("jp_employer_percent", 2.0),
-        bpjs_config.get("jp_max_salary", 9077600),
+        max_salary=bpjs_config.get("jp_max_salary", 9077600),
     )
 
     # Calculate BPJS JKK
-    contributions["BPJS JKK"] = calculate_bpjs(base_salary, bpjs_config.get("jkk_percent", 0.24))
+    contributions["BPJS JKK"] = calc_bpjs(base_salary, bpjs_config.get("jkk_percent", 0.24))
 
     # Calculate BPJS JKM
-    contributions["BPJS JKM"] = calculate_bpjs(base_salary, bpjs_config.get("jkm_percent", 0.3))
+    contributions["BPJS JKM"] = calc_bpjs(base_salary, bpjs_config.get("jkm_percent", 0.3))
 
     # Calculate total
     contributions["total"] = sum(amount for key, amount in contributions.items() if key != "total")
