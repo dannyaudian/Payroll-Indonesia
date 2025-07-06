@@ -5,13 +5,16 @@
 
 """
 BPJS calculator module - satu-satunya kalkulator BPJS.
+
+Provides standardized calculation functions for BPJS deductions in Indonesian payroll.
 """
 
-import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Union
 
-# from typing import Any, Dict, Optional, TYPE_CHECKING
+import frappe
+from frappe.utils import flt
 
+from payroll_indonesia.frappe_helpers import logger
 from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.constants import (
     DEFAULT_UMR,
@@ -27,10 +30,61 @@ from payroll_indonesia.constants import (
     BPJS_JKM_PERCENT,
 )
 
-# if TYPE_CHECKING:
-#     from frappe.model.document import Document
+# Define public API
+__all__ = ["calculate_bpjs", "calculate_components", "validate_bpjs_percentages"]
 
-logger = logging.getLogger("bpjs_calc")
+
+def is_valid_percent(value: Union[float, int, str]) -> bool:
+    """Check if a value is a valid percentage between 0 and 100."""
+    try:
+        percent = flt(value)
+        return 0 <= percent <= 100
+    except (ValueError, TypeError):
+        return False
+
+
+def calculate_bpjs(
+    base_salary: float,
+    rate_percent: float,
+    *,
+    max_salary: Optional[float] = None,
+) -> int:
+    """
+    Calculate BPJS deduction amount based on salary and rate.
+    
+    Args:
+        base_salary: The base salary amount for calculation
+        rate_percent: The BPJS rate percentage (e.g., 1.0 for 1%)
+        max_salary: Optional maximum salary cap for the calculation
+        
+    Returns:
+        int: The calculated BPJS amount as a rounded integer (IDR has no cents)
+    """
+    # Ensure inputs are proper float values
+    base_salary = flt(base_salary)
+    rate_percent = flt(rate_percent)
+    
+    # Validate inputs
+    if base_salary < 0:
+        logger.warning(f"Negative base salary provided: {base_salary}. Using absolute value.")
+        base_salary = abs(base_salary)
+        
+    if not is_valid_percent(rate_percent):
+        logger.warning(
+            f"Invalid BPJS rate percentage: {rate_percent}. "
+            f"Should be between 0-100. Using absolute value capped at 100."
+        )
+        rate_percent = min(abs(rate_percent), 100)
+    
+    # Apply maximum salary cap if provided
+    if max_salary is not None and max_salary > 0 and base_salary > max_salary:
+        base_salary = max_salary
+    
+    # Calculate the BPJS amount (rate_percent is a percentage, so divide by 100)
+    bpjs_amount = base_salary * (rate_percent / 100.0)
+    
+    # Round to nearest whole number (IDR doesn't have cents)
+    return round(bpjs_amount)
 
 
 def _validate_percentage(key: str, value: Any) -> bool:
@@ -39,9 +93,9 @@ def _validate_percentage(key: str, value: Any) -> bool:
         percentage = float(value)
         if 0 <= percentage <= 100:
             return True
-        logger.error(f"BPJS config {key} out of bounds: {percentage}")
+        logger.warning(f"BPJS config {key} out of bounds: {percentage}")
     except (ValueError, TypeError):
-        logger.error(f"BPJS config {key} not float: {value}")
+        logger.warning(f"BPJS config {key} not float: {value}")
     return False
 
 
@@ -96,7 +150,7 @@ def calculate_components(slip: Any) -> Dict[str, float]:
     """
     cfg = get_live_config()
     if not validate_bpjs_percentages(cfg):
-        logger.error("BPJS config percentages invalid. Calculation aborted.")
+        logger.warning("BPJS config percentages invalid. Calculation aborted.")
         return {}
 
     bpjs_config = cfg.get("bpjs", {})
@@ -124,21 +178,20 @@ def calculate_components(slip: Any) -> Dict[str, float]:
         "jkm": float(bpjs_config.get("jkm_percent", BPJS_JKM_PERCENT)),
     }
 
-    # Apply salary caps
-    kesehatan_salary = min(base_salary, kesehatan_max)
-    jp_salary = min(base_salary, jp_max)
+    # Use the calculate_bpjs function for each component
+    kesehatan_employee = calculate_bpjs(
+        base_salary, percentages["kesehatan_emp"], max_salary=kesehatan_max
+    )
+    jht_employee = calculate_bpjs(base_salary, percentages["jht_emp"])
+    jp_employee = calculate_bpjs(base_salary, percentages["jp_emp"], max_salary=jp_max)
 
-    # Calculate employee portions
-    kesehatan_employee = kesehatan_salary * (percentages["kesehatan_emp"] / 100)
-    jht_employee = base_salary * (percentages["jht_emp"] / 100)
-    jp_employee = jp_salary * (percentages["jp_emp"] / 100)
-
-    # Calculate employer portions
-    kesehatan_employer = kesehatan_salary * (percentages["kesehatan_com"] / 100)
-    jht_employer = base_salary * (percentages["jht_com"] / 100)
-    jp_employer = jp_salary * (percentages["jp_com"] / 100)
-    jkk_amount = base_salary * (percentages["jkk"] / 100)
-    jkm_amount = base_salary * (percentages["jkm"] / 100)
+    kesehatan_employer = calculate_bpjs(
+        base_salary, percentages["kesehatan_com"], max_salary=kesehatan_max
+    )
+    jht_employer = calculate_bpjs(base_salary, percentages["jht_com"])
+    jp_employer = calculate_bpjs(base_salary, percentages["jp_com"], max_salary=jp_max)
+    jkk_amount = calculate_bpjs(base_salary, percentages["jkk"])
+    jkm_amount = calculate_bpjs(base_salary, percentages["jkm"])
 
     # Calculate totals
     total_employee = kesehatan_employee + jht_employee + jp_employee
@@ -146,16 +199,16 @@ def calculate_components(slip: Any) -> Dict[str, float]:
 
     # Prepare result dictionary
     result = {
-        "kesehatan_employee": round(kesehatan_employee),
-        "kesehatan_employer": round(kesehatan_employer),
-        "jht_employee": round(jht_employee),
-        "jht_employer": round(jht_employer),
-        "jp_employee": round(jp_employee),
-        "jp_employer": round(jp_employer),
-        "jkk": round(jkk_amount),
-        "jkm": round(jkm_amount),
-        "total_employee": round(total_employee),
-        "total_employer": round(total_employer),
+        "kesehatan_employee": kesehatan_employee,
+        "kesehatan_employer": kesehatan_employer,
+        "jht_employee": jht_employee,
+        "jht_employer": jht_employer,
+        "jp_employee": jp_employee,
+        "jp_employer": jp_employer,
+        "jkk": jkk_amount,
+        "jkm": jkm_amount,
+        "total_employee": total_employee,
+        "total_employer": total_employer,
     }
 
     employee_id = getattr(slip, "employee", "unknown")
