@@ -97,6 +97,11 @@ The Payroll Indonesia module is modularly optimized to provide top performance a
 * Efficient and clear logging using Python’s logging module.
 * Modular design featuring specialized utilities for BPJS, PPh21, YTD calculations, and field validations.
 
+## 🧑‍💻 Contributing
+
+For instructions on setting up Frappe/ERPNext so that `pytest` can run locally, see
+the [CONTRIBUTING.md](CONTRIBUTING.md) guide.
+
 ## 📢 Status
 
 Actively developed and deployed across diverse production environments. For issue reporting and feature requests, visit our [GitHub Repository](https://github.com/dannyaudian/payroll_indonesia).
