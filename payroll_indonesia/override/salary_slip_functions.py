@@ -20,13 +20,30 @@ from payroll_indonesia.payroll_indonesia.utils import calculate_bpjs
 
 # Define public API
 __all__ = [
-    "update_component_amount", 
+    "update_component_amount",
+    "initialize_fields",
     "salary_slip_post_submit",
-    "calculate_monthly_pro_rata", 
+    "calculate_monthly_pro_rata",
     "calculate_tax_amount",
     "calculate_employer_contributions",
     "get_salary_components_from_structure"
 ]
+
+
+def initialize_fields(doc, method: Optional[str] = None) -> None:
+    """Ensure custom Salary Slip fields are initialized with defaults."""
+    defaults = {
+        "biaya_jabatan": 0,
+        "netto": 0,
+        "total_bpjs": 0,
+        "is_using_ter": 0,
+        "ter_rate": 0,
+        "koreksi_pph21": 0,
+    }
+
+    for field, default in defaults.items():
+        if not hasattr(doc, field) or getattr(doc, field) is None:
+            setattr(doc, field, default)
 
 
 def update_component_amount(doc, method: Optional[str] = None) -> None:
