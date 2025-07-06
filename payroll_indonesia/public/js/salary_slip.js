@@ -88,7 +88,7 @@ frappe.ui.form.on('Salary Slip', {
         if (frm.is_new() || frm.doc.docstatus === 0) {
             frm.add_custom_button(__('Fix TER Calculation'), function() {
                 if (!frm.doc.is_using_ter) {
-                    frappe.msgprint("Slip gaji ini tidak menggunakan metode TER.");
+                    frappe.msgprint(__("Slip gaji ini tidak menggunakan metode TER."));
                     return;
                 }
                 
@@ -110,7 +110,7 @@ frappe.ui.form.on('Salary Slip', {
                 });
                 
                 if (!found_pph21) {
-                    frappe.msgprint("Komponen PPh 21 tidak ditemukan.");
+                    frappe.msgprint(__("Komponen PPh 21 tidak ditemukan."));
                     return;
                 }
                 
