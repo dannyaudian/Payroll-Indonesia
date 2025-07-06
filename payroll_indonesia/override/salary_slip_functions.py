@@ -669,7 +669,16 @@ def update_employee_history(doc) -> None:
     """
     if not doc.employee:
         return
-    
+
+    # ensure doctype exists
+    try:
+        frappe.get_meta("Employee Salary History", cached=True)
+    except Exception:
+        logger.warning(
+            'DocType "Employee Salary History" not found. Skipping history update.'
+        )
+        return
+
     try:
         # Get year of salary slip
         slip_year = getdate(doc.posting_date).year
@@ -725,7 +734,16 @@ def store_employer_contributions(doc, contributions: Dict[str, float]) -> None:
     """
     if not contributions:
         return
-    
+
+    # ensure doctype exists
+    try:
+        frappe.get_meta("Employer Contribution", cached=True)
+    except Exception:
+        logger.warning(
+            'DocType "Employer Contribution" not found. Skipping employer contribution storage.'
+        )
+        return
+
     try:
         # Check if employer contribution doc exists
         existing = frappe.db.exists("Employer Contribution", {"salary_slip": doc.name})
@@ -755,4 +773,6 @@ def store_employer_contributions(doc, contributions: Dict[str, float]) -> None:
         logger.debug(f"Stored employer contributions for Salary Slip {doc.name}")
     
     except Exception as e:
-        logger.exception(f"Error storing employer contributions for {doc.name}: {e}")
+        logger.exception(
+            f"Error storing employer contributions for {doc.name}: {e}"
+        )
