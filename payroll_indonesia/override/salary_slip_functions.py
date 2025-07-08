@@ -45,6 +45,7 @@ EMPLOYER_COMPONENTS = (
 
 # Define public API
 __all__ = [
+    "enqueue_tax_summary_update",
     "update_tax_summary",
     "update_employee_history",  # alias
     "update_component_amount",
@@ -415,8 +416,8 @@ def salary_slip_post_submit(doc, method: Optional[str] = None) -> None:
         # Ensure fields are initialized
         initialize_fields(doc)
 
-        # Update tax summary
-        update_tax_summary(doc)
+        # Update tax summary asynchronously
+        enqueue_tax_summary_update(doc)
 
         logger.debug(f"Post-submit processing completed for Salary Slip {doc.name}")
 
@@ -577,6 +578,20 @@ def update_tax_summary(slip) -> None:
 
     except Exception as e:
         logger.exception(f"Error updating tax summary for {slip.employee}: {e}")
+
+
+def enqueue_tax_summary_update(doc) -> None:
+    """Enqueue tax summary update after commit."""
+    try:
+        frappe.enqueue(
+            update_tax_summary,
+            queue="long",
+            job_name=f"tax_summary_update_{doc.name}",
+            enqueue_after_commit=True,
+            slip=doc,
+        )
+    except Exception:
+        logger.exception("Failed to enqueue tax summary update")
 
 
 # Alias for backward compatibility

@@ -91,9 +91,12 @@ def test_post_submit_updates_existing_history(monkeypatch):
 
     monkeypatch.setattr(ssf, "calculate_employer_contributions", lambda doc: {})
     monkeypatch.setattr(ssf, "store_employer_contributions", lambda doc, c: None)
-    monkeypatch.setattr(ssf, "enqueue_tax_summary_update", lambda doc: None)
+    enqueue_mock = MagicMock()
+    monkeypatch.setattr(ssf, "enqueue_tax_summary_update", enqueue_mock)
 
     ssf.salary_slip_post_submit(slip)
+
+    enqueue_mock.assert_called_once_with(slip)
 
     assert existing.ytd_gross == 1000
     assert existing.ytd_tax == 50
