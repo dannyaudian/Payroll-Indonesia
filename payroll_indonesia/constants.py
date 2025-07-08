@@ -15,6 +15,7 @@ ONE_DAY = 86400  # 1 day in seconds
 
 # Calendar constants
 MONTHS_PER_YEAR = 12  # Months in a year
+TER_MONTHS = 11  # Months used for TER annualization
 DAYS_PER_MONTH = 30  # Standard calculation month
 MAX_WORKING_DAYS = 22  # Maximum working days in a month
 DEFAULT_WORKING_HOURS = 8  # Standard working hours per day
