@@ -11,8 +11,20 @@ This module overrides ERPNext's Salary Slip class to implement Indonesian tax ca
 import frappe
 from frappe import _
 from frappe.utils import flt, getdate
-import erpnext
-from erpnext.payroll.doctype.salary_slip.salary_slip import SalarySlip
+
+# Correct import paths based on ERPNext/HRMS structure
+try:
+    # For newer versions with HRMS app
+    from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
+except ImportError:
+    try:
+        # For older ERPNext versions
+        from erpnext.hr.doctype.salary_slip.salary_slip import SalarySlip
+    except ImportError:
+        # Fallback
+        from frappe.model.document import Document
+        class SalarySlip(Document):
+            pass
 
 import logging
 from typing import Dict, List, Any, Optional
@@ -79,7 +91,7 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
                 logger.info(f"Employee {self.employee} not eligible for TER, using progressive")
                 result = tax_calc.calculate_monthly_pph_progressive(self)
                 tax_amount = result.get("monthly_tax", 0.0)
-        elif self.is_december_override:
+        elif getattr(self, "is_december_override", 0):
             # Use December calculation for year-end
             result = tax_calc.calculate_december_pph(self)
             tax_amount = result.get("correction", 0.0)
