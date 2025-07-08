@@ -25,6 +25,13 @@ from payroll_indonesia.constants import (
 # if TYPE_CHECKING:
 #     from frappe.model.document import Document
 
+__all__ = [
+    "get_ptkp_category",
+    "get_ter_category",
+    "get_ter_rate",
+    "calculate_monthly_pph_with_ter",
+]
+
 logger = logging.getLogger("ter_calc")
 
 
@@ -64,6 +71,13 @@ def get_ter_category(ptkp_code: str) -> str:
     # Default to highest category
     logger.warning(f"Unknown PTKP code '{ptkp_code}', defaulting to TER C")
     return TER_CATEGORY_C
+
+
+# Backwards compatibility alias
+def get_ptkp_category(arg: Any) -> str:
+    """Return TER category for a PTKP code or employee document."""
+    code = getattr(arg, "status_pajak", arg)
+    return get_ter_category(str(code))
 
 
 @lru_cache(maxsize=128)
