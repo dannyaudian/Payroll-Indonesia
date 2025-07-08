@@ -59,7 +59,7 @@ doc_events = {
 
 # ❸ Override DocType classes
 override_doctype_class = {
-    "Salary Slip": "payroll_indonesia.override.salary_slip.IndonesiaPayrollSalarySlip",
+    "Salary Slip": "payroll_indonesia.override.salary_slip.controller.IndonesiaPayrollSalarySlip",
     "Payroll Entry": "payroll_indonesia.override.payroll_entry.CustomPayrollEntry",
     "Employee": "payroll_indonesia.override.employee.EmployeeOverride",
 }
