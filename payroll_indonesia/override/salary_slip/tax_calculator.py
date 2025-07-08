@@ -74,10 +74,10 @@ def get_tax_brackets() -> List[Dict[str, Any]]:
 def get_ptkp_value(tax_status: str) -> float:
     """
     Get annual PTKP (non-taxable income) value based on tax status.
-    
+
     Args:
         tax_status: Tax status code (e.g., TK0, K1)
-        
+
     Returns:
         float: Annual PTKP amount
     """
@@ -85,7 +85,7 @@ def get_ptkp_value(tax_status: str) -> float:
         if not tax_status:
             logger.warning("Empty tax status provided. Using default TK0.")
             tax_status = "TK0"
-            
+
         cfg = get_live_config()
         ptkp_values = cfg.get("ptkp", {})
 
@@ -111,9 +111,9 @@ def get_ptkp_value(tax_status: str) -> float:
         if tax_status not in default_values:
             logger.warning(f"Unknown tax status: {tax_status}. Using TK0 as default.")
             tax_status = "TK0"
-            
+
         return float(default_values.get(tax_status, 54000000))
-        
+
     except Exception as e:
         logger.exception(f"Error getting PTKP value for {tax_status}: {str(e)}")
         # Return default TK0 value on error
@@ -123,10 +123,10 @@ def get_ptkp_value(tax_status: str) -> float:
 def calculate_progressive_tax(pkp: float) -> Tuple[float, List[Dict[str, Any]]]:
     """
     Calculate PPh 21 using progressive method.
-    
+
     Args:
         pkp: Penghasilan Kena Pajak (taxable income)
-        
+
     Returns:
         Tuple[float, List[Dict[str, Any]]]: Total tax and detailed breakdown per bracket
     """
@@ -189,7 +189,7 @@ def calculate_progressive_tax(pkp: float) -> Tuple[float, List[Dict[str, Any]]]:
                 remaining -= taxable_in_bracket
 
         return tax, details
-        
+
     except Exception as e:
         logger.exception(f"Error calculating progressive tax for PKP {pkp}: {str(e)}")
         # Return zero on error
@@ -199,21 +199,21 @@ def calculate_progressive_tax(pkp: float) -> Tuple[float, List[Dict[str, Any]]]:
 def get_tax_status(slip: Any) -> str:
     """
     Extract tax status from employee document or return default.
-    
+
     Args:
         slip: The Salary Slip document
-        
+
     Returns:
         str: Tax status code (e.g., TK0, K1)
     """
     try:
         default_status = "TK0"
-        
+
         # Try to get from employee_doc field
         employee = getattr(slip, "employee_doc", None)
         if employee and hasattr(employee, "status_pajak") and employee.status_pajak:
             return employee.status_pajak
-            
+
         # If employee_doc not available, try to get directly from employee
         if hasattr(slip, "employee") and slip.employee:
             try:
@@ -224,15 +224,17 @@ def get_tax_status(slip: Any) -> str:
                     slip.employee_doc = employee_doc
                     return employee_doc.status_pajak
             except Exception as e:
-                logger.warning(f"Could not load employee {getattr(slip, 'employee', 'unknown')}: {e}")
-                
+                logger.warning(
+                    f"Could not load employee {getattr(slip, 'employee', 'unknown')}: {e}"
+                )
+
         # If we got here, use default
         logger.warning(
             f"No tax status found for employee {getattr(slip, 'employee', 'unknown')}. "
             f"Using default: {default_status}"
         )
         return default_status
-        
+
     except Exception as e:
         logger.exception(f"Error getting tax status: {str(e)}")
         return "TK0"
@@ -315,7 +317,7 @@ def get_ytd_totals(slip: Any) -> Dict[str, float]:
 
         # Cache the result
         frappe.cache().set_value(cache_key, result, expires_in_sec=300)
-        
+
         logger.debug(f"YTD totals for {employee}: {result}")
         return result
 
@@ -327,10 +329,10 @@ def get_ytd_totals(slip: Any) -> Dict[str, float]:
 def get_slip_year_month(slip: Any) -> Tuple[int, int]:
     """
     Extract year and month from salary slip start date.
-    
+
     Args:
         slip: The Salary Slip document
-        
+
     Returns:
         Tuple[int, int]: Year and month
     """
@@ -339,7 +341,7 @@ def get_slip_year_month(slip: Any) -> Tuple[int, int]:
         if hasattr(slip, "start_date") and slip.start_date:
             date_obj = getdate(slip.start_date)
             return date_obj.year, date_obj.month
-            
+
         # Try to get from posting_date
         if hasattr(slip, "posting_date") and slip.posting_date:
             date_obj = getdate(slip.posting_date)
@@ -352,7 +354,7 @@ def get_slip_year_month(slip: Any) -> Tuple[int, int]:
             f"Using current date: {now.year}-{now.month}"
         )
         return now.year, now.month
-        
+
     except Exception as e:
         logger.exception(f"Error getting slip year/month: {str(e)}")
         now = datetime.now()
@@ -362,10 +364,10 @@ def get_slip_year_month(slip: Any) -> Tuple[int, int]:
 def is_december_calculation(slip: Any) -> bool:
     """
     Determine if this slip should use December calculation logic.
-    
+
     Args:
         slip: The Salary Slip document
-        
+
     Returns:
         bool: True if month is December or is_december_override flag is set
     """
@@ -378,12 +380,12 @@ def is_december_calculation(slip: Any) -> bool:
         # Check if month is December
         _, month = get_slip_year_month(slip)
         is_dec = month == 12
-        
+
         if is_dec:
             logger.debug(f"December month detected for slip {getattr(slip, 'name', 'unknown')}")
-            
+
         return is_dec
-        
+
     except Exception as e:
         logger.exception(f"Error checking December calculation: {str(e)}")
         return False
@@ -392,7 +394,7 @@ def is_december_calculation(slip: Any) -> bool:
 def update_slip_fields(slip: Any, values: Dict[str, Any]) -> None:
     """
     Update salary slip fields with calculated values.
-    
+
     Args:
         slip: The Salary Slip document
         values: Dictionary of field name/value pairs to update
@@ -406,7 +408,7 @@ def update_slip_fields(slip: Any, values: Dict[str, Any]) -> None:
                 logger.warning(
                     f"Field {field} not found in slip {getattr(slip, 'name', 'unknown')}"
                 )
-                
+
     except Exception as e:
         logger.exception(f"Error updating slip fields: {str(e)}")
 
@@ -414,10 +416,10 @@ def update_slip_fields(slip: Any, values: Dict[str, Any]) -> None:
 def calculate_monthly_pph_progressive(slip: Any) -> Dict[str, Any]:
     """
     Calculate PPh 21 using progressive rates for non-December months.
-    
+
     Args:
         slip: The Salary Slip document
-        
+
     Returns:
         Dict[str, Any]: Calculation results
     """
@@ -437,79 +439,69 @@ def calculate_monthly_pph_progressive(slip: Any) -> Dict[str, Any]:
             "monthly_tax": 0.0,
             "tax_details": [],
         }
-        
+
         # Get tax status
         tax_status = get_tax_status(slip)
         result["tax_status"] = tax_status
-        
+
         # Get gross pay
         gross_pay = flt(getattr(slip, "gross_pay", 0))
         if gross_pay <= 0:
-            logger.warning(f"Zero or negative gross pay for slip {getattr(slip, 'name', 'unknown')}")
-            
+            logger.warning(
+                f"Zero or negative gross pay for slip {getattr(slip, 'name', 'unknown')}"
+            )
+
         result["gross_pay"] = gross_pay
-        
+
         # Calculate biaya jabatan
         biaya_jabatan = min(gross_pay * (BIAYA_JABATAN_PERCENT / 100), BIAYA_JABATAN_MAX)
         result["biaya_jabatan"] = biaya_jabatan
-        
+
         # Get total BPJS employee
         total_bpjs = flt(getattr(slip, "total_bpjs", 0))
         result["total_bpjs"] = total_bpjs
-        
+
         # Calculate netto
         netto = gross_pay - biaya_jabatan - total_bpjs
         result["monthly_netto"] = netto
-        
+
         # Calculate annual values
         annual_netto = netto * MONTHS_PER_YEAR
         result["annual_netto"] = annual_netto
-        
+
         # Get PTKP
         ptkp = get_ptkp_value(tax_status)
         result["ptkp"] = ptkp
-        
+
         # Calculate PKP
         pkp = max(0, annual_netto - ptkp)
         result["pkp"] = pkp
-        
+
         # Calculate tax
         annual_tax, tax_details = calculate_progressive_tax(pkp)
         result["annual_tax"] = annual_tax
         result["tax_details"] = tax_details
-        
+
         # Calculate monthly tax
         monthly_tax = annual_tax / MONTHS_PER_YEAR
         result["monthly_tax"] = monthly_tax
-        
+
         # Update slip fields
         update_slip_fields(
-            slip, 
-            {
-                "biaya_jabatan": biaya_jabatan, 
-                "netto": netto, 
-                "pph21": monthly_tax
-            }
+            slip, {"biaya_jabatan": biaya_jabatan, "netto": netto, "pph21": monthly_tax}
         )
-        
+
         # Also update any PPh 21 component
         _update_pph21_component(slip, monthly_tax)
 
         employee_id = getattr(slip, "employee", "unknown")
         logger.debug(f"Monthly PPh calculation for {employee_id}: {result}")
         return result
-        
+
     except Exception as e:
         logger.exception(f"Error calculating monthly PPh: {str(e)}")
         # Set fields to zero in case of error
-        update_slip_fields(
-            slip, 
-            {
-                "biaya_jabatan": 0, 
-                "netto": 0, 
-                "pph21": 0
-            }
-        )
+        update_slip_fields(slip, {"biaya_jabatan": 0, "netto": 0, "pph21": 0})
         return {
             "tax_method": "PROGRESSIVE",
             "tax_status": get_tax_status(slip),
@@ -523,7 +515,7 @@ def calculate_monthly_pph_progressive(slip: Any) -> Dict[str, Any]:
             "annual_tax": 0,
             "monthly_tax": 0,
             "tax_details": [],
-            "error": str(e)
+            "error": str(e),
         }
 
 
@@ -531,10 +523,10 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
     """
     Calculate year-end tax correction for December.
     Uses actual YTD income for more accurate annual tax calculation.
-    
+
     Args:
         slip: The Salary Slip document
-        
+
     Returns:
         Dict[str, Any]: Calculation results
     """
@@ -567,65 +559,64 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
             "tax_details": [],
             "is_december_override": 0,
         }
-        
+
         # Get tax status
         tax_status = get_tax_status(slip)
         result["tax_status"] = tax_status
-        
+
         # Get current values
         current_gross = flt(getattr(slip, "gross_pay", 0))
         current_bpjs = flt(getattr(slip, "total_bpjs", 0))
         result["current_gross"] = current_gross
         result["current_bpjs"] = current_bpjs
-        
+
         # Get YTD values
         ytd = get_ytd_totals(slip)
         result["ytd_gross"] = ytd.get("gross", 0)
         result["ytd_bpjs"] = ytd.get("bpjs", 0)
         result["ytd_tax_paid"] = ytd.get("pph21", 0)
-        
+
         # Calculate annual values
         annual_gross = ytd.get("gross", 0) + current_gross
         annual_bpjs = ytd.get("bpjs", 0) + current_bpjs
         result["annual_gross"] = annual_gross
         result["annual_bpjs"] = annual_bpjs
-        
+
         # Calculate annual biaya jabatan
         annual_biaya_jabatan = min(
-            annual_gross * (BIAYA_JABATAN_PERCENT / 100), 
-            BIAYA_JABATAN_MAX * 12
+            annual_gross * (BIAYA_JABATAN_PERCENT / 100), BIAYA_JABATAN_MAX * 12
         )
         result["annual_biaya_jabatan"] = annual_biaya_jabatan
-        
+
         # Calculate annual netto
         annual_netto = annual_gross - annual_biaya_jabatan - annual_bpjs
         result["annual_netto"] = annual_netto
-        
+
         # Get PTKP
         ptkp = get_ptkp_value(tax_status)
         result["ptkp"] = ptkp
-        
+
         # Calculate PKP
         pkp = max(0, annual_netto - ptkp)
         result["pkp"] = pkp
-        
+
         # Calculate tax
         annual_tax, tax_details = calculate_progressive_tax(pkp)
         result["annual_tax"] = annual_tax
         result["tax_details"] = tax_details
-        
+
         # Calculate correction
         ytd_tax_paid = ytd.get("pph21", 0)
         correction = annual_tax - ytd_tax_paid
         result["correction"] = correction
-        
+
         # Calculate monthly values for display
         monthly_biaya_jabatan = annual_biaya_jabatan / 12
         monthly_netto = annual_netto / 12
-        
+
         # Set December override flag
         result["is_december_override"] = cint(getattr(slip, "is_december_override", 0))
-        
+
         # Update slip fields
         update_slip_fields(
             slip,
@@ -636,14 +627,14 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
                 "pph21": correction,
             },
         )
-        
+
         # Also update any PPh 21 component
         _update_pph21_component(slip, correction)
 
         employee_id = getattr(slip, "employee", "unknown")
         logger.debug(f"December PPh calculation for {employee_id}: {result}")
         return result
-        
+
     except Exception as e:
         logger.exception(f"Error calculating December PPh: {str(e)}")
         # Set fields to zero in case of error
@@ -674,14 +665,14 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
             "correction": 0,
             "tax_details": [],
             "is_december_override": cint(getattr(slip, "is_december_override", 0)),
-            "error": str(e)
+            "error": str(e),
         }
 
 
 def _update_pph21_component(slip: Any, tax_amount: float) -> None:
     """
     Update PPh 21 component in deductions.
-    
+
     Args:
         slip: The Salary Slip document
         tax_amount: The tax amount to set
@@ -689,7 +680,7 @@ def _update_pph21_component(slip: Any, tax_amount: float) -> None:
     try:
         if not hasattr(slip, "deductions"):
             return
-            
+
         for deduction in slip.deductions:
             if getattr(deduction, "salary_component", "") == "PPh 21":
                 deduction.amount = tax_amount
@@ -697,6 +688,41 @@ def _update_pph21_component(slip: Any, tax_amount: float) -> None:
                     f"Updated PPh 21 component to {tax_amount} in slip {getattr(slip, 'name', 'unknown')}"
                 )
                 break
-                
+
     except Exception as e:
         logger.exception(f"Error updating PPh 21 component: {str(e)}")
+
+
+def calculate_monthly_pph_with_ter(
+    *, ter_category: str, gross_pay: float, **kwargs
+) -> Dict[str, Any]:
+    """Calculate monthly PPh 21 using TER category."""
+    from payroll_indonesia.payroll_indonesia.utils import get_ter_rate
+
+    ter_rate = get_ter_rate(ter_category, gross_pay * 12)
+    monthly_tax = gross_pay * ter_rate
+
+    result = {
+        "tax_method": "TER",
+        "ter_category": ter_category,
+        "gross_pay": gross_pay,
+        "annual_taxable_income": gross_pay * 12,
+        "ter_rate": ter_rate,
+        "monthly_tax": monthly_tax,
+    }
+
+    slip = kwargs.get("slip")
+    if slip:
+        update_slip_fields(
+            slip,
+            {
+                "monthly_gross_for_ter": gross_pay,
+                "annual_taxable_income": gross_pay * 12,
+                "ter_category": ter_category,
+                "ter_rate": ter_rate * 100,
+                "is_using_ter": 1,
+                "pph21": monthly_tax,
+            },
+        )
+
+    return result

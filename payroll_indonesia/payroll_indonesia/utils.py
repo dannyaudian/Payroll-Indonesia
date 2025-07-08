@@ -11,6 +11,7 @@ Provides utility functions only, no business logic.
 import json
 import logging
 import functools
+from functools import lru_cache
 import os
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional, TypeVar, cast, Union, List
@@ -33,6 +34,8 @@ __all__ = [
     "write_json_file_if_enabled",
     "cache_get_settings",
     "update_employee_tax_summary",
+    "get_ptkp_to_ter_mapping",
+    "get_ter_rate",
 ]
 
 # Configure logger
@@ -524,6 +527,32 @@ def cache_get_settings():
         logger.debug("Retrieved settings from cache")
 
     return settings
+
+
+@lru_cache(maxsize=1)
+def get_ptkp_to_ter_mapping() -> Dict[str, str]:
+    """Return cached mapping of PTKP status to TER category."""
+    import frappe
+
+    settings = frappe.get_cached_doc("Payroll Indonesia Settings")
+    mapping = {}
+    for row in getattr(settings, "ptkp_ter_mapping_table", []):
+        if row.ptkp_status and row.ter_category:
+            mapping[row.ptkp_status.upper()] = row.ter_category
+
+    return mapping
+
+
+@safe_execute(default_value=0.0)
+def get_ter_rate(category: str, annual_income: float) -> float:
+    """Return TER rate percentage for a category and income."""
+    settings = cache_get_settings()
+    if not settings:
+        return 0.0
+    try:
+        return flt(settings.get_ter_rate(category, annual_income)) / 100.0
+    except Exception:
+        return flt(get_ter_rate_from_child(category, annual_income)) / 100.0
 
 
 @safe_execute(default_value=0.0)
