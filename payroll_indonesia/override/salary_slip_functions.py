@@ -462,19 +462,14 @@ def _get_or_create_tax_row(slip) -> Tuple[Any, Any]:
     Returns:
         Tuple containing (child row, parent doc)
     """
-    # Get employee and company
+    # Determine employee and tax year
     employee = slip.employee
-    company = slip.company
+    if hasattr(slip, "start_date") and slip.start_date:
+        year = getdate(slip.start_date).year
+    else:
+        year = getdate(slip.posting_date).year
 
-    # Derive fiscal year from start_date if not present
-    fiscal_year = getattr(slip, "fiscal_year", None)
-    if not fiscal_year and hasattr(slip, "start_date"):
-        fiscal_year = getdate(slip.start_date).year
-
-    if not fiscal_year:
-        fiscal_year = getdate(slip.posting_date).year
-
-    filters = {"employee": employee, "company": company, "fiscal_year": fiscal_year}
+    filters = {"employee": employee, "year": year}
 
     summary_name = frappe.db.get_value("Employee Tax Summary", filters)
 
@@ -483,12 +478,11 @@ def _get_or_create_tax_row(slip) -> Tuple[Any, Any]:
     else:
         summary = frappe.new_doc("Employee Tax Summary")
         summary.employee = employee
-        summary.company = company
-        summary.fiscal_year = fiscal_year
+        summary.year = year
 
     # Find or create the monthly detail row
     month = getattr(slip, "month", None)
-    if not month and hasattr(slip, "start_date"):
+    if not month and hasattr(slip, "start_date") and slip.start_date:
         month = getdate(slip.start_date).month
 
     if not month:
@@ -503,7 +497,14 @@ def _get_or_create_tax_row(slip) -> Tuple[Any, Any]:
     if not row:
         row = summary.append(
             "monthly_details",
-            {"month": month, "taxable_income": 0, "tax_withheld": 0, "bpjs_employer_share": 0},
+            {
+                "month": month,
+                "gross_pay": 0,
+                "tax_amount": 0,
+                "bpjs_deductions_employee": 0,
+                "bpjs_deductions": 0,
+                "other_deductions": 0,
+            },
         )
 
     return row, summary
@@ -516,29 +517,51 @@ def update_tax_summary(slip) -> None:
     Args:
         slip: The Salary Slip document
     """
-    if not slip.employee or not slip.company:
+    if not slip.employee:
         return
 
     try:
         # Get or create tax summary row
         row, parent = _get_or_create_tax_row(slip)
 
-        # Update taxable income and tax withheld
-        row.taxable_income = flt(slip.gross_pay) or 0
-        row.tax_withheld = _get_component_amount(slip, "PPh 21")
+        # Calculate deduction values
+        tax_amount = 0
+        bpjs_deductions = 0
+        other_deductions = 0
 
-        # Calculate employer BPJS share
-        employer_share = sum(
-            _get_component_amount(slip, component) for component in EMPLOYER_COMPONENTS
-        )
+        if hasattr(slip, "deductions"):
+            for deduction in slip.deductions:
+                if deduction.salary_component == "PPh 21":
+                    tax_amount = flt(deduction.amount)
+                elif deduction.salary_component in [
+                    "BPJS JHT Employee",
+                    "BPJS JP Employee",
+                    "BPJS Kesehatan Employee",
+                ]:
+                    bpjs_deductions += flt(deduction.amount)
+                else:
+                    other_deductions += flt(deduction.amount)
 
-        # Update employer share
-        row.bpjs_employer_share = employer_share
+        row.gross_pay = flt(getattr(slip, "gross_pay", 0))
+        row.tax_amount = tax_amount
+        if hasattr(row, "bpjs_deductions"):
+            row.bpjs_deductions = bpjs_deductions
+        if hasattr(row, "bpjs_deductions_employee"):
+            row.bpjs_deductions_employee = bpjs_deductions
+        if hasattr(row, "other_deductions"):
+            row.other_deductions = other_deductions
+        if hasattr(row, "salary_slip"):
+            row.salary_slip = slip.name
+
+        if hasattr(row, "is_using_ter") and hasattr(slip, "is_using_ter"):
+            row.is_using_ter = cint(slip.is_using_ter)
+        if hasattr(row, "ter_rate") and hasattr(slip, "ter_rate"):
+            row.ter_rate = flt(slip.ter_rate)
 
         # Save the documents
         parent.save(ignore_permissions=True)
 
-        logger.info(f"Tax summary updated for {slip.employee} - {row.month}/{parent.fiscal_year}")
+        logger.info(f"Tax summary updated for {slip.employee} - {row.month}/{parent.year}")
 
     except Exception as e:
         logger.exception(f"Error updating tax summary for {slip.employee}: {e}")
