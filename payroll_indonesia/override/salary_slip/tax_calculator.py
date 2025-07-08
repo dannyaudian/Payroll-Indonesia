@@ -699,7 +699,8 @@ def calculate_monthly_pph_with_ter(
     """Calculate monthly PPh 21 using TER category."""
     from payroll_indonesia.payroll_indonesia.utils import get_ter_rate
 
-    ter_rate = get_ter_rate(ter_category, gross_pay * 12)
+    # Use gross_pay directly (monthly amount) to get the correct TER rate
+    ter_rate = get_ter_rate(ter_category, gross_pay)  
     monthly_tax = gross_pay * ter_rate
 
     result = {
