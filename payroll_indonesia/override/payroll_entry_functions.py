@@ -296,6 +296,14 @@ def submit_salary_slips(slip_names: List[str]) -> Tuple[List[str], List[str]]:
             logger.info(f"Submitted salary slip {slip_name}")
 
             frappe.db.commit()
+        except frappe.DoesNotExistError:
+            frappe.db.rollback()
+            logger.error("Salary Slip %s not found", slip_name)
+            failed.append(slip_name)
+        except frappe.ValidationError as e:
+            frappe.db.rollback()
+            logger.error("Validation error for %s: %s", slip_name, e)
+            failed.append(slip_name)
         except Exception as e:
             frappe.db.rollback()
             logger.exception(f"Error submitting slip {slip_name}: {e}")
