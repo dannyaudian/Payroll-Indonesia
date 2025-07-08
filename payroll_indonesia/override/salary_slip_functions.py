@@ -22,10 +22,10 @@ from payroll_indonesia.payroll_indonesia.utils import (
     get_status_pajak,
 )
 from payroll_indonesia.constants import BIAYA_JABATAN_PERCENT, BIAYA_JABATAN_MAX
-from payroll_indonesia.override.salary_slip.ter_calculator import calculate_monthly_pph_with_ter
 from payroll_indonesia.override.salary_slip.tax_calculator import (
     calculate_monthly_pph_progressive,
     calculate_december_pph,
+    calculate_monthly_pph_with_ter,
 )
 
 # Set up logger
