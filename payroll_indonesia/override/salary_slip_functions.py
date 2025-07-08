@@ -109,7 +109,17 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
     mapping = get_ptkp_to_ter_mapping()
     status_raw = str(getattr(doc, "status_pajak", "")).upper()
     ter_category = mapping.get(status_raw, "")
+
     is_ter_employee = bool(ter_category)
+
+    logger.warning(
+        "PPh21 route-check — slip=%s | status_raw=%s | ter_cat=%s | is_ter=%s | use_ter=%s",
+        doc.name,
+        status_raw,
+        ter_category,
+        is_ter_employee,
+        settings.use_ter,
+    )
 
     # Log key TER-related values for easier debugging of tax calculation logic
     logger.info(
