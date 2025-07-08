@@ -303,6 +303,12 @@ class TestPayrollIntegration(unittest.TestCase):
         salary_slip.append("earnings", {"salary_component": "Basic Salary", "amount": 15000000})
 
         salary_slip.gross_pay = 15000000
+
+        if hasattr(salary_slip, "tax_calculation_method"):
+            salary_slip.tax_calculation_method = "Manual"
+        if hasattr(salary_slip, "income_tax_slab"):
+            salary_slip.income_tax_slab = None
+
         salary_slip.insert()
 
         # Calculate tax components
@@ -384,6 +390,12 @@ class TestPayrollIntegration(unittest.TestCase):
         salary_slip.append("earnings", {"salary_component": "Basic Salary", "amount": 15000000})
 
         salary_slip.gross_pay = 15000000
+
+        if hasattr(salary_slip, "tax_calculation_method"):
+            salary_slip.tax_calculation_method = "Manual"
+        if hasattr(salary_slip, "income_tax_slab"):
+            salary_slip.income_tax_slab = None
+
         salary_slip.insert()
 
         # Calculate tax components
@@ -459,6 +471,12 @@ class TestPayrollIntegration(unittest.TestCase):
         salary_slip.append("earnings", {"salary_component": "Basic Salary", "amount": 15000000})
 
         salary_slip.gross_pay = 15000000
+
+        if hasattr(salary_slip, "tax_calculation_method"):
+            salary_slip.tax_calculation_method = "Manual"
+        if hasattr(salary_slip, "income_tax_slab"):
+            salary_slip.income_tax_slab = None
+
         salary_slip.insert()
 
         # Calculate tax components

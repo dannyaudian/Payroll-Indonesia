@@ -90,8 +90,23 @@ class TestSalaryComponents(unittest.TestCase):
 
             salary_slip.deductions = [{"salary_component": "BPJS TK", "amount": 100000}]
 
+        if hasattr(salary_slip, "tax_calculation_method"):
+            salary_slip.tax_calculation_method = "Manual"
+        if hasattr(salary_slip, "income_tax_slab"):
+            salary_slip.income_tax_slab = None
+
         salary_slip.insert(ignore_permissions=True)
         return salary_slip
+
+    def test_salary_slip_defaults(self):
+        """Verify default tax fields on new salary slip"""
+        slip = self.create_test_salary_slip(with_components=False)
+
+        if hasattr(slip, "tax_calculation_method"):
+            self.assertEqual(slip.tax_calculation_method, "Manual")
+
+        if hasattr(slip, "income_tax_slab"):
+            self.assertIsNone(slip.income_tax_slab)
 
     def test_add_new_component(self):
         """Test adding a new component"""

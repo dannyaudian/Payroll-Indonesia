@@ -86,7 +86,14 @@ class TestYTDCalculations(unittest.TestCase):
                         1 if status == "Submitted" else (2 if status == "Cancelled" else 0)
                     ),
                 }
-            ).insert(ignore_permissions=True)
+            )
+
+            if hasattr(slip, "tax_calculation_method"):
+                slip.tax_calculation_method = "Manual"
+            if hasattr(slip, "income_tax_slab"):
+                slip.income_tax_slab = None
+
+            slip.insert(ignore_permissions=True)
 
             cls.salary_slips.append(slip)
 

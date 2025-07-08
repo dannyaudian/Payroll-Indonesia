@@ -64,6 +64,12 @@ class TestTERCalculator(unittest.TestCase):
                 "gross_pay": 10000000,  # 10 juta rupiah
             }
         )
+
+        if hasattr(salary_slip, "tax_calculation_method"):
+            salary_slip.tax_calculation_method = "Manual"
+        if hasattr(salary_slip, "income_tax_slab"):
+            salary_slip.income_tax_slab = None
+
         salary_slip.insert(ignore_permissions=True)
         cls.test_salary_slip = salary_slip
 
