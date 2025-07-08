@@ -17,7 +17,10 @@ from frappe.utils import flt, cint, getdate
 
 from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.payroll_indonesia import utils as pi_utils
-from payroll_indonesia.payroll_indonesia.utils import get_ptkp_to_ter_mapping
+from payroll_indonesia.payroll_indonesia.utils import (
+    get_ptkp_to_ter_mapping,
+    get_status_pajak,
+)
 from payroll_indonesia.constants import BIAYA_JABATAN_PERCENT, BIAYA_JABATAN_MAX
 from payroll_indonesia.override.salary_slip.ter_calculator import calculate_monthly_pph_with_ter
 from payroll_indonesia.override.salary_slip.tax_calculator import (
@@ -104,21 +107,16 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
         doc.gross_pay = _calculate_gross_pay(doc)
         logger.debug(f"Calculated gross pay: {doc.gross_pay}")
 
-    # Determine TER eligibility
+    # Determine TER eligibility using the new approach
     settings = frappe.get_cached_doc("Payroll Indonesia Settings")
+    status_raw = get_status_pajak(doc)  # already uppercase
     mapping = get_ptkp_to_ter_mapping()
-    status_raw = str(getattr(doc, "status_pajak", "")).upper()
     ter_category = mapping.get(status_raw, "")
-
     is_ter_employee = bool(ter_category)
 
     logger.warning(
-        "PPh21 route-check — slip=%s | status_raw=%s | ter_cat=%s | is_ter=%s | use_ter=%s",
-        doc.name,
-        status_raw,
-        ter_category,
-        is_ter_employee,
-        settings.use_ter,
+        "PPh21 route — slip=%s | status=%s | ter_cat=%s | is_ter=%s | use_ter=%s",
+        doc.name, status_raw, ter_category, is_ter_employee, settings.use_ter
     )
 
     # Log key TER-related values for easier debugging of tax calculation logic
