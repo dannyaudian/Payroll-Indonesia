@@ -170,6 +170,12 @@ def create_salary_slip(employee_data: Dict[str, Any], entry: Any) -> str:
     if salary_structure:
         slip.salary_structure = salary_structure
 
+    # Override automatic tax fields
+    if hasattr(slip, "tax_calculation_method"):
+        slip.tax_calculation_method = "Manual"
+    if hasattr(slip, "income_tax_slab"):
+        slip.income_tax_slab = None
+
     # Set December override flag
     slip.is_december_override = 1 if is_december_calculation(entry) else 0
 
