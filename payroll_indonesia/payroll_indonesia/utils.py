@@ -625,31 +625,31 @@ def update_employee_tax_summary(employee: str, salary_slip: str) -> Optional[str
 def get_status_pajak(doc) -> str:
     """
     Get tax status (status_pajak) from a document with fallback to Employee.
-    
+
     Args:
         doc: Salary Slip or Employee document
-        
+
     Returns:
         str: Uppercase tax status (PTKP code)
     """
     import frappe
-    
+
     # If document has status_pajak field directly, use it
     if hasattr(doc, "status_pajak") and doc.status_pajak:
         return doc.status_pajak.upper()
-    
+
     # Handle Salary Slip case - fetch from employee
     if hasattr(doc, "doctype") and doc.doctype == "Salary Slip" and doc.employee:
         employee_doc = frappe.get_cached_doc("Employee", doc.employee)
         if hasattr(employee_doc, "status_pajak") and employee_doc.status_pajak:
             return employee_doc.status_pajak.upper()
-    
+
     # If doc is employee name/ID string, fetch the employee
     if isinstance(doc, str) and frappe.db.exists("Employee", doc):
         employee_doc = frappe.get_cached_doc("Employee", doc)
         if hasattr(employee_doc, "status_pajak") and employee_doc.status_pajak:
             return employee_doc.status_pajak.upper()
-    
+
     # Default fallback
     logger.warning(f"Could not determine status_pajak for document: {doc}")
     return ""

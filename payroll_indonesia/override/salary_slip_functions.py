@@ -116,7 +116,11 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
 
     logger.warning(
         "PPh21 route — slip=%s | status=%s | ter_cat=%s | is_ter=%s | use_ter=%s",
-        doc.name, status_raw, ter_category, is_ter_employee, settings.use_ter
+        doc.name,
+        status_raw,
+        ter_category,
+        is_ter_employee,
+        settings.use_ter,
     )
 
     # Log key TER-related values for easier debugging of tax calculation logic

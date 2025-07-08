@@ -86,9 +86,7 @@ def check_salary_structure_tax_method():
     logger.info(f"\nFound {len(structures)} active Salary Structures:")
     for idx, ss in enumerate(structures, 1):
         logger.info(f"{idx}. {ss.name}")
-        logger.info(
-            f"   - Tax Calculation Method: {ss.tax_calculation_method or 'None'}"
-        )
+        logger.info(f"   - Tax Calculation Method: {ss.tax_calculation_method or 'None'}")
         logger.info(f"   - Income Tax Slab: {ss.income_tax_slab or 'None'}")
         logger.info("")
 
@@ -288,9 +286,7 @@ def clean_obsolete_bpjs_docs():
                     # Then delete the DocType itself
                     frappe.delete_doc("DocType", doctype, force=1, ignore_permissions=True)
                     results["doctypes_deleted"].append(doctype)
-                    logger.info(
-                        f"[{timestamp}] Successfully deleted obsolete DocType: {doctype}"
-                    )
+                    logger.info(f"[{timestamp}] Successfully deleted obsolete DocType: {doctype}")
             except Exception as e:
                 error_msg = f"Error deleting DocType {doctype}: {str(e)}"
                 results["errors"].append(error_msg)

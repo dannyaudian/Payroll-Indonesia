@@ -28,7 +28,9 @@ def test_post_submit_updates_existing_history(monkeypatch):
     # Minimal Document class for frappe.model.document import
     model_module = types.ModuleType("frappe.model")
     document_module = types.ModuleType("frappe.model.document")
+
     class Document: ...
+
     document_module.Document = Document
 
     sys.modules["frappe.model"] = model_module
@@ -61,6 +63,7 @@ def test_post_submit_updates_existing_history(monkeypatch):
     sys.modules["payroll_indonesia.payroll_indonesia.utils"] = pi_utils
 
     import importlib
+
     ssf = importlib.import_module("payroll_indonesia.override.salary_slip_functions")
 
     class DummyHistory:
@@ -68,6 +71,7 @@ def test_post_submit_updates_existing_history(monkeypatch):
             self.ytd_gross = 0
             self.ytd_tax = 0
             self.flags = types.SimpleNamespace()
+
         def save(self):
             self.saved = True
 
@@ -76,8 +80,13 @@ def test_post_submit_updates_existing_history(monkeypatch):
     frappe.get_doc.return_value = existing
 
     slip = MagicMock(
-        name="SS-001", employee="EMP-1", posting_date="2025-01-31",
-        gross_pay=1000, pph21=50, deductions=[], docstatus=1
+        name="SS-001",
+        employee="EMP-1",
+        posting_date="2025-01-31",
+        gross_pay=1000,
+        pph21=50,
+        deductions=[],
+        docstatus=1,
     )
 
     monkeypatch.setattr(ssf, "calculate_employer_contributions", lambda doc: {})
@@ -89,4 +98,3 @@ def test_post_submit_updates_existing_history(monkeypatch):
     assert existing.ytd_gross == 1000
     assert existing.ytd_tax == 50
     assert getattr(existing, "saved", False)
-

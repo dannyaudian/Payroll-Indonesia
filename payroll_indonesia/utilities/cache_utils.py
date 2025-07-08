@@ -123,9 +123,7 @@ class CacheManager:
 
         # Log if debug mode is on
         if frappe.conf.get("developer_mode"):
-            logger.debug(
-                f"Cached value for key: {cache_key}, namespace: {namespace}, TTL: {ttl}s"
-            )
+            logger.debug(f"Cached value for key: {cache_key}, namespace: {namespace}, TTL: {ttl}s")
 
     @classmethod
     def delete(cls, cache_key: str) -> None:
@@ -176,9 +174,7 @@ class CacheManager:
         # Update clear timestamp for namespace
         cls._clear_timestamps[namespace] = now_datetime()
 
-        logger.info(
-            f"Cache cleared for prefix: {prefix}, keys cleared: {len(keys_to_delete)}"
-        )
+        logger.info(f"Cache cleared for prefix: {prefix}, keys cleared: {len(keys_to_delete)}")
         return len(keys_to_delete)
 
     @classmethod
@@ -246,9 +242,7 @@ class CacheManager:
 
             # Update timestamp
             cls._clear_timestamps[namespace] = now
-            logger.debug(
-                f"Auto-cleared cache namespace: {namespace}, keys: {len(keys_to_delete)}"
-            )
+            logger.debug(f"Auto-cleared cache namespace: {namespace}, keys: {len(keys_to_delete)}")
 
     @staticmethod
     def _normalize_key(obj: Any) -> str:
@@ -279,11 +273,11 @@ class CacheManager:
 def get_cache(key: str, default: Any = None) -> Any:
     """
     Get a value from frappe.cache(), fallback to in-memory if unavailable.
-    
+
     Args:
         key: Cache key
         default: Default value to return if key not found
-        
+
     Returns:
         Cached value or default if not found
     """
@@ -295,7 +289,7 @@ def get_cache(key: str, default: Any = None) -> Any:
             return value
     except Exception:
         pass
-    
+
     # Fallback to in-memory cache or return default
     memory_value = CacheManager.get(key)
     return memory_value if memory_value is not None else default
@@ -304,7 +298,7 @@ def get_cache(key: str, default: Any = None) -> Any:
 def set_cache(key: str, val: Any, ttl: int = 3600) -> None:
     """
     Store a value in cache with expiry time.
-    
+
     Args:
         key: Cache key
         val: Value to cache
@@ -316,7 +310,7 @@ def set_cache(key: str, val: Any, ttl: int = 3600) -> None:
             logger.debug(f"frappe.cache() set for key: {key}")
     except Exception:
         pass
-    
+
     # Also store in memory cache
     CacheManager.set(key, val, ttl)
 
@@ -324,7 +318,7 @@ def set_cache(key: str, val: Any, ttl: int = 3600) -> None:
 def delete_cache(key: str) -> None:
     """
     Delete a value from cache.
-    
+
     Args:
         key: Cache key to delete
     """
@@ -334,7 +328,7 @@ def delete_cache(key: str) -> None:
             logger.debug(f"frappe.cache() delete for key: {key}")
     except Exception:
         pass
-    
+
     # Also delete from memory cache
     CacheManager.delete(key)
 
@@ -342,10 +336,10 @@ def delete_cache(key: str) -> None:
 def clear_pattern(pattern: str) -> Union[int, None]:
     """
     Delete cache keys based on a wildcard pattern.
-    
+
     Args:
         pattern: Redis-style pattern to match keys (e.g., "user:*")
-        
+
     Returns:
         Number of keys cleared or None
     """
@@ -355,7 +349,7 @@ def clear_pattern(pattern: str) -> Union[int, None]:
         logger.info("Cache cleared for pattern %s", pattern)
     except Exception as e:
         logger.warning(f"Error clearing cache pattern {pattern}: {str(e)}")
-    
+
     # Also clear from memory cache
     try:
         count = clear_cache(pattern)
@@ -403,6 +397,7 @@ def memoize_with_ttl(ttl=None, namespace=None):
     Returns:
         function: Decorated function with caching
     """
+
     def decorator(func):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
