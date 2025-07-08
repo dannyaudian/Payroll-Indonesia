@@ -16,6 +16,7 @@ from functools import lru_cache
 from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.constants import (
     MONTHS_PER_YEAR,
+    TER_MONTHS,
     TER_CATEGORY_A,
     TER_CATEGORY_B,
     TER_CATEGORY_C,
@@ -203,8 +204,8 @@ def calculate_monthly_pph_with_ter(slip: Any) -> Dict[str, Any]:
             f"for employee {getattr(slip, 'employee', 'unknown')}"
         )
 
-    # Calculate annual taxable income
-    annual_taxable_income = gross_pay * MONTHS_PER_YEAR
+    # Calculate annual taxable income based on TER months
+    annual_taxable_income = gross_pay * TER_MONTHS
 
     # Get TER rate based on tax status and income
     ter_rate = get_ter_rate(tax_status, gross_pay)
