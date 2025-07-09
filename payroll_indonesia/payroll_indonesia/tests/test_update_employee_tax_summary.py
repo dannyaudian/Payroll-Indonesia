@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 import unittest
 from unittest.mock import patch
+import pytest
 
+frappe = pytest.importorskip("frappe")
 from payroll_indonesia.payroll_indonesia import utils
 
 

@@ -400,6 +400,16 @@ def _set_payroll_note(doc) -> None:
         logger.debug(f"Set payroll note for {doc.name}")
 
 
+def calculate_employer_contributions(doc) -> Dict[str, float]:
+    """Placeholder for employer contribution calculation."""
+    return {}
+
+
+def store_employer_contributions(doc, contributions: Dict[str, float]) -> None:
+    """Placeholder for storing employer contributions."""
+    return None
+
+
 def salary_slip_post_submit(doc, method: Optional[str] = None) -> None:
     """
     Process salary slip after submission.
