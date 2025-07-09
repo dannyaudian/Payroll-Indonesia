@@ -183,7 +183,7 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
         logger.exception(f"Error updating component amounts for {doc.name}: {e}")
 
     # Update tax summary
-    update_tax_summary(doc)
+    update_tax_summary(doc.name)
 
     # Update totals after modifying components
     try:
@@ -533,13 +533,15 @@ def _get_or_create_tax_row(slip) -> Tuple[Any, Any]:
     return row, summary
 
 
-def update_tax_summary(slip) -> None:
+def update_tax_summary(slip_name: str) -> None:
     """
     Update Employee Tax Summary with salary slip data.
 
     Args:
-        slip: The Salary Slip document
+        slip_name: Name of the Salary Slip document
     """
+    slip = frappe.get_doc("Salary Slip", slip_name)
+
     if not slip.employee:
         return
 
@@ -598,7 +600,7 @@ def enqueue_tax_summary_update(doc) -> None:
             queue="long",
             job_name=f"tax_summary_update_{doc.name}",
             enqueue_after_commit=True,
-            slip=doc,
+            slip_name=doc.name,
         )
     except Exception:
         logger.exception("Failed to enqueue tax summary update")
