@@ -59,6 +59,19 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         """
         return frappe._dict({"allow_tax_exemption": 0})
 
+    def ensure_tax_slab(self) -> None:
+        """Ensure ``self.tax_slab`` is a mapping with ``allow_tax_exemption``."""
+        from collections.abc import Mapping
+
+        tax_slab = getattr(self, "tax_slab", None)
+        if not isinstance(tax_slab, Mapping):
+            self.tax_slab = frappe._dict({"allow_tax_exemption": 0})
+
+    def validate(self):
+        """Validate salary slip ensuring tax slab compatibility."""
+        self.ensure_tax_slab()
+        super().validate()
+
     def calculate_income_tax(self, payroll_period=None, tax_component=None):
         """
         Override income tax calculation to use Indonesian PPh 21 calculation.
@@ -218,5 +231,14 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             self.pph21 = pph21_component.amount
         else:
             result = tax_calc.calculate_monthly_pph_progressive(self)
-            pph21_component.amount = result.get("monthly_tax", 0.0)
-            self.pph21 = pph21_component.amount
+            pph21_component.amount = result.get("monthly_tax", 0.0)            self.pph21 = pph21_component.amount
+
+    def calculate_net_pay(self, *args, **kwargs):
+        """Ensure tax slab before net pay calculation."""
+        self.ensure_tax_slab()
+        return super().calculate_net_pay(*args, **kwargs)
+
+    def compute_taxable_earnings_for_year(self, *args, **kwargs):
+        """Ensure tax slab before computing taxable earnings for year."""
+        self.ensure_tax_slab()
+        return super().compute_taxable_earnings_for_year(*args, **kwargs)
