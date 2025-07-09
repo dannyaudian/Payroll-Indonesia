@@ -626,7 +626,7 @@ def get_ter_rate_from_child(category: str, annual_income: float) -> float:
 @safe_execute(default_value=None)
 def update_employee_tax_summary(employee: str, salary_slip: str) -> Optional[str]:
     """Wrapper to update Employee Tax Summary from a Salary Slip."""
-    from payroll_indonesia.payroll_indonesia.doctype.employee_tax_summary.employee_tax_summary import (
+    from payroll_indonesia.doctype.employee_tax_summary.employee_tax_summary import (
         create_from_salary_slip,
     )
 

@@ -535,7 +535,7 @@ def run_payroll_integration_tests():
         {
             "tests": [
                 {
-                    "module_name": "payroll_indonesia.payroll_indonesia.tests.test_payroll_integration",
+                    "module_name": "payroll_indonesia.tests.test_payroll_integration",
                     "test_name": "TestPayrollIntegration",
                 }
             ]

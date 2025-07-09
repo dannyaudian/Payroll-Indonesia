@@ -30,8 +30,8 @@ import logging
 from typing import Dict, List, Any, Optional
 
 import payroll_indonesia.override.salary_slip.tax_calculator as tax_calc
-from payroll_indonesia.payroll_indonesia.utils import get_status_pajak
-from payroll_indonesia.payroll_indonesia.utils import get_ptkp_to_ter_mapping, get_ter_rate
+from payroll_indonesia.utils import get_status_pajak
+from payroll_indonesia.utils import get_ptkp_to_ter_mapping, get_ter_rate
 
 logger = logging.getLogger(__name__)
 

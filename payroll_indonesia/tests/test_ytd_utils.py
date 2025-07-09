@@ -7,7 +7,7 @@ import pytest
 
 frappe = pytest.importorskip("frappe")
 from frappe.utils import flt, getdate, add_months, get_first_day, get_last_day
-from payroll_indonesia.payroll_indonesia.utils import (
+from payroll_indonesia.utils import (
     get_ytd_total_taxable_income,
     get_ytd_pph_paid,
     clear_ytd_cache,
@@ -241,7 +241,7 @@ def run_ytd_utils_tests():
         {
             "tests": [
                 {
-                    "module_name": "payroll_indonesia.payroll_indonesia.tests.test_ytd_utils",
+                    "module_name": "payroll_indonesia.tests.test_ytd_utils",
                     "test_name": "TestYTDCalculations",
                 }
             ]

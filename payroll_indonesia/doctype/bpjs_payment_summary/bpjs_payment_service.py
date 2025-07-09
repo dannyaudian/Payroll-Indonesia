@@ -19,7 +19,7 @@ from frappe import _
 from frappe.utils import cint, flt, get_datetime, today, now_datetime
 
 # Import the core service
-from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_summary_service_core import (
+from payroll_indonesia.doctype.bpjs_payment_summary.payment_summary_service_core import (
     PaymentSummaryService,
 )
 

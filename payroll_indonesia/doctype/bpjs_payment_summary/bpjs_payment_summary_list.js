@@ -79,7 +79,7 @@ frappe.listview_settings['BPJS Payment Summary'] = {
                     
                     // Call server method to create payment entry
                     frappe.call({
-                        method: 'payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_api.create_payment_entry',
+                        method: 'payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_api.create_payment_entry',
                         args: {
                             summary: doc.name
                         },

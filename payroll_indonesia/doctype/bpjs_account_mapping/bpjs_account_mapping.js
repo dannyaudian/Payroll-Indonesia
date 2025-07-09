@@ -75,7 +75,7 @@ async function validate_create_journal_entry(frm) {
     
     try {
         const result = await frappe.call({
-            method: 'payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.test_create_journal_entry',
+            method: 'payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.test_create_journal_entry',
             args: {
                 mapping_name: frm.doc.name,
                 bpjs_component: values.bpjs_component

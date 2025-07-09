@@ -19,7 +19,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, get_datetime, today, now_datetime
 
-from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_utils import (
+from payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_utils import (
     safe_decimal,
     format_reference,
     get_month_name,

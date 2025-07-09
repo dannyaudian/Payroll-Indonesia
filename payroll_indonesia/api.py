@@ -24,7 +24,7 @@ from frappe import _
 from frappe.utils import cint, flt, get_datetime
 
 # Payroll Indonesia imports
-from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_services import (
+from payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_services import (
     BPJSPaymentService,
     get_employee_bpjs_details,
     get_summary_for_period,

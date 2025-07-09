@@ -18,8 +18,8 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, cint, now, get_site_path
 
-from payroll_indonesia.payroll_indonesia.validations import validate_bpjs_components
-from payroll_indonesia.payroll_indonesia import utils
+from payroll_indonesia.validations import validate_bpjs_components
+from payroll_indonesia import utils
 
 # Configure logger
 logger = logging.getLogger(__name__)

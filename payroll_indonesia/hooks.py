@@ -40,20 +40,20 @@ doc_events = {
         "after_insert": "payroll_indonesia.override.salary_slip_functions.initialize_fields",
     },
     "BPJS Account Mapping": {
-        "validate": "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.validate",
-        "on_update": "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.on_update",
+        "validate": "payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.validate",
+        "on_update": "payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.on_update",
     },
     "BPJS Payment Summary": {
-        "validate": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.validate",
-        "on_submit": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.on_submit",
-        "on_cancel": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.on_cancel",
+        "validate": "payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.validate",
+        "on_submit": "payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.on_submit",
+        "on_cancel": "payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.on_cancel",
     },
     "Company": {
         "after_insert": "payroll_indonesia.fixtures.setup.setup_company_accounts",
         "on_update": "payroll_indonesia.fixtures.setup.setup_company_accounts",
     },
     "Payment Entry": {
-        "on_submit": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_hooks.on_payment_entry_submit",
+        "on_submit": "payroll_indonesia.doctype.bpjs_payment_summary.payment_hooks.on_payment_entry_submit",
     },
 }
 
@@ -161,10 +161,10 @@ jinja = {
         "payroll_indonesia.config.config.get_live_config",
         # Tax calculation methods
         "payroll_indonesia.override.salary_slip.tax_calculator.get_ptkp_value",
-        "payroll_indonesia.payroll_indonesia.utils.get_ter_rate_for_template",
+        "payroll_indonesia.utils.get_ter_rate_for_template",
         # BPJS methods
         "payroll_indonesia.override.salary_slip.bpjs_calculator.calculate_components",
-        "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.get_mapping_for_company",
+        "payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.get_mapping_for_company",
         # YTD methods
         "payroll_indonesia.override.salary_slip.salary_utils.calculate_ytd_and_ytm",
     ]
@@ -173,15 +173,15 @@ jinja = {
 # Whitelist for client-side API calls
 whitelist_methods = [
     # BPJS Payment API
-    "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_api.create_payment_entry",
-    "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_api.get_employee_bpjs_details",
-    "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_api.get_summary_for_period",
-    "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_api.get_bpjs_suppliers",
+    "payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_api.create_payment_entry",
+    "payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_api.get_employee_bpjs_details",
+    "payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_api.get_summary_for_period",
+    "payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_api.get_bpjs_suppliers",
     # Tax Summary API
-    "payroll_indonesia.payroll_indonesia.doctype.employee_tax_summary.employee_tax_summary.get_ytd_data_until_month",
+    "payroll_indonesia.doctype.employee_tax_summary.employee_tax_summary.get_ytd_data_until_month",
     # BPJS Account API
-    "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.get_mapping_for_company",
-    "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.create_default_mapping",
+    "payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.get_mapping_for_company",
+    "payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.create_default_mapping",
     # API endpoints
     "payroll_indonesia.api.get_employee",
     "payroll_indonesia.api.get_salary_slip",

@@ -2,7 +2,7 @@ import unittest
 import pytest
 
 frappe = pytest.importorskip("frappe")
-from payroll_indonesia.payroll_indonesia.utils import get_ptkp_to_ter_mapping
+from payroll_indonesia.utils import get_ptkp_to_ter_mapping
 
 
 class TestTaxUtils(unittest.TestCase):

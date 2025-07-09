@@ -43,6 +43,6 @@ bench --site test.local set-config developer_mode 1
 bench --site test.local run-tests --app payroll_indonesia
 ```
 
-This command will launch `pytest` with Frappe's test runner so all tests in `payroll_indonesia/payroll_indonesia/tests` are executed against the created site.
+This command will launch `pytest` with Frappe's test runner so all tests in `payroll_indonesia/tests` are executed against the created site.
 
 
