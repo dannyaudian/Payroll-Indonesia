@@ -990,5 +990,4 @@ def _run_tests():
 
 
 # Only run tests in development mode
-if frappe.conf.get("developer_mode") and __name__ == "__main__":
-    _run_tests()
+if frappe.conf.get("developer_mode") and __name__ == "__main__":    _run_tests()
