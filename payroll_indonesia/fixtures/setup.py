@@ -740,6 +740,10 @@ def setup_default_salary_structure():
         logger.error(f"Error setting up default salary structure: {str(e)}")
         raise
 
+def setup_company_accounts(doc, method=None):
+	# Dummy function untuk menghindari error pada setup wizard
+	# Kamu bisa isi logic tambahan di sini kalau perlu, misalnya auto create account atau setting
+	frappe.logger().info(f"[PAYROLL] setup_company_accounts triggered for: {doc.name}")
 
 def display_installation_summary(results, config):
     """
