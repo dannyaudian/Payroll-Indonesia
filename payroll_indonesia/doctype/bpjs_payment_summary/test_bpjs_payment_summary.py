@@ -7,7 +7,7 @@ import pytest
 
 frappe = pytest.importorskip("frappe")
 from frappe.utils import getdate, add_months, get_first_day, get_last_day, flt, add_days
-from payroll_indonesia.override.salary_slip.tax_calculator import calculate_tax_components
+from ...override.salary_slip.tax_calculator import calculate_tax_components
 
 # from payroll_indonesia.override.salary_slip.ter_calculator import calculate_monthly_pph_with_ter
 # from payroll_indonesia.override.salary_slip.gl_entry_override import make_gl_entries
@@ -535,7 +535,7 @@ def run_payroll_integration_tests():
         {
             "tests": [
                 {
-                    "module_name": "payroll_indonesia.tests.test_payroll_integration",
+                    "module_name": "payroll_indonesia.doctype.bpjs_payment_summary.test_bpjs_payment_summary",
                     "test_name": "TestPayrollIntegration",
                 }
             ]
