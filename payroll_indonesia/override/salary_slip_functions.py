@@ -22,10 +22,10 @@ from payroll_indonesia.payroll_indonesia.utils import (
     get_status_pajak,
 )
 from payroll_indonesia.constants import BIAYA_JABATAN_PERCENT, BIAYA_JABATAN_MAX
-from payroll_indonesia.override.salary_slip.ter_calculator import calculate_monthly_pph_with_ter
 from payroll_indonesia.override.salary_slip.tax_calculator import (
     calculate_monthly_pph_progressive,
     calculate_december_pph,
+    calculate_monthly_pph_with_ter,
 )
 
 # Set up logger
@@ -45,6 +45,7 @@ EMPLOYER_COMPONENTS = (
 
 # Define public API
 __all__ = [
+    "enqueue_tax_summary_update",
     "update_tax_summary",
     "update_employee_history",  # alias
     "update_component_amount",
@@ -116,7 +117,11 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
 
     logger.warning(
         "PPh21 route — slip=%s | status=%s | ter_cat=%s | is_ter=%s | use_ter=%s",
-        doc.name, status_raw, ter_category, is_ter_employee, settings.use_ter
+        doc.name,
+        status_raw,
+        ter_category,
+        is_ter_employee,
+        settings.use_ter,
     )
 
     # Log key TER-related values for easier debugging of tax calculation logic
@@ -411,8 +416,8 @@ def salary_slip_post_submit(doc, method: Optional[str] = None) -> None:
         # Ensure fields are initialized
         initialize_fields(doc)
 
-        # Update tax summary
-        update_tax_summary(doc)
+        # Update tax summary asynchronously
+        enqueue_tax_summary_update(doc)
 
         logger.debug(f"Post-submit processing completed for Salary Slip {doc.name}")
 
@@ -573,6 +578,20 @@ def update_tax_summary(slip) -> None:
 
     except Exception as e:
         logger.exception(f"Error updating tax summary for {slip.employee}: {e}")
+
+
+def enqueue_tax_summary_update(doc) -> None:
+    """Enqueue tax summary update after commit."""
+    try:
+        frappe.enqueue(
+            update_tax_summary,
+            queue="long",
+            job_name=f"tax_summary_update_{doc.name}",
+            enqueue_after_commit=True,
+            slip=doc,
+        )
+    except Exception:
+        logger.exception("Failed to enqueue tax summary update")
 
 
 # Alias for backward compatibility

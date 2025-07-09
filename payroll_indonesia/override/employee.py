@@ -36,24 +36,26 @@ __all__ = ["EmployeeOverride", "validate", "on_update"]
 def _import_employee() -> Optional[Type]:
     """
     Dynamically import Employee class from various possible paths.
-    
+
     Returns:
         Type: Employee class if found, None otherwise
     """
     errors = []
     employee_classes = []
-    
+
     # Try each path
     for path in PATHS_TO_TRY:
         try:
             module_path, cls_name = path.rsplit(".", 1)
             module = __import__(module_path, fromlist=[cls_name])
             employee_class = getattr(module, cls_name)
-            
+
             # Verify it's a proper Document subclass
-            if (inspect.isclass(employee_class) and 
-                issubclass(employee_class, Document) and
-                employee_class.__name__ == "Employee"):
+            if (
+                inspect.isclass(employee_class)
+                and issubclass(employee_class, Document)
+                and employee_class.__name__ == "Employee"
+            ):
                 logger.info(f"Successfully imported Employee class from: {path}")
                 employee_classes.append((path, employee_class))
                 # Break after first successful import for efficiency
@@ -64,22 +66,20 @@ def _import_employee() -> Optional[Type]:
             errors.append(f"AttributeError for {path}: {str(e)}")
         except Exception as e:
             errors.append(f"Error {type(e).__name__} for {path}: {str(e)}")
-    
+
     # If we found at least one class, use the first one
     if employee_classes:
         path, employee_class = employee_classes[0]
         logger.info(f"Using Employee class from {path}")
         return employee_class
-    
+
     # Log detailed error info
     error_details = "\n".join(errors)
     advice = (
         "Make sure one of these apps is installed: hrms, erpnext. "
         "Check if the Employee doctype exists and is properly defined."
     )
-    logger.error(
-        f"Could not import Employee class from any known path:\n{error_details}\n{advice}"
-    )
+    logger.error(f"Could not import Employee class from any known path:\n{error_details}\n{advice}")
     return None
 
 
@@ -99,15 +99,15 @@ else:
 class EmployeeOverride(BaseEmployee):
     """
     Override for Employee doctype.
-    
+
     Extends the standard Employee doctype with Indonesian payroll specific functionality
     while being resilient to path changes in the core code.
     """
-    
+
     def validate(self):
         """
         Validate Employee document.
-        
+
         Calls parent validate if available and adds custom validation.
         """
         try:
@@ -122,25 +122,22 @@ class EmployeeOverride(BaseEmployee):
                         f"Continuing with custom validation."
                     )
             else:
-                logger.debug(
-                    f"Skipping parent validate for {self.name} (no Employee class found)"
-                )
-            
+                logger.debug(f"Skipping parent validate for {self.name} (no Employee class found)")
+
             # Always run custom validation regardless of parent class
             self._validate_indonesian_fields()
             logger.debug(f"Completed custom validation for {self.name}")
-            
+
         except Exception as e:
             logger.exception(f"Error in EmployeeOverride.validate for {self.name}: {str(e)}")
             frappe.msgprint(
-                _("Error validating employee {0}: {1}").format(self.name, str(e)),
-                indicator="red"
+                _("Error validating employee {0}: {1}").format(self.name, str(e)), indicator="red"
             )
-    
+
     def on_update(self):
         """
         Process after Employee document update.
-        
+
         Calls parent on_update if available and performs custom actions.
         """
         try:
@@ -155,61 +152,69 @@ class EmployeeOverride(BaseEmployee):
                         f"Continuing with custom logic."
                     )
             else:
-                logger.debug(
-                    f"Skipping parent on_update for {self.name} (no Employee class found)"
-                )
-            
+                logger.debug(f"Skipping parent on_update for {self.name} (no Employee class found)")
+
             # Always run custom logic regardless of parent class
             self._update_related_records()
             logger.debug(f"Completed custom on_update logic for {self.name}")
-            
+
         except Exception as e:
             logger.exception(f"Error in EmployeeOverride.on_update for {self.name}: {str(e)}")
-    
+
     def _validate_indonesian_fields(self):
         """
         Validate Indonesia-specific employee fields.
-        
+
         Checks NPWP, KTP, status pajak, and other Indonesia-specific fields.
         """
         try:
             # Check if status_pajak exists and is valid
             if hasattr(self, "status_pajak") and self.status_pajak:
                 valid_status = [
-                    "TK0", "TK1", "TK2", "TK3", 
-                    "K0", "K1", "K2", "K3", 
-                    "HB0", "HB1", "HB2", "HB3"
+                    "TK0",
+                    "TK1",
+                    "TK2",
+                    "TK3",
+                    "K0",
+                    "K1",
+                    "K2",
+                    "K3",
+                    "HB0",
+                    "HB1",
+                    "HB2",
+                    "HB3",
                 ]
-                
+
                 if self.status_pajak not in valid_status:
                     frappe.msgprint(
                         _("Status pajak '{0}' tidak valid. Gunakan salah satu dari: {1}").format(
                             self.status_pajak, ", ".join(valid_status)
                         ),
-                        indicator="red"
+                        indicator="red",
                     )
-            
+
             # Validate NPWP format if provided
             if hasattr(self, "npwp") and self.npwp:
                 # Just a basic length check for now
                 if len(self.npwp.replace(".", "").replace("-", "")) != 15:
                     frappe.msgprint(
-                        _("Format NPWP tidak valid. NPWP harus 15 digit."),
-                        indicator="yellow"
+                        _("Format NPWP tidak valid. NPWP harus 15 digit."), indicator="yellow"
                     )
-            
+
             # Validate KTP format if provided
             if hasattr(self, "ktp") and self.ktp:
                 # Just a basic length check for now
                 if len(self.ktp.replace(".", "").replace("-", "")) != 16:
                     frappe.msgprint(
-                        _("Format KTP tidak valid. KTP harus 16 digit."),
-                        indicator="yellow"
+                        _("Format KTP tidak valid. KTP harus 16 digit."), indicator="yellow"
                     )
-            
+
             # Check jumlah_tanggungan is consistent with status_pajak
-            if (hasattr(self, "status_pajak") and self.status_pajak and 
-                hasattr(self, "jumlah_tanggungan")):
+            if (
+                hasattr(self, "status_pajak")
+                and self.status_pajak
+                and hasattr(self, "jumlah_tanggungan")
+            ):
                 # Extract the number from status
                 if len(self.status_pajak) >= 2:
                     status_num = self.status_pajak[-1]
@@ -221,30 +226,30 @@ class EmployeeOverride(BaseEmployee):
                                 f"Updated jumlah_tanggungan to {expected_tanggungan} "
                                 f"based on status_pajak {self.status_pajak}"
                             )
-            
+
         except Exception as e:
             logger.exception(f"Error validating Indonesian fields for {self.name}: {str(e)}")
-    
+
     def _update_related_records(self):
         """
         Update related records after employee changes.
-        
+
         Updates payroll-related records when employee data changes.
         """
         try:
             # Update BPJS enrollment status
             self._sync_bpjs_enrollment()
-            
+
             # Update tax-related records if status_pajak changed
             self._sync_tax_status()
-            
+
         except Exception as e:
             logger.exception(f"Error updating related records for {self.name}: {str(e)}")
-    
+
     def _sync_bpjs_enrollment(self):
         """Sync BPJS enrollment status with related records."""
         pass  # Placeholder for actual implementation
-    
+
     def _sync_tax_status(self):
         """Sync tax status with related records."""
         pass  # Placeholder for actual implementation
@@ -254,7 +259,7 @@ class EmployeeOverride(BaseEmployee):
 def validate(doc, method=None):
     """
     Validate hook for Employee document.
-    
+
     Args:
         doc: The Employee document
         method: The method that triggered this hook (unused)
@@ -264,15 +269,14 @@ def validate(doc, method=None):
     except Exception as e:
         logger.exception(f"Error in validate hook for {doc.name}: {str(e)}")
         frappe.msgprint(
-            _("Error validating employee {0}: {1}").format(doc.name, str(e)),
-            indicator="red"
+            _("Error validating employee {0}: {1}").format(doc.name, str(e)), indicator="red"
         )
 
 
 def on_update(doc, method=None):
     """
     On update hook for Employee document.
-    
+
     Args:
         doc: The Employee document
         method: The method that triggered this hook (unused)

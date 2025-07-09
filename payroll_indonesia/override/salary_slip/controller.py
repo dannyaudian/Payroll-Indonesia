@@ -1,237 +1,217 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-29 02:35:42 by dannyaudian
 
 """
-Controller module for Indonesia Payroll Salary Slip class.
+Indonesia Payroll Salary Slip Controller
+
+This module overrides ERPNext's Salary Slip class to implement Indonesian tax calculations.
 """
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, date_diff
-from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
-from payroll_indonesia.override.salary_slip_functions import (
-    salary_slip_post_submit, 
-    initialize_fields,
-    update_component_amount
-)
-from payroll_indonesia.frappe_helpers import logger
+from frappe.utils import flt, getdate
 
-__all__ = ["IndonesiaPayrollSalarySlip"]
+# Correct import paths based on ERPNext/HRMS structure
+try:
+    # For newer versions with HRMS app
+    from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
+except ImportError:
+    try:
+        # For older ERPNext versions
+        from erpnext.hr.doctype.salary_slip.salary_slip import SalarySlip
+    except ImportError:
+        # Fallback
+        from frappe.model.document import Document
+        class SalarySlip(Document):
+            pass
+
+import logging
+from typing import Dict, List, Any, Optional
+
+import payroll_indonesia.override.salary_slip.tax_calculator as tax_calc
+from payroll_indonesia.payroll_indonesia.utils import get_status_pajak
+from payroll_indonesia.payroll_indonesia.utils import get_ptkp_to_ter_mapping, get_ter_rate
+
+logger = logging.getLogger(__name__)
 
 
 class IndonesiaPayrollSalarySlip(SalarySlip):
     """
-    Enhanced Salary Slip for Indonesian Payroll.
-
-    Extends the standard Salary Slip with support for Indonesian tax regulations,
-    BPJS calculations, and year-end tax corrections.
-    
-    Bypasses payroll period validation for more flexible processing.
+    Custom Salary Slip class for Indonesian payroll with proper tax calculations.
+    Overrides the standard ERPNext tax calculations to use Indonesian PPh 21 calculations.
     """
 
-    def validate(self):
+    def get_income_tax_slabs(self):
         """
-        Validate salary slip with Indonesian payroll requirements.
-
-        Performs validation while bypassing payroll period checks.
-        """
-        try:
-            # Initialize fields first
-            initialize_fields(self)
-            
-            # Ensure required fields are set
-            self._ensure_required_fields()
-            
-            # Handle date details if needed
-            if not getattr(self, "salary_slip_based_on_timesheet", False):
-                self._set_date_details()
-            
-            # Skip payroll period validation which is called in parent validate
-            
-            # Safe calls to parent methods - only if they exist
-            self._safe_call("validate_loan_repayment")
-            self._safe_call("validate_employee_details")
-            
-            if not getattr(self, "salary_slip_based_on_timesheet", False):
-                self._safe_call("validate_attendance")
-            
-            self._safe_call("validate_components_with_flexible_benefits")
-            
-            # Load employee doc for tax calculations
-            self._load_employee_doc()
-            
-            # Update components with Indonesian calculations
-            update_component_amount(self)
-            
-            # Calculate net pay and set status
-            if hasattr(self, "calculate_net_pay"):
-                self.calculate_net_pay()
-                
-            if hasattr(self, "set_status"):
-                self.set_status()
-            
-            logger.info(f"Indonesia payroll validation completed for {self.name}")
-        except Exception as e:
-            logger.exception(f"Error validating salary slip {self.name}: {e}")
-            frappe.throw(_("Error validating salary slip: {0}").format(str(e)))
-
-    def _ensure_required_fields(self):
-        """Ensure all required fields are set with default values if missing."""
-        # Check and set salary structure if missing
-        if not getattr(self, "salary_structure", None):
-            self._set_salary_structure()
-            
-        # Set default values for essential fields if missing
-        if not getattr(self, "total_working_days", None):
-            self.total_working_days = 22
-            logger.debug(f"Set default total_working_days=22 for {self.name}")
-            
-        if not getattr(self, "payment_days", None):
-            self.payment_days = self.total_working_days
-            logger.debug(f"Set payment_days={self.payment_days} for {self.name}")
-
-    def _set_salary_structure(self):
-        """
-        Set salary_structure from Salary Structure Assignment.
+        Override income tax slab retrieval to use Indonesian tax slabs.
+        This ensures ERPNext's standard tax calculation is bypassed.
         
-        Searches for an active assignment for the employee, company, and period.
+        Returns:
+            List: Empty list to bypass ERPNext's tax calculation
         """
-        if not getattr(self, "employee", None) or not getattr(self, "company", None):
-            logger.warning(f"Cannot set salary_structure: missing employee or company for {self.name}")
+        # Return empty list to bypass standard ERPNext tax calculation
+        # Our custom tax calculation happens in get_income_tax
+        return []
+
+    def calculate_income_tax(self, payroll_period=None, tax_component=None):
+        """
+        Override income tax calculation to use Indonesian PPh 21 calculation.
+        
+        Args:
+            payroll_period: Payroll period (unused)
+            tax_component: Tax component (unused)
+            
+        Returns:
+            Dict: Tax calculation result
+        """
+        # Calculate tax based on method from settings
+        settings = frappe.get_cached_doc("Payroll Indonesia Settings")
+        tax_method = settings.tax_calculation_method  # "TER" or "PROGRESSIVE"
+        
+        logger.info(f"Calculating income tax for {self.employee} using method: {tax_method}")
+        
+        if tax_method == "TER" and settings.use_ter:
+            # Check if employee is eligible for TER
+            status_pajak = get_status_pajak(self)
+            mapping = get_ptkp_to_ter_mapping()
+            ter_category = mapping.get(status_pajak, "")
+            
+            if ter_category:
+                # Use TER calculation
+                result = tax_calc.calculate_monthly_pph_with_ter(
+                    ter_category=ter_category,
+                    gross_pay=self.gross_pay,
+                    slip=self
+                )
+                tax_amount = result.get("monthly_tax", 0.0)
+                logger.info(f"TER method applied for {self.name} - tax: {tax_amount}")
+            else:
+                # Fallback to progressive if not TER eligible
+                logger.info(f"Employee {self.employee} not eligible for TER, using progressive")
+                result = tax_calc.calculate_monthly_pph_progressive(self)
+                tax_amount = result.get("monthly_tax", 0.0)
+        elif getattr(self, "is_december_override", 0):
+            # Use December calculation for year-end
+            result = tax_calc.calculate_december_pph(self)
+            tax_amount = result.get("correction", 0.0)
+            logger.info(f"December correction applied for {self.name} - tax: {tax_amount}")
+        else:
+            # Use standard progressive calculation
+            result = tax_calc.calculate_monthly_pph_progressive(self)
+            tax_amount = result.get("monthly_tax", 0.0)
+            logger.info(f"Progressive method applied for {self.name} - tax: {tax_amount}")
+        
+        # Return the tax amount in the format expected by ERPNext
+        return {
+            "tax_amount": flt(tax_amount, 2),
+            "tax_on_additional_salary": 0,
+            "tax_on_flexible_benefit": 0,
+            "tax_break_up": result
+        }
+
+    def calculate_taxable_earnings(self, include_flexi=0):
+        """
+        Override taxable earnings calculation.
+        This ensures we use our own definition of taxable income.
+        
+        Args:
+            include_flexi: Include flexible benefits (unused)
+            
+        Returns:
+            float: Taxable earnings
+        """
+        # In Indonesia, taxable earnings are typically the gross pay
+        # minus deductions allowed by tax regulations
+        biaya_jabatan = min(self.gross_pay * (5 / 100), 500000)  # 5% up to 500k
+        self.biaya_jabatan = biaya_jabatan
+        
+        # Use total_bpjs field if it exists, otherwise calculate from components
+        bpjs_total = getattr(self, "total_bpjs", 0)
+        if not bpjs_total:
+            bpjs_total = self.get_bpjs_deductions()
+        
+        # Calculate netto
+        netto = self.gross_pay - biaya_jabatan - bpjs_total
+        self.netto = netto
+        
+        return netto
+
+    def get_bpjs_deductions(self):
+        """
+        Calculate total BPJS deductions from components.
+        
+        Returns:
+            float: Total BPJS deductions
+        """
+        bpjs_components = [
+            "BPJS Kesehatan Employee",
+            "BPJS JHT Employee",
+            "BPJS JP Employee"
+        ]
+        
+        total = 0
+        if hasattr(self, "deductions"):
+            for deduction in self.deductions:
+                if deduction.salary_component in bpjs_components:
+                    total += flt(deduction.amount)
+        
+        return total
+
+    def set_component_amounts(self):
+        """
+        Override component amount calculation to ensure our tax calculation is used.
+        """
+        # First call the parent method to handle standard calculations
+        super().set_component_amounts()
+        
+        # Then call our custom update function to handle Indonesian-specific components
+        self.update_indonesia_components()
+
+    def update_indonesia_components(self):
+        """
+        Update components specific to Indonesian payroll.
+        """
+        if not hasattr(self, "deductions") or not self.deductions:
             return
             
-        try:
-            # Build filters for Salary Structure Assignment
-            filters = {
-                "employee": self.employee,
-                "company": self.company,
-                "docstatus": 1
-            }
-            
-            # Add date filter if start_date is available
-            if getattr(self, "start_date", None):
-                filters["from_date"] = ["<=", self.start_date]
-                
-            # Get the most recent assignment
-            assignment = frappe.get_all(
-                "Salary Structure Assignment",
-                filters=filters,
-                fields=["salary_structure"],
-                order_by="from_date desc",
-                limit=1
-            )
-            
-            if assignment and assignment[0].salary_structure:
-                self.salary_structure = assignment[0].salary_structure
-                logger.info(
-                    f"Set salary_structure={self.salary_structure} for {self.name} "
-                    f"from Salary Structure Assignment"
-                )
-            else:
-                logger.warning(
-                    f"No active Salary Structure Assignment found for "
-                    f"employee {self.employee}, company {self.company}"
-                )
-        except Exception as e:
-            logger.warning(f"Error setting salary_structure for {self.name}: {e}")
-
-    def _set_date_details(self):
-        """Set date details for the salary slip."""
-        try:
-            # Call get_date_details if available
-            if hasattr(self, "get_date_details"):
-                self.get_date_details()
-                return
-                
-            # Fallback implementation if get_date_details is not available
-            if not self.start_date or not self.end_date:
-                logger.warning(f"Missing start_date or end_date for {self.name}")
-                return
-                
-            # Calculate total_working_days if not already set
-            if not getattr(self, "total_working_days", None):
-                self.total_working_days = date_diff(self.end_date, self.start_date) + 1
-                
-            # Set payment_days if not already set
-            if not getattr(self, "payment_days", None):
-                self.payment_days = self.total_working_days
-                
-            logger.debug(
-                f"Date details set for {self.name}: "
-                f"total_working_days={self.total_working_days}, "
-                f"payment_days={self.payment_days}"
-            )
-        except Exception as e:
-            logger.warning(f"Error setting date details for {self.name}: {e}")
-
-    def _safe_call(self, method_name):
-        """Safely call a method if it exists."""
-        if hasattr(self, method_name):
-            try:
-                method = getattr(self, method_name)
-                method()
-            except Exception as e:
-                logger.warning(f"Error calling {method_name}: {e}")
-    
-    # Stub methods to prevent attribute errors
-    def validate_payroll_period(self):
-        """
-        Override to bypass the standard payroll period validation.
+        # Calculate PPh 21 using our custom calculation
+        settings = frappe.get_cached_doc("Payroll Indonesia Settings")
+        tax_method = settings.tax_calculation_method
         
-        This method is intentionally empty to bypass validation.
-        """
-        logger.debug(f"Bypassing payroll period validation for {self.name}")
-        return True
-    
-    def validate_loan_repayment(self):
-        """Stub method if parent doesn't have this."""
-        pass
-    
-    def validate_employee_details(self):
-        """Stub method if parent doesn't have this."""
-        pass
-    
-    def validate_attendance(self):
-        """Stub method if parent doesn't have this."""
-        pass
-    
-    def validate_components_with_flexible_benefits(self):
-        """Stub method if parent doesn't have this."""
-        pass
-
-    def _load_employee_doc(self):
-        """Load employee document if not already loaded."""
-        if not hasattr(self, "employee_doc") and getattr(self, "employee", None):
-            try:
-                self.employee_doc = frappe.get_doc("Employee", self.employee)
-            except Exception as e:
-                logger.warning(f"Could not load employee_doc for {self.employee}: {e}")
-
-    def calculate_totals(self) -> None:
-        """Backward-compat wrapper used by salary_slip_functions."""
-        if hasattr(self, "calculate_net_pay"):
-            self.calculate_net_pay()
-
-    def on_submit(self):
-        """
-        Process document on submission.
-
-        Executes submission and post-submission tasks for Indonesian payroll.
-        """
-        try:
-            # Ensure fields are initialized
-            initialize_fields(self)
+        # Find PPh 21 component
+        pph21_component = None
+        for deduction in self.deductions:
+            if deduction.salary_component == "PPh 21":
+                pph21_component = deduction
+                break
+                
+        if not pph21_component:
+            return
             
-            # Call parent submission handler if it exists
-            if hasattr(SalarySlip, "on_submit"):
-                super().on_submit()
+        # Calculate tax based on method
+        if tax_method == "TER" and settings.use_ter:
+            status_pajak = get_status_pajak(self)
+            mapping = get_ptkp_to_ter_mapping()
+            ter_category = mapping.get(status_pajak, "")
             
-            # Run post-submit processing
-            salary_slip_post_submit(self)
-
-            logger.info(f"Salary slip {self.name} submitted successfully")
-        except Exception as e:
-            logger.exception(f"Error submitting salary slip {self.name}: {e}")
-            frappe.throw(_("Error submitting salary slip: {0}").format(str(e)))
+            if ter_category:
+                result = tax_calc.calculate_monthly_pph_with_ter(
+                    ter_category=ter_category,
+                    gross_pay=self.gross_pay,
+                    slip=self
+                )
+                pph21_component.amount = result.get("monthly_tax", 0.0)
+                self.pph21 = pph21_component.amount
+            else:
+                result = tax_calc.calculate_monthly_pph_progressive(self)
+                pph21_component.amount = result.get("monthly_tax", 0.0)
+                self.pph21 = pph21_component.amount
+        elif getattr(self, "is_december_override", 0):
+            result = tax_calc.calculate_december_pph(self)
+            pph21_component.amount = result.get("correction", 0.0)
+            self.pph21 = pph21_component.amount
+        else:
+            result = tax_calc.calculate_monthly_pph_progressive(self)
+            pph21_component.amount = result.get("monthly_tax", 0.0)
+            self.pph21 = pph21_component.amount

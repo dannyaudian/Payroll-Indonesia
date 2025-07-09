@@ -28,7 +28,9 @@ def test_post_submit_updates_existing_history(monkeypatch):
     # Minimal Document class for frappe.model.document import
     model_module = types.ModuleType("frappe.model")
     document_module = types.ModuleType("frappe.model.document")
+
     class Document: ...
+
     document_module.Document = Document
 
     sys.modules["frappe.model"] = model_module
@@ -58,9 +60,13 @@ def test_post_submit_updates_existing_history(monkeypatch):
     # minimal utils module used by salary_slip_functions
     pi_utils = types.ModuleType("payroll_indonesia.payroll_indonesia.utils")
     pi_utils.calculate_bpjs = lambda base_salary, rate_percent, max_salary=None: 0
+    # stub functions required by salary_slip_functions imports
+    pi_utils.get_ptkp_to_ter_mapping = lambda: {}
+    pi_utils.get_status_pajak = lambda doc: ""
     sys.modules["payroll_indonesia.payroll_indonesia.utils"] = pi_utils
 
     import importlib
+
     ssf = importlib.import_module("payroll_indonesia.override.salary_slip_functions")
 
     class DummyHistory:
@@ -68,6 +74,7 @@ def test_post_submit_updates_existing_history(monkeypatch):
             self.ytd_gross = 0
             self.ytd_tax = 0
             self.flags = types.SimpleNamespace()
+
         def save(self):
             self.saved = True
 
@@ -76,17 +83,24 @@ def test_post_submit_updates_existing_history(monkeypatch):
     frappe.get_doc.return_value = existing
 
     slip = MagicMock(
-        name="SS-001", employee="EMP-1", posting_date="2025-01-31",
-        gross_pay=1000, pph21=50, deductions=[], docstatus=1
+        name="SS-001",
+        employee="EMP-1",
+        posting_date="2025-01-31",
+        gross_pay=1000,
+        pph21=50,
+        deductions=[],
+        docstatus=1,
     )
 
     monkeypatch.setattr(ssf, "calculate_employer_contributions", lambda doc: {})
     monkeypatch.setattr(ssf, "store_employer_contributions", lambda doc, c: None)
-    monkeypatch.setattr(ssf, "enqueue_tax_summary_update", lambda doc: None)
+    enqueue_mock = MagicMock()
+    monkeypatch.setattr(ssf, "enqueue_tax_summary_update", enqueue_mock)
 
     ssf.salary_slip_post_submit(slip)
+
+    enqueue_mock.assert_called_once_with(slip)
 
     assert existing.ytd_gross == 1000
     assert existing.ytd_tax == 50
     assert getattr(existing, "saved", False)
-

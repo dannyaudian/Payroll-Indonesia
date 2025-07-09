@@ -18,7 +18,6 @@ import frappe
 
 import payroll_indonesia.override.salary_slip.bpjs_calculator as bpjs_calc
 import payroll_indonesia.override.salary_slip.tax_calculator as tax_calc
-import payroll_indonesia.override.salary_slip.ter_calculator as ter_calc
 import payroll_indonesia.payroll_indonesia.validations as val
 
 __all__ = ["on_submit", "on_cancel"]
@@ -103,7 +102,7 @@ class PayrollController:
         if hasattr(self.doc, "is_december_override") and self.doc.is_december_override:
             tax_calc.calculate_december_pph(self.doc)
         elif hasattr(self.doc, "is_using_ter") and self.doc.is_using_ter:
-            ter_calc.calculate_monthly_pph_with_ter(self.doc)
+            tax_calc.calculate_monthly_pph_with_ter(self.doc)
         else:
             tax_calc.calculate_monthly_pph_progressive(self.doc)
 

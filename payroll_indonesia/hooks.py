@@ -59,7 +59,7 @@ doc_events = {
 
 # ❸ Override DocType classes
 override_doctype_class = {
-    "Salary Slip": "payroll_indonesia.override.salary_slip.IndonesiaPayrollSalarySlip",
+    "Salary Slip": "payroll_indonesia.override.salary_slip.controller.IndonesiaPayrollSalarySlip",
     "Payroll Entry": "payroll_indonesia.override.payroll_entry.CustomPayrollEntry",
     "Employee": "payroll_indonesia.override.employee.EmployeeOverride",
 }
@@ -161,7 +161,7 @@ jinja = {
         "payroll_indonesia.config.config.get_live_config",
         # Tax calculation methods
         "payroll_indonesia.override.salary_slip.tax_calculator.get_ptkp_value",
-        "payroll_indonesia.override.salary_slip.ter_calculator.get_ter_rate",
+        "payroll_indonesia.payroll_indonesia.utils.get_ter_rate",
         # BPJS methods
         "payroll_indonesia.override.salary_slip.bpjs_calculator.calculate_components",
         "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.get_mapping_for_company",
