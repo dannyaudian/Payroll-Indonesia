@@ -1,1 +1,2 @@
-# This file marks the BPJS Account Mapping doctype directory as a Python package
+# Expose BPJS Account Mapping tests
+from . import test_bpjs_account_mapping  # noqa: F401
