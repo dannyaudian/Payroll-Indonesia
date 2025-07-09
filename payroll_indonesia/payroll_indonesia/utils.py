@@ -36,6 +36,7 @@ __all__ = [
     "update_employee_tax_summary",
     "get_ptkp_to_ter_mapping",
     "get_ter_rate",
+    "get_ter_rate_for_template",
     "get_status_pajak",
 ]
 
@@ -554,6 +555,17 @@ def get_ter_rate(category: str, annual_income: float) -> float:
         return flt(settings.get_ter_rate(category, annual_income)) / 100.0
     except Exception:
         return flt(get_ter_rate_from_child(category, annual_income)) / 100.0
+
+
+def get_ter_rate_for_template(category: str, monthly_income: float) -> float:
+    """Return TER rate for use in Jinja templates."""
+    try:
+        from payroll_indonesia.override.salary_slip import tax_calculator
+
+        return flt(tax_calculator.get_ter_rate(category, monthly_income))
+    except Exception as e:
+        logger.exception(f"Error getting TER rate for template: {e}")
+        return 0.0
 
 
 @safe_execute(default_value=0.0)
