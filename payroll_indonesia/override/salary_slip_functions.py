@@ -183,7 +183,7 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
         logger.exception(f"Error updating component amounts for {doc.name}: {e}")
 
     # Update tax summary
-    update_tax_summary(doc)
+    update_tax_summary(doc.name)
 
     # Update totals after modifying components
     try:
@@ -533,17 +533,46 @@ def _get_or_create_tax_row(slip) -> Tuple[Any, Any]:
     return row, summary
 
 
-def update_tax_summary(slip) -> None:
+def enqueue_tax_summary_update(doc) -> None:
+    """
+    Enqueue tax summary update after commit using only the slip name.
+    
+    Args:
+        doc: The Salary Slip document
+    """
+    try:
+        frappe.enqueue(
+            "payroll_indonesia.override.salary_slip_functions.update_tax_summary",
+            queue="long",
+            job_name=f"tax_summary_update_{doc.name}",
+            enqueue_after_commit=True,
+            slip_name=doc.name,
+        )
+        logger.info(f"Enqueued tax summary update for {doc.name}")
+    except Exception as e:
+        logger.exception(f"Failed to enqueue tax summary update for {doc.name}: {str(e)}")
+        # Try to update directly as fallback
+        try:
+            update_tax_summary(doc.name)
+        except Exception as e2:
+            logger.exception(f"Fallback update also failed for {doc.name}: {str(e2)}")
+
+
+def update_tax_summary(slip_name: str) -> None:
     """
     Update Employee Tax Summary with salary slip data.
-
+    
     Args:
-        slip: The Salary Slip document
+        slip_name: The name of the Salary Slip document
     """
-    if not slip.employee:
-        return
+    # Function to fetch and process the slip
+    def process_slip():
+        slip = frappe.get_doc("Salary Slip", slip_name)
+        
+        if not slip.employee:
+            logger.warning(f"Slip {slip_name} has no employee, skipping tax summary update")
+            return
 
-    try:
         # Get or create tax summary row
         row, parent = _get_or_create_tax_row(slip)
 
@@ -585,24 +614,44 @@ def update_tax_summary(slip) -> None:
         parent.save(ignore_permissions=True)
 
         logger.info(f"Tax summary updated for {slip.employee} - {row.month}/{parent.year}")
-
-    except Exception as e:
-        logger.exception(f"Error updating tax summary for {slip.employee}: {e}")
-
-
-def enqueue_tax_summary_update(doc) -> None:
-    """Enqueue tax summary update after commit."""
+    
+    # Use retry mechanism with exponential backoff
     try:
-        frappe.enqueue(
-            update_tax_summary,
-            queue="long",
-            job_name=f"tax_summary_update_{doc.name}",
-            enqueue_after_commit=True,
-            slip=doc,
+        from frappe.utils.background_jobs import retry
+        
+        # Attempt with retry for possible race conditions
+        retry(
+            process_slip,
+            max_retries=3,
+            delay=5,
+            backoff_factor=2,
+            exceptions=(frappe.DoesNotExistError, frappe.LinkValidationError)
         )
-    except Exception:
-        logger.exception("Failed to enqueue tax summary update")
-
-
+    except ImportError:
+        # Fallback if retry utility isn't available
+        try:
+            import time
+            max_retries = 3
+            delay = 5
+            
+            for attempt in range(max_retries):
+                try:
+                    process_slip()
+                    break
+                except (frappe.DoesNotExistError, frappe.LinkValidationError) as e:
+                    if attempt < max_retries - 1:
+                        wait_time = delay * (2 ** attempt)
+                        logger.warning(
+                            f"Retry {attempt+1}/{max_retries} for {slip_name} in {wait_time}s: {str(e)}"
+                        )
+                        time.sleep(wait_time)
+                    else:
+                        raise
+        except Exception as e:
+            logger.exception(f"Error updating tax summary for slip {slip_name}: {str(e)}")
+            frappe.log_error(
+                f"Error updating tax summary for slip {slip_name}: {str(e)}",
+                "Tax Summary Update Error"
+            )
 # Alias for backward compatibility
 update_employee_history = update_tax_summary
