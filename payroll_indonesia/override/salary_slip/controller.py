@@ -57,15 +57,15 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         Returns:
             frappe._dict: Dummy tax slab object
         """
-        return frappe._dict({"allow_tax_exemption": 0})
+        return frappe._dict({"allow_tax_exemption": 0, "slabs": []})
 
     def ensure_tax_slab(self) -> None:
-        """Ensure ``self.tax_slab`` is a mapping with ``allow_tax_exemption``."""
+        """Ensure ``self.tax_slab`` is a mapping with ``allow_tax_exemption`` and ``slabs``."""
         from collections.abc import Mapping
 
         tax_slab = getattr(self, "tax_slab", None)
-        if not isinstance(tax_slab, Mapping):
-            self.tax_slab = frappe._dict({"allow_tax_exemption": 0})
+        if not isinstance(tax_slab, Mapping) or "slabs" not in tax_slab:
+            self.tax_slab = frappe._dict({"allow_tax_exemption": 0, "slabs": []})
 
     def validate(self):
         """Validate salary slip ensuring tax slab compatibility."""
@@ -231,7 +231,8 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             self.pph21 = pph21_component.amount
         else:
             result = tax_calc.calculate_monthly_pph_progressive(self)
-            pph21_component.amount = result.get("monthly_tax", 0.0)            self.pph21 = pph21_component.amount
+            pph21_component.amount = result.get("monthly_tax", 0.0)
+            self.pph21 = pph21_component.amount
 
     def calculate_net_pay(self, *args, **kwargs):
         """Ensure tax slab before net pay calculation."""
