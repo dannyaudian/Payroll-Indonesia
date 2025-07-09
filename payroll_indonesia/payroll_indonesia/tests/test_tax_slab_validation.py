@@ -2,6 +2,9 @@ import sys
 import types
 import importlib
 from unittest.mock import MagicMock
+import pytest
+
+pytest.importorskip("frappe")
 
 
 def setup_frappe_stub():
@@ -15,6 +18,27 @@ def setup_frappe_stub():
 
     frappe.db = types.SimpleNamespace()
     frappe.get_cached_doc = MagicMock(return_value=types.SimpleNamespace(tax_calculation_method="PROGRESSIVE", use_ter=0))
+    frappe.utils = types.ModuleType("frappe.utils")
+    frappe.utils.flt = float
+    frappe.utils.cint = int
+    frappe.utils.getdate = lambda *a, **k: None
+    frappe.utils.now_datetime = lambda: None
+    frappe.utils.add_to_date = lambda *a, **k: None
+    sys.modules["frappe.utils"] = frappe.utils
+    model_module = types.ModuleType("frappe.model")
+    document_module = types.ModuleType("frappe.model.document")
+
+    class Document:
+        pass
+
+    document_module.Document = Document
+    sys.modules["frappe.model"] = model_module
+    sys.modules["frappe.model.document"] = document_module
+    frappe.conf = {}
+    frappe.utils = types.ModuleType("frappe.utils")
+    frappe.utils.now_datetime = lambda: None
+    frappe.utils.add_to_date = lambda *a, **k: None
+    sys.modules["frappe.utils"] = frappe.utils
 
     sys.modules["frappe"] = frappe
     return frappe

@@ -2,6 +2,9 @@ import sys
 import types
 import datetime
 from unittest.mock import MagicMock
+import pytest
+
+pytest.importorskip("frappe")
 
 
 def test_post_submit_updates_existing_history(monkeypatch):
@@ -16,6 +19,8 @@ def test_post_submit_updates_existing_history(monkeypatch):
     frappe.utils.getdate = lambda *a, **k: datetime.date.today()
     frappe.utils.date_diff = lambda a, b: 0
     frappe.utils.add_months = lambda d, m: d
+    frappe.utils.now_datetime = lambda: datetime.datetime.now()
+    frappe.utils.add_to_date = lambda *a, **k: datetime.datetime.now()
     frappe.utils.get_first_day = lambda d: d
     frappe.utils.get_last_day = lambda d: d
     frappe.utils.add_days = lambda d, n=0: d
@@ -24,6 +29,7 @@ def test_post_submit_updates_existing_history(monkeypatch):
     frappe.utils.background_jobs = bg
     frappe._ = lambda x: x
     frappe.throw = lambda msg: (_ for _ in ()).throw(Exception(msg))
+    frappe.conf = {}
 
     # Minimal Document class for frappe.model.document import
     model_module = types.ModuleType("frappe.model")
@@ -63,6 +69,7 @@ def test_post_submit_updates_existing_history(monkeypatch):
     # stub functions required by salary_slip_functions imports
     pi_utils.get_ptkp_to_ter_mapping = lambda: {}
     pi_utils.get_status_pajak = lambda doc: ""
+    pi_utils.get_ter_rate = lambda category, income, fallback_rate=0.0: fallback_rate
     sys.modules["payroll_indonesia.payroll_indonesia.utils"] = pi_utils
 
     import importlib

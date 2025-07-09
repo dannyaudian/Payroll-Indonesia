@@ -231,7 +231,8 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             self.pph21 = pph21_component.amount
         else:
             result = tax_calc.calculate_monthly_pph_progressive(self)
-            pph21_component.amount = result.get("monthly_tax", 0.0)            self.pph21 = pph21_component.amount
+            pph21_component.amount = result.get("monthly_tax", 0.0)
+            self.pph21 = pph21_component.amount
 
     def calculate_net_pay(self, *args, **kwargs):
         """Ensure tax slab before net pay calculation."""
