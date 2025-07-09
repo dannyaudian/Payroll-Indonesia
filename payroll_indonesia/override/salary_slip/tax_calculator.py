@@ -868,8 +868,10 @@ def get_ter_rate(ter_category: str, monthly_income: float) -> float:
                     if monthly_income >= income_from and (
                         is_highest or income_to == 0 or monthly_income < income_to
                     ):
-                        # Convert percentage to decimal (e.g., 5% to 0.05)
-                        rate = flt(row.rate) / 100.0
+                        # Convert percentage strings to decimal values
+                        rate = flt(row.rate)
+                        if rate > 1:
+                            rate /= 100
                         logger.debug(
                             f"Found TER rate {rate * 100}% for category {ter_category}, "
                             f"income {monthly_income}"
