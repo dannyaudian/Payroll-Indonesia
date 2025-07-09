@@ -44,15 +44,20 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
 
     def get_income_tax_slabs(self):
         """
-        Override income tax slab retrieval to use Indonesian tax slabs.
-        This ensures ERPNext's standard tax calculation is bypassed.
-        
+        Override income tax slab retrieval to disable standard ERPNext tax
+        calculation.
+
+        ERPNext expects a tax slab object with attributes like
+        ``allow_tax_exemption``. Returning an empty list caused attribute errors
+        when core methods accessed these attributes. Instead, return a minimal
+        :class:`frappe._dict` with ``allow_tax_exemption`` set to ``0`` so that
+        downstream code has the required property but effectively skips the
+        calculation.
+
         Returns:
-            List: Empty list to bypass ERPNext's tax calculation
+            frappe._dict: Dummy tax slab object
         """
-        # Return empty list to bypass standard ERPNext tax calculation
-        # Our custom tax calculation happens in get_income_tax
-        return []
+        return frappe._dict({"allow_tax_exemption": 0})
 
     def calculate_income_tax(self, payroll_period=None, tax_component=None):
         """
