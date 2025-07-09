@@ -7,9 +7,9 @@ import pytest
 
 frappe = pytest.importorskip("frappe")
 from frappe.utils import flt, getdate, add_months
-from payroll_indonesia.override.salary_slip.ter_calculator import (
+from payroll_indonesia.override.salary_slip.tax_calculator import (
     calculate_monthly_pph_with_ter,
-    get_ptkp_category,
+    get_ter_category,
 )
 
 
@@ -78,11 +78,11 @@ class TestTERCalculator(unittest.TestCase):
         calculate_monthly_pph_with_ter(self.test_salary_slip, self.test_employee)
 
         # Assert TER calculation results
-        self.assertEqual(self.test_salary_slip.ter_category, "A")  # For income < 13jt
+        self.assertEqual(self.test_salary_slip.ter_category, "TER A")  # For income < 13jt
         self.assertEqual(flt(self.test_salary_slip.ter_rate, 2), 5.00)  # 5% for Category A
 
         # Verify salary slip fields are updated
-        self.assertEqual(self.test_salary_slip.ter_category, "A")
+        self.assertEqual(self.test_salary_slip.ter_category, "TER A")
         self.assertEqual(flt(self.test_salary_slip.ter_rate, 2), 5.00)
         self.assertEqual(
             flt(self.test_salary_slip.monthly_tax), flt(self.test_salary_slip.gross_pay * 0.05)
@@ -111,7 +111,7 @@ class TestTERCalculator(unittest.TestCase):
 
         calculate_monthly_pph_with_ter(self.test_salary_slip, self.test_employee)
 
-        self.assertEqual(self.test_salary_slip.ter_category, "C")  # For income > 32jt
+        self.assertEqual(self.test_salary_slip.ter_category, "TER C")  # For income > 32jt
         self.assertEqual(flt(self.test_salary_slip.ter_rate, 2), 15.00)  # 15% for Category C
 
     def test_ter_annual_projection(self):
@@ -139,16 +139,16 @@ class TestTERCalculator(unittest.TestCase):
     def test_ptkp_mapping(self):
         """Test PTKP category mapping for different tax statuses"""
         test_cases = [
-            ("TK0", "A"),  # Single, no dependents
-            ("K2", "B"),  # Married, 2 dependents
-            ("HB3", "C"),  # Widow/Widower, 3 dependents
+            ("TK0", "TER A"),  # Single, no dependents
+            ("K2", "TER B"),  # Married, 2 dependents
+            ("HB3", "TER C"),  # Widow/Widower, 3 dependents
         ]
 
         for status, expected_category in test_cases:
             self.test_employee.status_pajak = status
             self.test_employee.save()
 
-            category = get_ptkp_category(self.test_employee)
+            category = get_ter_category(self.test_employee.status_pajak)
             self.assertEqual(
                 category, expected_category, f"Failed PTKP mapping for status {status}"
             )
