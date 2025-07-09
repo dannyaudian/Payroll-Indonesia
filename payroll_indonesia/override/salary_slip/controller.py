@@ -42,35 +42,25 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     Overrides the standard ERPNext tax calculations to use Indonesian PPh 21 calculations.
     """
 
+    def validate(self):
+        """Override validate to ensure our tax calculation is used."""
+        # Call parent validate but we'll handle tax calculation ourselves
+        super().validate()
+        
+        # Set a flag to indicate this is an Indonesian Payroll Salary Slip
+        self.is_indonesia_payroll = True
+
     def get_income_tax_slabs(self):
         """
-        Override income tax slab retrieval to disable standard ERPNext tax
-        calculation.
-
-        ERPNext expects a tax slab object with attributes like
-        ``allow_tax_exemption``. Returning an empty list caused attribute errors
-        when core methods accessed these attributes. Instead, return a minimal
-        :class:`frappe._dict` with ``allow_tax_exemption`` set to ``0`` so that
-        downstream code has the required property but effectively skips the
-        calculation.
-
+        Override income tax slab retrieval to use Indonesian tax slabs.
+        This ensures ERPNext's standard tax calculation is bypassed.
+        
         Returns:
-            frappe._dict: Dummy tax slab object
+            List: Empty list to bypass ERPNext's tax calculation
         """
-        return frappe._dict({"allow_tax_exemption": 0})
-
-    def ensure_tax_slab(self) -> None:
-        """Ensure ``self.tax_slab`` is a mapping with ``allow_tax_exemption``."""
-        from collections.abc import Mapping
-
-        tax_slab = getattr(self, "tax_slab", None)
-        if not isinstance(tax_slab, Mapping):
-            self.tax_slab = frappe._dict({"allow_tax_exemption": 0})
-
-    def validate(self):
-        """Validate salary slip ensuring tax slab compatibility."""
-        self.ensure_tax_slab()
-        super().validate()
+        # Return empty list to bypass standard ERPNext tax calculation
+        # Our custom tax calculation happens in calculate_variable_tax
+        return []
 
     def calculate_income_tax(self, payroll_period=None, tax_component=None):
         """
@@ -128,6 +118,42 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             "tax_break_up": result
         }
 
+    def calculate_variable_tax(self, tax_component):
+        """
+        Override variable tax calculation to use our custom method.
+        This is a critical override to prevent ERPNext from using its standard tax calculation.
+        
+        Args:
+            tax_component: Tax component name
+            
+        Returns:
+            float: Tax amount
+        """
+        # If this is PPh 21, use our custom calculation
+        if tax_component == "PPh 21":
+            result = self.calculate_income_tax(tax_component=tax_component)
+            return result["tax_amount"]
+        
+        # For other tax components, fall back to standard calculation
+        return super().calculate_variable_tax(tax_component)
+
+    def calculate_variable_based_on_taxable_salary(self, tax_component):
+        """
+        Override to use our custom method for PPh 21.
+        
+        Args:
+            tax_component: Tax component name
+            
+        Returns:
+            float: Tax amount
+        """
+        # If this is PPh 21, use our custom calculation
+        if tax_component == "PPh 21":
+            return self.calculate_variable_tax(tax_component)
+        
+        # For other components, fall back to standard calculation
+        return super().calculate_variable_based_on_taxable_salary(tax_component)
+
     def calculate_taxable_earnings(self, include_flexi=0):
         """
         Override taxable earnings calculation.
@@ -176,70 +202,55 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         
         return total
 
-    def set_component_amounts(self):
+    def calculate_component_amounts(self, component_type):
         """
-        Override component amount calculation to ensure our tax calculation is used.
-        """
-        # First call the parent method to handle standard calculations
-        super().set_component_amounts()
+        Override to ensure our tax calculation is used.
         
-        # Then call our custom update function to handle Indonesian-specific components
-        self.update_indonesia_components()
+        Args:
+            component_type: Type of component (earnings or deductions)
+        """
+        # Call parent method to handle standard components
+        super().calculate_component_amounts(component_type)
+        
+        # If this is deductions, handle our tax components specially
+        if component_type == "deductions":
+            self.update_indonesia_tax_components()
 
-    def update_indonesia_components(self):
-        """
-        Update components specific to Indonesian payroll.
-        """
+    def update_indonesia_tax_components(self):
+        """Update tax components with our custom calculation."""
         if not hasattr(self, "deductions") or not self.deductions:
             return
             
-        # Calculate PPh 21 using our custom calculation
-        settings = frappe.get_cached_doc("Payroll Indonesia Settings")
-        tax_method = settings.tax_calculation_method
-        
         # Find PPh 21 component
-        pph21_component = None
         for deduction in self.deductions:
             if deduction.salary_component == "PPh 21":
-                pph21_component = deduction
-                break
+                # Calculate tax based on settings
+                settings = frappe.get_cached_doc("Payroll Indonesia Settings")
+                tax_method = settings.tax_calculation_method
                 
-        if not pph21_component:
-            return
-            
-        # Calculate tax based on method
-        if tax_method == "TER" and settings.use_ter:
-            status_pajak = get_status_pajak(self)
-            mapping = get_ptkp_to_ter_mapping()
-            ter_category = mapping.get(status_pajak, "")
-            
-            if ter_category:
-                result = tax_calc.calculate_monthly_pph_with_ter(
-                    ter_category=ter_category,
-                    gross_pay=self.gross_pay,
-                    slip=self
-                )
-                pph21_component.amount = result.get("monthly_tax", 0.0)
-                self.pph21 = pph21_component.amount
-            else:
-                result = tax_calc.calculate_monthly_pph_progressive(self)
-                pph21_component.amount = result.get("monthly_tax", 0.0)
-                self.pph21 = pph21_component.amount
-        elif getattr(self, "is_december_override", 0):
-            result = tax_calc.calculate_december_pph(self)
-            pph21_component.amount = result.get("correction", 0.0)
-            self.pph21 = pph21_component.amount
-        else:
-            result = tax_calc.calculate_monthly_pph_progressive(self)
-            pph21_component.amount = result.get("monthly_tax", 0.0)
-            self.pph21 = pph21_component.amount
-
-    def calculate_net_pay(self, *args, **kwargs):
-        """Ensure tax slab before net pay calculation."""
-        self.ensure_tax_slab()
-        return super().calculate_net_pay(*args, **kwargs)
-
-    def compute_taxable_earnings_for_year(self, *args, **kwargs):
-        """Ensure tax slab before computing taxable earnings for year."""
-        self.ensure_tax_slab()
-        return super().compute_taxable_earnings_for_year(*args, **kwargs)
+                if tax_method == "TER" and settings.use_ter:
+                    status_pajak = get_status_pajak(self)
+                    mapping = get_ptkp_to_ter_mapping()
+                    ter_category = mapping.get(status_pajak, "")
+                    
+                    if ter_category:
+                        result = tax_calc.calculate_monthly_pph_with_ter(
+                            ter_category=ter_category,
+                            gross_pay=self.gross_pay,
+                            slip=self
+                        )
+                        deduction.amount = result.get("monthly_tax", 0.0)
+                        self.pph21 = deduction.amount
+                    else:
+                        result = tax_calc.calculate_monthly_pph_progressive(self)
+                        deduction.amount = result.get("monthly_tax", 0.0)
+                        self.pph21 = deduction.amount
+                elif getattr(self, "is_december_override", 0):
+                    result = tax_calc.calculate_december_pph(self)
+                    deduction.amount = result.get("correction", 0.0)
+                    self.pph21 = deduction.amount
+                else:
+                    result = tax_calc.calculate_monthly_pph_progressive(self)
+                    deduction.amount = result.get("monthly_tax", 0.0)
+                    self.pph21 = deduction.amount
+                break
