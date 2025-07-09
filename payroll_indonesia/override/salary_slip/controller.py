@@ -41,7 +41,7 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     Custom Salary Slip class for Indonesian payroll with proper tax calculations.
     Overrides the standard ERPNext tax calculations to use Indonesian PPh 21 calculations.
     """
-
+    
     def validate(self):
         """Override validate to ensure our tax calculation is used."""
         # Call parent validate but we'll handle tax calculation ourselves
@@ -49,18 +49,44 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         
         # Set a flag to indicate this is an Indonesian Payroll Salary Slip
         self.is_indonesia_payroll = True
-
+    
     def get_income_tax_slabs(self):
         """
         Override income tax slab retrieval to use Indonesian tax slabs.
         This ensures ERPNext's standard tax calculation is bypassed.
         
         Returns:
-            List: Empty list to bypass ERPNext's tax calculation
+            Dict: A dummy tax slab object with required attributes
         """
-        # Return empty list to bypass standard ERPNext tax calculation
-        # Our custom tax calculation happens in calculate_variable_tax
-        return []
+        # Instead of an empty list, return a dummy object with required attributes
+        class DummyTaxSlab:
+            def __init__(self):
+                self.allow_tax_exemption = 0
+                self.slabs = []
+                self.other_taxes_and_charges = []
+                
+        return DummyTaxSlab()
+    
+    def get_tax_paid_in_period(self):
+        """
+        Override to prevent standard tax calculation.
+        
+        Returns:
+            float: 0.0 as we're handling this differently
+        """
+        # Return 0 as we're handling tax in our own way
+        return 0.0
+    
+    def compute_taxable_earnings_for_year(self):
+        """
+        Override to use our own implementation that doesn't depend on payroll period.
+        """
+        # Set a value for annual taxable earnings to prevent errors
+        self.annual_taxable_earnings = self.gross_pay * 12
+        self.gross_taxable_earnings_to_date = self.gross_pay
+        
+        # We'll use our own implementation in calculate_income_tax
+        self.tax_slab = self.get_income_tax_slabs()
 
     def calculate_income_tax(self, payroll_period=None, tax_component=None):
         """
@@ -254,3 +280,44 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
                     deduction.amount = result.get("monthly_tax", 0.0)
                     self.pph21 = deduction.amount
                 break
+    
+    def add_tax_components(self):
+        """
+        Override to use our own tax calculation.
+        """
+        # Only add the components if needed
+        tax_components = ["PPh 21"]
+        
+        # Only process if we have deductions
+        if not hasattr(self, "deductions") or not self.deductions:
+            return
+            
+        # Check if PPh 21 component already exists
+        pph21_exists = False
+        for d in self.deductions:
+            if d.salary_component == "PPh 21":
+                pph21_exists = True
+                break
+                
+        # If not, add it
+        if not pph21_exists:
+            # Get PPh 21 component details
+            component = frappe.db.get_value(
+                "Salary Component", 
+                "PPh 21", 
+                ["name", "salary_component_abbr", "do_not_include_in_total"],
+                as_dict=1
+            )
+            
+            if component:
+                # Add to deductions
+                self.append("deductions", {
+                    "salary_component": component.name,
+                    "abbr": component.salary_component_abbr,
+                    "amount": 0,
+                    "do_not_include_in_total": component.do_not_include_in_total,
+                    "depends_on_payment_days": 0
+                })
+                
+        # Now calculate tax for existing components
+        self.update_indonesia_tax_components()
