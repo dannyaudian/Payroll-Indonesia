@@ -167,7 +167,7 @@ frappe.ui.form.on('BPJS Payment Summary', {
                         );
                         
                         const result = await frappe.call({
-                            method: "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_account_detail.bpjs_payment_account_detail.sync_with_defaults_json",
+                            method: "payroll_indonesia.doctype.bpjs_payment_account_detail.bpjs_payment_account_detail.sync_with_defaults_json",
                             args: {
                                 doc: frm.doc
                             },
@@ -487,7 +487,7 @@ frappe.ui.form.on('BPJS Payment Summary Detail', {
             try {
                 // Get BPJS data from this salary slip
                 const result = await frappe.call({
-                    method: "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_utils.get_salary_slip_bpjs_data",
+                    method: "payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_utils.get_salary_slip_bpjs_data",
                     args: {
                         salary_slip: row.salary_slip
                     }

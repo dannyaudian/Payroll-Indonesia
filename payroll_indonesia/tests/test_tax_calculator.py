@@ -8,7 +8,7 @@ import pytest
 frappe = pytest.importorskip("frappe")
 from frappe.utils import flt, getdate, add_months
 from payroll_indonesia.override.salary_slip.tax_calculator import calculate_tax_components
-from payroll_indonesia.payroll_indonesia.bpjs.bpjs_calculation import get_bpjs_settings
+from payroll_indonesia.bpjs.bpjs_calculation import get_bpjs_settings
 
 
 class TestTaxCalculator(unittest.TestCase):
@@ -264,7 +264,7 @@ def run_tax_calculator_tests():
         {
             "tests": [
                 {
-                    "module_name": "payroll_indonesia.payroll_indonesia.tests.test_tax_calculator",
+                    "module_name": "payroll_indonesia.tests.test_tax_calculator",
                     "test_name": "TestTaxCalculator",
                 }
             ]

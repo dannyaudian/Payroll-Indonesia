@@ -6,7 +6,7 @@
 import frappe
 from frappe import _
 
-# from payroll_indonesia.payroll_indonesia.utils import get_ptkp_settings
+# from payroll_indonesia.utils import get_ptkp_settings
 
 # Import centralized cache utilities
 from payroll_indonesia.utilities.cache_utils import clear_tax_settings_cache

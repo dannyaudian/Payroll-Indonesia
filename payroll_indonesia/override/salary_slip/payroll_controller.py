@@ -18,7 +18,7 @@ import frappe
 
 import payroll_indonesia.override.salary_slip.bpjs_calculator as bpjs_calc
 import payroll_indonesia.override.salary_slip.tax_calculator as tax_calc
-import payroll_indonesia.payroll_indonesia.validations as val
+import payroll_indonesia.validations as val
 
 __all__ = ["on_submit", "on_cancel"]
 

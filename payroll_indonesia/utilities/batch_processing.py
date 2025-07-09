@@ -420,7 +420,7 @@ def process_tax_summary_batch(
     }
 
     # Import the appropriate functions
-    from payroll_indonesia.payroll_indonesia.doctype.employee_tax_summary.employee_tax_summary import (
+    from payroll_indonesia.doctype.employee_tax_summary.employee_tax_summary import (
         create_from_salary_slip,
         refresh_tax_summary,
     )

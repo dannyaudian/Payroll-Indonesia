@@ -19,7 +19,7 @@ from frappe.utils import getdate, date_diff, flt
 from payroll_indonesia.config.config import get_live_config
 import payroll_indonesia.override.salary_slip.bpjs_calculator as bpjs_calc
 import payroll_indonesia.override.salary_slip.tax_calculator as tax_calc
-import payroll_indonesia.payroll_indonesia.validations as validations
+import payroll_indonesia.validations as validations
 from payroll_indonesia.frappe_helpers import logger
 
 __all__ = [

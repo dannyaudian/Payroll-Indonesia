@@ -64,13 +64,13 @@ def test_post_submit_updates_existing_history(monkeypatch):
     sys.modules["hrms.payroll.doctype.salary_slip.salary_slip"] = ss_module
 
     # minimal utils module used by salary_slip_functions
-    pi_utils = types.ModuleType("payroll_indonesia.payroll_indonesia.utils")
+    pi_utils = types.ModuleType("payroll_indonesia.utils")
     pi_utils.calculate_bpjs = lambda base_salary, rate_percent, max_salary=None: 0
     # stub functions required by salary_slip_functions imports
     pi_utils.get_ptkp_to_ter_mapping = lambda: {}
     pi_utils.get_status_pajak = lambda doc: ""
     pi_utils.get_ter_rate = lambda category, income, fallback_rate=0.0: fallback_rate
-    sys.modules["payroll_indonesia.payroll_indonesia.utils"] = pi_utils
+    sys.modules["payroll_indonesia.utils"] = pi_utils
 
     import importlib
 

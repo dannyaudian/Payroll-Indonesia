@@ -78,7 +78,7 @@ def monthly_job():
 
         # Update tax summaries for previous month (heavier task)
         frappe.enqueue(
-            "payroll_indonesia.payroll_indonesia.tax.monthly_tasks.update_tax_summaries",
+            "payroll_indonesia.tax.monthly_tasks.update_tax_summaries",
             queue="long",
             job_name="update_tax_summaries",
             month=month_num,
@@ -113,7 +113,7 @@ def yearly_job():
 
         # Process December flagged runs
         frappe.enqueue(
-            "payroll_indonesia.payroll_indonesia.tax.yearly_tasks.process_december_flagged_runs",
+            "payroll_indonesia.tax.yearly_tasks.process_december_flagged_runs",
             queue="long",
             job_name="process_december_runs",
             year=prev_year,
@@ -123,7 +123,7 @@ def yearly_job():
 
         # Prepare tax reports (heaviest task)
         frappe.enqueue(
-            "payroll_indonesia.payroll_indonesia.tax.yearly_tasks.prepare_tax_report",
+            "payroll_indonesia.tax.yearly_tasks.prepare_tax_report",
             queue="long",
             job_name="prepare_tax_report",
             year=prev_year,

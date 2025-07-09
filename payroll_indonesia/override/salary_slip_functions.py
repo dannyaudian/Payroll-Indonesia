@@ -16,8 +16,8 @@ from frappe import _
 from frappe.utils import flt, cint, getdate
 
 from payroll_indonesia.config.config import get_live_config
-from payroll_indonesia.payroll_indonesia import utils as pi_utils
-from payroll_indonesia.payroll_indonesia.utils import (
+from payroll_indonesia import utils as pi_utils
+from payroll_indonesia.utils import (
     get_ptkp_to_ter_mapping,
     get_status_pajak,
 )

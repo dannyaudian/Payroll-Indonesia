@@ -171,7 +171,7 @@ def run_ter_calculator_tests():
         {
             "tests": [
                 {
-                    "module_name": "payroll_indonesia.payroll_indonesia.tests.test_ter_calculator",
+                    "module_name": "payroll_indonesia.tests.test_ter_calculator",
                     "test_name": "TestTERCalculator",
                 }
             ]

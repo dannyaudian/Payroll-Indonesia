@@ -8,7 +8,7 @@ import logging
 
 # FIXED: Use correct import path for get_default_config
 from payroll_indonesia.config.config import get_config as get_default_config
-from payroll_indonesia.payroll_indonesia.utils import debug_log
+from payroll_indonesia.utils import debug_log
 
 # Setup logger
 logger = logging.getLogger(__name__)

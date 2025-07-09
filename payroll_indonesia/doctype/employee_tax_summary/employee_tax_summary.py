@@ -1,4 +1,4 @@
-# path: payroll_indonesia/payroll_indonesia/doctype/employee_tax_summary/employee_tax_summary.py
+# path: payroll_indonesia/doctype/employee_tax_summary/employee_tax_summary.py
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt

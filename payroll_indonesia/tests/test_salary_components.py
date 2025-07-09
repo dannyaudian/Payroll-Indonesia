@@ -259,7 +259,7 @@ def run_salary_component_tests():
         {
             "tests": [
                 {
-                    "module_name": "payroll_indonesia.payroll_indonesia.tests.test_salary_components",
+                    "module_name": "payroll_indonesia.tests.test_salary_components",
                     "test_name": "TestSalaryComponents",
                 }
             ]

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import frappe
 
-from payroll_indonesia.payroll_indonesia import salary_slip_functions as ssf
+from payroll_indonesia import salary_slip_functions as ssf
 
 
 def main() -> None:

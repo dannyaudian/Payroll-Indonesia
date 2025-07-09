@@ -23,13 +23,13 @@ from frappe.model.document import Document
 from frappe.utils import flt, get_last_day, now_datetime, today
 
 # Import from the core service module instead
-from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_summary_service_core import (
+from payroll_indonesia.doctype.bpjs_payment_summary.payment_summary_service_core import (
     PaymentSummaryService,
 )
-from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_utils import (
+from payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_utils import (
     debug_log,
 )
-from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_validation import (
+from payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_validation import (
     create_bpjs_supplier,
 )
 

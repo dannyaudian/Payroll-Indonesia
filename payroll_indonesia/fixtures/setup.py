@@ -311,7 +311,7 @@ def setup_accounts(config=None, specific_company=None):
         config = get_default_config()
 
     # Import helper functions
-    from payroll_indonesia.payroll_indonesia.utils import (
+    from payroll_indonesia.utils import (
         get_or_create_account,
         find_parent_account,
         create_parent_liability_account,
