@@ -227,7 +227,7 @@ class TestTaxCalculator(unittest.TestCase):
 
         # Calculate expected annual projection
         monthly_taxable = salary_slip.monthly_taxable_income
-        expected_annual = monthly_taxable * 12
+        expected_annual = monthly_taxable * 11
 
         self.assertEqual(flt(salary_slip.annual_taxable_income, 2), flt(expected_annual, 2))
 

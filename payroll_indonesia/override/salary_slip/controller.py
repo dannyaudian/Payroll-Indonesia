@@ -44,15 +44,33 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
 
     def get_income_tax_slabs(self):
         """
-        Override income tax slab retrieval to use Indonesian tax slabs.
-        This ensures ERPNext's standard tax calculation is bypassed.
-        
+        Override income tax slab retrieval to disable standard ERPNext tax
+        calculation.
+
+        ERPNext expects a tax slab object with attributes like
+        ``allow_tax_exemption``. Returning an empty list caused attribute errors
+        when core methods accessed these attributes. Instead, return a minimal
+        :class:`frappe._dict` with ``allow_tax_exemption`` set to ``0`` so that
+        downstream code has the required property but effectively skips the
+        calculation.
+
         Returns:
-            List: Empty list to bypass ERPNext's tax calculation
+            frappe._dict: Dummy tax slab object
         """
-        # Return empty list to bypass standard ERPNext tax calculation
-        # Our custom tax calculation happens in get_income_tax
-        return []
+        return frappe._dict({"allow_tax_exemption": 0})
+
+    def ensure_tax_slab(self) -> None:
+        """Ensure ``self.tax_slab`` is a mapping with ``allow_tax_exemption``."""
+        from collections.abc import Mapping
+
+        tax_slab = getattr(self, "tax_slab", None)
+        if not isinstance(tax_slab, Mapping):
+            self.tax_slab = frappe._dict({"allow_tax_exemption": 0})
+
+    def validate(self):
+        """Validate salary slip ensuring tax slab compatibility."""
+        self.ensure_tax_slab()
+        super().validate()
 
     def calculate_income_tax(self, payroll_period=None, tax_component=None):
         """
@@ -213,5 +231,14 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             self.pph21 = pph21_component.amount
         else:
             result = tax_calc.calculate_monthly_pph_progressive(self)
-            pph21_component.amount = result.get("monthly_tax", 0.0)
-            self.pph21 = pph21_component.amount
+            pph21_component.amount = result.get("monthly_tax", 0.0)            self.pph21 = pph21_component.amount
+
+    def calculate_net_pay(self, *args, **kwargs):
+        """Ensure tax slab before net pay calculation."""
+        self.ensure_tax_slab()
+        return super().calculate_net_pay(*args, **kwargs)
+
+    def compute_taxable_earnings_for_year(self, *args, **kwargs):
+        """Ensure tax slab before computing taxable earnings for year."""
+        self.ensure_tax_slab()
+        return super().compute_taxable_earnings_for_year(*args, **kwargs)
