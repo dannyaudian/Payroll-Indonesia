@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Any, Union, Tuple
 import frappe
 from frappe import _
 from frappe.utils import flt, cint, getdate
+from frappe.model.document import Document
 
 from payroll_indonesia.frappe_helpers import get_logger
 logger = get_logger("salary_slip")
