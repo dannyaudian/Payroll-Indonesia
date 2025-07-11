@@ -28,13 +28,10 @@ from payroll_indonesia.override.salary_slip.tax_calculator import (
     calculate_monthly_pph_with_ter,
 )
 
-# Set up logger
 logger = logging.getLogger(__name__)
 
-# Import calculate_bpjs function for easier reference
 calc_bpjs = pi_utils.calculate_bpjs
 
-# Define employer BPJS components
 EMPLOYER_COMPONENTS = (
     "BPJS Kesehatan Employer",
     "BPJS JHT Employer",
@@ -43,25 +40,17 @@ EMPLOYER_COMPONENTS = (
     "BPJS JKM",
 )
 
-# Define public API
 __all__ = [
     "enqueue_tax_summary_update",
     "update_tax_summary",
-    "update_employee_history",  # alias
+    "update_employee_history",
     "update_component_amount",
     "salary_slip_post_submit",
-    "initialize_fields",  # Keep this to avoid import errors
+    "initialize_fields",
 ]
 
 
 def initialize_fields(doc, method: Optional[str] = None) -> None:
-    """
-    Ensure custom Salary Slip fields are initialized with defaults.
-
-    Args:
-        doc: The Salary Slip document
-        method: The method that triggered this hook (unused)
-    """
     defaults = {
         "biaya_jabatan": 0,
         "netto": 0,
@@ -74,7 +63,7 @@ def initialize_fields(doc, method: Optional[str] = None) -> None:
         "kesehatan_employee": 0,
         "jht_employee": 0,
         "jp_employee": 0,
-        "pph21": 0,  # Ensure PPh 21 field is initialized
+        "pph21": 0,
     }
 
     for field, default in defaults.items():
@@ -84,33 +73,19 @@ def initialize_fields(doc, method: Optional[str] = None) -> None:
 
 
 def update_component_amount(doc, method: Optional[str] = None) -> None:
-    """
-    Update salary component amounts based on Indonesian tax and BPJS regulations.
-
-    This function handles all special component calculations for both earnings and deductions.
-    Designed to be used as a doc event hook in Salary Slip.
-
-    Args:
-        doc: The Salary Slip document
-        method: The method that triggered this hook (unused)
-    """
     logger.debug(f"Updating component amounts for Salary Slip {doc.name}")
 
-    # Ensure fields are initialized
     initialize_fields(doc)
 
-    # Get configuration
     config = get_live_config()
     bpjs_config = config.get("bpjs", {})
 
-    # Ensure gross pay is calculated
     if not doc.gross_pay:
         doc.gross_pay = _calculate_gross_pay(doc)
         logger.debug(f"Calculated gross pay: {doc.gross_pay}")
 
-    # Determine TER eligibility using the new approach
     settings = frappe.get_cached_doc("Payroll Indonesia Settings")
-    status_raw = get_status_pajak(doc)  # already uppercase
+    status_raw = get_status_pajak(doc)
     mapping = get_ptkp_to_ter_mapping()
     ter_category = mapping.get(status_raw, "")
     is_ter_employee = bool(ter_category)
@@ -124,7 +99,6 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
         settings.use_ter,
     )
 
-    # Log key TER-related values for easier debugging of tax calculation logic
     logger.info(
         "TER debugging - settings.use_ter: %s, settings.tax_calculation_method: %s, "
         "status_pajak: %s, is_ter_employee: %s",
@@ -134,16 +108,12 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
         is_ter_employee,
     )
 
-    # Process BPJS and tax components
     try:
-        # Calculate BPJS components and update fields
         bpjs_components = _calculate_bpjs_components(doc, bpjs_config)
         _update_bpjs_fields(doc, bpjs_components)
 
-        # Update deduction amounts
         _update_deduction_amounts(doc, bpjs_components, bpjs_config)
 
-        # Apply tax calculation based on method
         if settings.tax_calculation_method == "TER" and settings.use_ter and is_ter_employee:
             doc.is_using_ter = 1
             result = calculate_monthly_pph_with_ter(
@@ -164,28 +134,20 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
                 tax_amount = result.get("monthly_tax", 0.0)
                 logger.info(f"Progressive method applied for {doc.name} - tax: {tax_amount}")
 
-        # Update PPh 21 component
         _update_component_amount(doc, "PPh 21", tax_amount)
         doc.pph21 = tax_amount
 
-        # Calculate netto (needed for tax calculation)
         biaya_jabatan = min(doc.gross_pay * (BIAYA_JABATAN_PERCENT / 100), BIAYA_JABATAN_MAX)
         doc.biaya_jabatan = biaya_jabatan
         doc.netto = doc.gross_pay - biaya_jabatan - (doc.total_bpjs or 0)
 
-        # Update YTD values
         _update_ytd_values(doc)
-
-        # Set appropriate payroll note
         _set_payroll_note(doc)
 
     except Exception as e:
         logger.exception(f"Error updating component amounts for {doc.name}: {e}")
 
-    # Update tax summary
     update_tax_summary(doc.name)
-
-    # Update totals after modifying components
     try:
         doc.calculate_totals()
         logger.debug(f"Component update completed for Salary Slip {doc.name}")
@@ -194,15 +156,6 @@ def update_component_amount(doc, method: Optional[str] = None) -> None:
 
 
 def _calculate_gross_pay(doc) -> float:
-    """
-    Calculate gross pay from earnings.
-
-    Args:
-        doc: The Salary Slip document
-
-    Returns:
-        float: Total gross pay
-    """
     total = 0.0
 
     if hasattr(doc, "earnings"):
@@ -213,23 +166,11 @@ def _calculate_gross_pay(doc) -> float:
 
 
 def _calculate_bpjs_components(doc, bpjs_config: Dict) -> Dict[str, float]:
-    """
-    Calculate all BPJS components.
-
-    Args:
-        doc: The Salary Slip document
-        bpjs_config: BPJS configuration dictionary
-
-    Returns:
-        Dict[str, float]: Dictionary of BPJS component amounts
-    """
     base_salary = flt(doc.gross_pay) or 0
 
-    # Get limits and percentages from config or use defaults
     kesehatan_max = flt(bpjs_config.get("kesehatan_max_salary", 12000000))
     jp_max = flt(bpjs_config.get("jp_max_salary", 9077600))
 
-    # Calculate employee components
     kesehatan_employee = calc_bpjs(
         base_salary, bpjs_config.get("kesehatan_employee_percent", 1.0), max_salary=kesehatan_max
     )
@@ -240,7 +181,6 @@ def _calculate_bpjs_components(doc, bpjs_config: Dict) -> Dict[str, float]:
         base_salary, bpjs_config.get("jp_employee_percent", 1.0), max_salary=jp_max
     )
 
-    # Calculate employer components
     kesehatan_employer = calc_bpjs(
         base_salary, bpjs_config.get("kesehatan_employer_percent", 4.0), max_salary=kesehatan_max
     )
@@ -254,11 +194,9 @@ def _calculate_bpjs_components(doc, bpjs_config: Dict) -> Dict[str, float]:
     jkk = calc_bpjs(base_salary, bpjs_config.get("jkk_percent", 0.24))
     jkm = calc_bpjs(base_salary, bpjs_config.get("jkm_percent", 0.3))
 
-    # Calculate totals
     total_employee = kesehatan_employee + jht_employee + jp_employee
     total_employer = kesehatan_employer + jht_employer + jp_employer + jkk + jkm
 
-    # Return all components
     return {
         "kesehatan_employee": kesehatan_employee,
         "jht_employee": jht_employee,
@@ -274,14 +212,6 @@ def _calculate_bpjs_components(doc, bpjs_config: Dict) -> Dict[str, float]:
 
 
 def _update_bpjs_fields(doc, components: Dict[str, float]) -> None:
-    """
-    Update BPJS fields in the salary slip.
-
-    Args:
-        doc: The Salary Slip document
-        components: Dictionary of BPJS component amounts
-    """
-    # Update employee BPJS fields
     doc.kesehatan_employee = components.get("kesehatan_employee", 0)
     doc.jht_employee = components.get("jht_employee", 0)
     doc.jp_employee = components.get("jp_employee", 0)
@@ -291,14 +221,6 @@ def _update_bpjs_fields(doc, components: Dict[str, float]) -> None:
 
 
 def _update_deduction_amounts(doc, components: Dict[str, float], bpjs_config: Dict) -> None:
-    """
-    Update deduction amounts in the salary slip.
-
-    Args:
-        doc: The Salary Slip document
-        components: Dictionary of BPJS component amounts
-        bpjs_config: BPJS configuration dictionary
-    """
     if not hasattr(doc, "deductions"):
         logger.warning(f"No deductions found in {doc.name}")
         return
@@ -306,22 +228,18 @@ def _update_deduction_amounts(doc, components: Dict[str, float], bpjs_config: Di
     for deduction in doc.deductions:
         component_name = deduction.salary_component
 
-        # Handle BPJS Kesehatan Employee
         if component_name == "BPJS Kesehatan Employee":
             deduction.amount = components.get("kesehatan_employee", 0)
             logger.debug(f"Updated BPJS Kesehatan Employee: {deduction.amount}")
 
-        # Handle BPJS JHT Employee
         elif component_name == "BPJS JHT Employee":
             deduction.amount = components.get("jht_employee", 0)
             logger.debug(f"Updated BPJS JHT Employee: {deduction.amount}")
 
-        # Handle BPJS JP Employee
         elif component_name == "BPJS JP Employee":
             deduction.amount = components.get("jp_employee", 0)
             logger.debug(f"Updated BPJS JP Employee: {deduction.amount}")
 
-        # Handle employer components for reporting
         elif component_name == "BPJS Kesehatan Employer":
             deduction.amount = components.get("kesehatan_employer", 0)
         elif component_name == "BPJS JHT Employer":
@@ -335,20 +253,12 @@ def _update_deduction_amounts(doc, components: Dict[str, float], bpjs_config: Di
 
 
 def _update_ytd_values(doc) -> None:
-    """
-    Update YTD values in the salary slip.
-
-    Args:
-        doc: The Salary Slip document
-    """
     try:
         if not doc.employee or not doc.posting_date:
             return
 
-        # Get YTD values excluding current slip
         year = getdate(doc.posting_date).year
 
-        # Query for YTD totals
         ytd_data = frappe.db.sql(
             """
             SELECT 
@@ -378,55 +288,33 @@ def _update_ytd_values(doc) -> None:
 
 
 def _set_payroll_note(doc) -> None:
-    """
-    Set appropriate payroll note in the salary slip.
-
-    Args:
-        doc: The Salary Slip document
-    """
     notes = []
 
-    # Add TER note if using TER
     if getattr(doc, "is_using_ter", 0):
         notes.append(f"Perhitungan pajak menggunakan metode TER ({getattr(doc, 'ter_rate', 0)}%)")
 
-    # Add December note if December override
     if getattr(doc, "is_december_override", 0):
         notes.append("Slip ini menggunakan perhitungan koreksi pajak akhir tahun (Desember)")
 
-    # Set note
     if notes:
         doc.payroll_note = "\n".join(notes)
         logger.debug(f"Set payroll note for {doc.name}")
 
 
 def calculate_employer_contributions(doc) -> Dict[str, float]:
-    """Placeholder for employer contribution calculation."""
     return {}
 
 
 def store_employer_contributions(doc, contributions: Dict[str, float]) -> None:
-    """Placeholder for storing employer contributions."""
     return None
 
 
 def salary_slip_post_submit(doc, method: Optional[str] = None) -> None:
-    """
-    Process salary slip after submission.
-
-    Updates employee tax summary records.
-
-    Args:
-        doc: The Salary Slip document
-        method: The method that triggered this hook (unused)
-    """
     logger.debug(f"Processing post-submit for Salary Slip {doc.name}")
 
     try:
-        # Ensure fields are initialized
         initialize_fields(doc)
 
-        # Update tax summary asynchronously
         enqueue_tax_summary_update(doc)
 
         logger.debug(f"Post-submit processing completed for Salary Slip {doc.name}")
@@ -436,14 +324,6 @@ def salary_slip_post_submit(doc, method: Optional[str] = None) -> None:
 
 
 def _update_component_amount(doc, component_name: str, amount: float) -> None:
-    """
-    Update the amount of a salary component in deductions.
-
-    Args:
-        doc: The Salary Slip document
-        component_name: Name of the salary component
-        amount: Amount to set
-    """
     if not hasattr(doc, "deductions"):
         return
 
@@ -455,16 +335,6 @@ def _update_component_amount(doc, component_name: str, amount: float) -> None:
 
 
 def _get_component_amount(doc, component_name: str) -> float:
-    """
-    Get the amount of a salary component from deductions.
-
-    Args:
-        doc: The Salary Slip document
-        component_name: Name of the salary component
-
-    Returns:
-        float: Amount of the component, 0 if not found
-    """
     if not hasattr(doc, "deductions"):
         return 0.0
 
@@ -476,16 +346,6 @@ def _get_component_amount(doc, component_name: str) -> float:
 
 
 def _get_or_create_tax_row(slip) -> Tuple[Any, Any]:
-    """
-    Get or create a tax summary row for the salary slip.
-
-    Args:
-        slip: The Salary Slip document
-
-    Returns:
-        Tuple containing (child row, parent doc)
-    """
-    # Determine employee and tax year
     employee = slip.employee
     if hasattr(slip, "start_date") and slip.start_date:
         year = getdate(slip.start_date).year
@@ -503,7 +363,6 @@ def _get_or_create_tax_row(slip) -> Tuple[Any, Any]:
         summary.employee = employee
         summary.year = year
 
-    # Find or create the monthly detail row
     month = getattr(slip, "month", None)
     if not month and hasattr(slip, "start_date") and slip.start_date:
         month = getdate(slip.start_date).month
@@ -534,38 +393,31 @@ def _get_or_create_tax_row(slip) -> Tuple[Any, Any]:
 
 
 def enqueue_tax_summary_update(doc) -> None:
-    """
-    Enqueue tax summary update after commit using only the slip name.
-    
-    Args:
-        doc: The Salary Slip document
-    """
     try:
+        if not doc or not hasattr(doc, "name") or not doc.name:
+            logger.warning("Cannot enqueue tax update: Invalid document")
+            return
+
+        job_name = f"tax_summary_{doc.name}_{doc.docstatus}"
+
         frappe.enqueue(
             "payroll_indonesia.override.salary_slip_functions.update_tax_summary",
-            queue="long",
-            job_name=f"tax_summary_update_{doc.name}",
+            queue="default",
+            job_name=job_name,
             enqueue_after_commit=True,
             slip_name=doc.name,
         )
-        logger.info(f"Enqueued tax summary update for {doc.name}")
-    except Exception as e:
+
+        logger.info(f"Enqueued tax summary update for {doc.name} (status: {doc.docstatus})")
+        except Exception as e:
         logger.exception(f"Failed to enqueue tax summary update for {doc.name}: {str(e)}")
-        # Try to update directly as fallback
         try:
             update_tax_summary(doc.name)
-        except Exception as e2:
-            logger.exception(f"Fallback update also failed for {doc.name}: {str(e2)}")
+        except Exception as fallback_error:
+            logger.exception(f"Fallback tax update also failed for {doc.name}: {str(fallback_error)}")
 
 
 def update_tax_summary(slip_name: str) -> None:
-    """
-    Update Employee Tax Summary with salary slip data.
-    
-    Args:
-        slip_name: The name of the Salary Slip document
-    """
-    # Function to fetch and process the slip
     def process_slip():
         slip = frappe.get_doc("Salary Slip", slip_name)
         
@@ -573,53 +425,30 @@ def update_tax_summary(slip_name: str) -> None:
             logger.warning(f"Slip {slip_name} has no employee, skipping tax summary update")
             return
 
-        # Get or create tax summary row
-        row, parent = _get_or_create_tax_row(slip)
+        logger.debug(f"Processing tax summary for {slip_name} (status: {slip.docstatus})")
 
-        # Calculate deduction values
-        tax_amount = 0
-        bpjs_deductions = 0
-        other_deductions = 0
+        detail_row, summary = _get_or_create_tax_row(slip)
 
-        if hasattr(slip, "deductions"):
-            for deduction in slip.deductions:
-                if deduction.salary_component == "PPh 21":
-                    tax_amount = flt(deduction.amount)
-                elif deduction.salary_component in [
-                    "BPJS JHT Employee",
-                    "BPJS JP Employee",
-                    "BPJS Kesehatan Employee",
-                ]:
-                    bpjs_deductions += flt(deduction.amount)
-                else:
-                    other_deductions += flt(deduction.amount)
+        if slip.docstatus == 1:
+            _update_tax_detail_from_slip(detail_row, slip)
+            detail_row.salary_slip = slip.name
+        elif slip.docstatus == 2:
+            _zero_tax_detail(detail_row)
+            detail_row.salary_slip = ""
 
-        row.gross_pay = flt(getattr(slip, "gross_pay", 0))
-        row.tax_amount = tax_amount
-        if hasattr(row, "bpjs_deductions"):
-            row.bpjs_deductions = bpjs_deductions
-        if hasattr(row, "bpjs_deductions_employee"):
-            row.bpjs_deductions_employee = bpjs_deductions
-        if hasattr(row, "other_deductions"):
-            row.other_deductions = other_deductions
-        if hasattr(row, "salary_slip"):
-            row.salary_slip = slip.name
+        _calculate_ytd_totals(summary)
 
-        if hasattr(row, "is_using_ter") and hasattr(slip, "is_using_ter"):
-            row.is_using_ter = cint(slip.is_using_ter)
-        if hasattr(row, "ter_rate") and hasattr(slip, "ter_rate"):
-            row.ter_rate = flt(slip.ter_rate)
+        summary.flags.ignore_permissions = True
+        summary.save()
 
-        # Save the documents
-        parent.save(ignore_permissions=True)
+        logger.info(
+            f"Tax summary updated for {slip.employee} - Month {detail_row.month}/{summary.year}, "
+            f"docstatus={slip.docstatus}"
+            )
 
-        logger.info(f"Tax summary updated for {slip.employee} - {row.month}/{parent.year}")
-    
-    # Use retry mechanism with exponential backoff
     try:
         from frappe.utils.background_jobs import retry
-        
-        # Attempt with retry for possible race conditions
+
         retry(
             process_slip,
             max_retries=3,
@@ -628,7 +457,6 @@ def update_tax_summary(slip_name: str) -> None:
             exceptions=(frappe.DoesNotExistError, frappe.LinkValidationError)
         )
     except ImportError:
-        # Fallback if retry utility isn't available
         try:
             import time
             max_retries = 3
@@ -653,5 +481,127 @@ def update_tax_summary(slip_name: str) -> None:
                 f"Error updating tax summary for slip {slip_name}: {str(e)}",
                 "Tax Summary Update Error"
             )
-# Alias for backward compatibility
+
+
+def _get_or_create_tax_row(slip: Document) -> Tuple[Any, Any]:
+    employee = slip.employee
+    year = getdate(slip.posting_date).year
+
+    filters = {"employee": employee, "year": year}
+    summary_name = frappe.db.get_value("Employee Tax Summary", filters)
+
+    if summary_name:
+        summary = frappe.get_doc("Employee Tax Summary", summary_name)
+    else:
+        summary = frappe.new_doc("Employee Tax Summary")
+        summary.employee = employee
+        summary.year = year
+
+    if hasattr(slip, "start_date") and slip.start_date:
+        month = getdate(slip.start_date).month
+    else:
+        month = getdate(slip.posting_date).month
+
+    row = None
+    for detail in summary.get("monthly_details", []):
+        if detail.month == month:
+            row = detail
+            break
+
+    if not row:
+        row = summary.append(
+            "monthly_details",
+            {
+                "month": month,
+                "gross_pay": 0,
+                "tax_amount": 0,
+                "bpjs_deductions_employee": 0,
+                "other_deductions": 0,
+                "salary_slip": "",
+                "is_using_ter": 0,
+                "ter_rate": 0,
+            },
+        )
+
+    return row, summary
+
+
+def _update_tax_detail_from_slip(row: Any, slip: Document) -> None:
+    tax_amount = 0
+    bpjs_deductions = 0
+    other_deductions = 0
+
+    if hasattr(slip, "deductions"):
+        for deduction in slip.deductions:
+            if deduction.salary_component == "PPh 21":
+                tax_amount = flt(deduction.amount)
+            elif deduction.salary_component in [
+                "BPJS JHT Employee",
+                "BPJS JP Employee",
+                "BPJS Kesehatan Employee",
+            ]:
+                bpjs_deductions += flt(deduction.amount)
+            else:
+                other_deductions += flt(deduction.amount)
+
+    row.gross_pay = flt(getattr(slip, "gross_pay", 0))
+    row.tax_amount = tax_amount
+
+    if hasattr(row, "bpjs_deductions"):
+        row.bpjs_deductions = bpjs_deductions
+    if hasattr(row, "bpjs_deductions_employee"):
+        row.bpjs_deductions_employee = bpjs_deductions
+    if hasattr(row, "other_deductions"):
+        row.other_deductions = other_deductions
+
+    if hasattr(row, "is_using_ter") and hasattr(slip, "is_using_ter"):
+        row.is_using_ter = cint(slip.is_using_ter)
+    if hasattr(row, "ter_rate") and hasattr(slip, "ter_rate"):
+        row.ter_rate = flt(slip.ter_rate)
+
+
+def _zero_tax_detail(row: Any) -> None:
+    row.gross_pay = 0
+    row.tax_amount = 0
+
+    if hasattr(row, "bpjs_deductions"):
+        row.bpjs_deductions = 0
+    if hasattr(row, "bpjs_deductions_employee"):
+        row.bpjs_deductions_employee = 0
+    if hasattr(row, "other_deductions"):
+        row.other_deductions = 0
+    if hasattr(row, "is_using_ter"):
+        row.is_using_ter = 0
+    if hasattr(row, "ter_rate"):
+        row.ter_rate = 0
+
+
+def _calculate_ytd_totals(summary: Document) -> None:
+    ytd_totals = {
+        "gross_pay": 0,
+        "tax_amount": 0,
+        "bpjs_deductions": 0,
+        "other_deductions": 0,
+    }
+
+    for detail in summary.get("monthly_details", []):
+        ytd_totals["gross_pay"] += flt(detail.gross_pay)
+        ytd_totals["tax_amount"] += flt(detail.tax_amount)
+
+        if hasattr(detail, "bpjs_deductions_employee"):
+            ytd_totals["bpjs_deductions"] += flt(detail.bpjs_deductions_employee)
+        elif hasattr(detail, "bpjs_deductions"):
+            ytd_totals["bpjs_deductions"] += flt(detail.bpjs_deductions)
+
+        if hasattr(detail, "other_deductions"):
+            ytd_totals["other_deductions"] += flt(detail.other_deductions)
+
+    if hasattr(summary, "ytd_gross_pay"):
+        summary.ytd_gross_pay = ytd_totals["gross_pay"]
+    if hasattr(summary, "ytd_tax"):
+        summary.ytd_tax = ytd_totals["tax_amount"]
+    if hasattr(summary, "ytd_bpjs"):
+        summary.ytd_bpjs = ytd_totals["bpjs_deductions"]
+    if hasattr(summary, "ytd_other_deductions"):
+        summary.ytd_other_deductions = ytd_totals["other_deductions"]
 update_employee_history = update_tax_summary
