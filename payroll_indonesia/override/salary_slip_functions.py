@@ -747,7 +747,7 @@ def _zero_tax_detail(row: Any) -> None:
         row.ter_rate = 0
     if hasattr(row, "tax_correction"):
         row.tax_correction = 0
-
+        
 
 def _calculate_ytd_totals(summary: Document) -> None:
     """
@@ -791,4 +791,11 @@ def _calculate_ytd_totals(summary: Document) -> None:
         summary.ytd_tax = ytd_totals["tax_amount"]
     if hasattr(summary, "ytd_bpjs"):
         summary.ytd_bpjs = ytd_totals["bpjs_deductions"]
-    if hasattr
+    if hasattr(summary, "ytd_other_deductions"):  # Menambahkan pengecekan untuk other_deductions
+        summary.ytd_other_deductions = ytd_totals["other_deductions"]
+    if hasattr(summary, "ytd_tax_correction"):  # Menambahkan pengecekan untuk tax_correction
+        summary.ytd_tax_correction = ytd_totals["tax_correction"]
+
+    # Save the summary after updating YTD totals
+    summary.save()
+
