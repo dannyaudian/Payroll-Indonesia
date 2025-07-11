@@ -192,7 +192,6 @@ class EmployeeTaxSummary(Document):
                 self.db_set("ter_rate", max_ter_rate, update_modified=False)
     except Exception as e:
             logger.exception(f"Error in on_update for Employee Tax Summary {self.name}: {str(e)}")
-
 def get_summary(employee: str, year: int) -> Document:
     if not employee:
         frappe.throw(_("Employee is required to get tax summary"))
