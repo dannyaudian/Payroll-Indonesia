@@ -11,10 +11,11 @@ These functions handle component updates, calculations, and post-submit operatio
 from typing import Dict, List, Optional, Any, Union, Tuple
 
 import frappe
-import logging
 from frappe import _
 from frappe.utils import flt, cint, getdate
 
+from payroll_indonesia.frappe_helpers import get_logger
+logger = get_logger("salary_slip")
 from payroll_indonesia.config.config import get_live_config
 from payroll_indonesia.payroll_indonesia import utils as pi_utils
 from payroll_indonesia.payroll_indonesia.utils import (
@@ -27,8 +28,6 @@ from payroll_indonesia.override.salary_slip.tax_calculator import (
     calculate_december_pph,
     calculate_monthly_pph_with_ter,
 )
-
-logger = logging.getLogger(__name__)
 
 calc_bpjs = pi_utils.calculate_bpjs
 
@@ -409,7 +408,7 @@ def enqueue_tax_summary_update(doc) -> None:
         )
 
         logger.info(f"Enqueued tax summary update for {doc.name} (status: {doc.docstatus})")
-        except Exception as e:
+    except Exception as e:  # Fixed indentation here
         logger.exception(f"Failed to enqueue tax summary update for {doc.name}: {str(e)}")
         try:
             update_tax_summary(doc.name)

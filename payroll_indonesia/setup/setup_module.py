@@ -17,11 +17,12 @@ import frappe
 from frappe import _
 from frappe.utils import now_datetime
 
-from payroll_indonesia.frappe_helpers import logger
+from payroll_indonesia.frappe_helpers import get_logger
+logger = get_logger("setup")
+
 from payroll_indonesia.utilities.tax_slab import setup_income_tax_slab
 from payroll_indonesia.setup.settings_migration import _load_defaults
 from payroll_indonesia.config.config import doctype_defined
-
 
 def setup_module() -> bool:
     logger.info("Starting Payroll Indonesia basic setup")
@@ -36,7 +37,6 @@ def setup_module() -> bool:
     else:
         logger.warning("Payroll Indonesia basic setup completed with warnings")
     return success
-
 
 def setup_accounts() -> bool:
     logger.info("Setting up Payroll Indonesia tax infrastructure")
@@ -79,7 +79,6 @@ def setup_accounts() -> bool:
     else:
         logger.warning("Payroll Indonesia tax infrastructure setup completed with warnings")
     return success
-
 
 def create_custom_workspace() -> bool:
     try:
@@ -124,7 +123,6 @@ def create_custom_workspace() -> bool:
         )
         return False
 
-
 def setup_default_modules() -> bool:
     try:
         logger.info("Setting up default modules")
@@ -152,7 +150,6 @@ def setup_default_modules() -> bool:
             "Module Setup Error",
         )
         return False
-
 
 def ensure_settings_doctype_exists() -> bool:
     try:
@@ -188,7 +185,6 @@ def ensure_settings_doctype_exists() -> bool:
             "Settings Setup Error",
         )
         return False
-
 
 def after_sync() -> bool:
     try:
@@ -235,7 +231,6 @@ def after_sync() -> bool:
             "Settings Sync Error",
         )
         return False
-
 
 def _setup_field_aliases() -> None:
     try:
