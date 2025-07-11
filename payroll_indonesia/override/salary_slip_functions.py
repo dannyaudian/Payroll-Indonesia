@@ -151,7 +151,15 @@ def update_component_amount(doc: Document, method: Optional[str] = None) -> None
             doc.is_using_ter = 0
             
             # Check if this is a December slip with annual correction
-            if getattr(doc, "is_december_override", 0):
+            end_date = getattr(doc, "end_date", None)
+            is_december_month = False
+            if end_date:
+                try:
+                    is_december_month = getdate(end_date).month == 12
+                except Exception:
+                    logger.warning(f"Invalid end_date for slip {doc.name}: {end_date}")
+
+            if is_december_month or getattr(doc, "is_december_override", 0):
                 # December annual correction calculation
                 result = calculate_december_pph(doc)
                 
