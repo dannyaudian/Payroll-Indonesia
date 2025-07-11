@@ -16,6 +16,7 @@ from frappe.utils import flt, cint, getdate
 from typing import Dict, List, Optional, Any, Union, Tuple
 
 from payroll_indonesia.frappe_helpers import get_logger
+
 logger = get_logger("salary_slip")
 
 from payroll_indonesia.config.config import get_live_config
@@ -791,4 +792,15 @@ def _calculate_ytd_totals(summary: Document) -> None:
         summary.ytd_tax = ytd_totals["tax_amount"]
     if hasattr(summary, "ytd_bpjs"):
         summary.ytd_bpjs = ytd_totals["bpjs_deductions"]
-    if hasattr
+    if hasattr(summary, "ytd_other_deductions"):
+        summary.ytd_other_deductions = ytd_totals["other_deductions"]
+    if hasattr(summary, "ytd_tax_correction"):
+        summary.ytd_tax_correction = ytd_totals["tax_correction"]
+    
+    # Update total tax with correction if the field exists
+    if hasattr(summary, "ytd_tax_with_correction"):
+        summary.ytd_tax_with_correction = ytd_totals["tax_amount"] + ytd_totals["tax_correction"]
+
+
+# Alias for backward compatibility
+update_employee_history = update_tax_summary
