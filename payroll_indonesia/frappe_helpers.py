@@ -10,8 +10,9 @@ from typing import Any, Callable, Dict, TypeVar, Union
 import frappe
 from frappe.model.document import Document
 
-# Setup logging
-logger = logging.getLogger(__name__)
+# Re-use the logger from the logger module
+from payroll_indonesia.frappe_helpers.logger import get_logger
+logger = get_logger(__name__)
 
 T = TypeVar("T")
 DocType = Union[Document, Dict[str, Any]]
@@ -65,12 +66,6 @@ def safe_execute(
 
     Returns:
         Decorator function that wraps the target function
-
-    Example:
-        @safe_execute(default_value=False)
-        def risky_operation():
-            # Some code that might raise an exception
-            return True
     """
 
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
