@@ -12,12 +12,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, get_last_day, now_datetime, today
-
-from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_summary_service_core import (
-    PaymentSummaryService,
-    create_payment_entry,
-    fetch_salary_slip_data,
-)
+from typing import Dict, Optional, Any, Union, List, Tuple
 
 
 class BPJSPaymentSummary(Document):
@@ -28,7 +23,7 @@ class BPJSPaymentSummary(Document):
     calculation of contribution totals, and creation of associated accounting entries.
     """
 
-    def validate(self):
+    def validate(self) -> None:
         """
         Validate document before save/submit.
 
@@ -56,7 +51,7 @@ class BPJSPaymentSummary(Document):
         self.validate_supplier()
         self.set_account_details()
 
-    def set_missing_values(self):
+    def set_missing_values(self) -> None:
         """
         Set default values for required fields.
 
@@ -82,7 +77,7 @@ class BPJSPaymentSummary(Document):
                 if hasattr(self, "month_year_title"):
                     self.month_year_title = f"{month_names[self.month - 1]} {self.year}"
 
-    def validate_company(self):
+    def validate_company(self) -> None:
         """
         Validate company and its default accounts.
 
@@ -101,7 +96,7 @@ class BPJSPaymentSummary(Document):
         # Store company abbreviation for later use
         self._company_abbr = frappe.get_cached_value("Company", self.company, "abbr")
 
-    def validate_month_year(self):
+    def validate_month_year(self) -> None:
         """
         Ensure month and year are valid.
         """
@@ -112,7 +107,7 @@ class BPJSPaymentSummary(Document):
         if self.year < 2000:
             frappe.throw(_("Year must be greater than or equal to 2000"))
 
-    def check_and_generate_components(self):
+    def check_and_generate_components(self) -> None:
         """
         Validate BPJS components and auto-generate if needed.
         """
@@ -149,10 +144,12 @@ class BPJSPaymentSummary(Document):
         Returns:
             bool: True if components were successfully generated, False otherwise.
         """
+        from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_summary_service_core import PaymentSummaryService
+        
         service = PaymentSummaryService(self)
         return service.populate_from_employee_details()
 
-    def calculate_total(self):
+    def calculate_total(self) -> None:
         """
         Calculate total from components and set amount field.
         """
@@ -164,14 +161,14 @@ class BPJSPaymentSummary(Document):
         # Continue with calculation
         self.total = sum(flt(d.amount) for d in self.komponen)
 
-    def validate_total(self):
+    def validate_total(self) -> None:
         """
         Validate total amount is greater than 0.
         """
         if not self.total or self.total <= 0:
             frappe.throw(_("Total amount must be greater than 0"))
 
-    def validate_supplier(self):
+    def validate_supplier(self) -> None:
         """
         Validate BPJS supplier exists.
         """
@@ -181,6 +178,7 @@ class BPJSPaymentSummary(Document):
     def create_bpjs_supplier(self) -> str:
         """
         Create BPJS supplier if it doesn't exist.
+        
         Returns:
             str: Name of the created supplier
         """
@@ -192,17 +190,19 @@ class BPJSPaymentSummary(Document):
         supplier.insert()
         return supplier.name
 
-    def set_account_details(self):
+    def set_account_details(self) -> None:
         """
         Set account details from BPJS Settings and Account Mapping.
         """
         if self.docstatus == 1:
             frappe.throw(_("Cannot modify account details after submission"))
         
+        from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_summary_service_core import PaymentSummaryService
+        
         service = PaymentSummaryService(self)
         service.set_account_details()
 
-    def before_save(self):
+    def before_save(self) -> None:
         """
         Ensure all required fields are set before saving.
         """
@@ -210,13 +210,13 @@ class BPJSPaymentSummary(Document):
         if hasattr(self, "last_synced") and not self.last_synced:
             self.last_synced = now_datetime()
 
-    def on_submit(self):
+    def on_submit(self) -> None:
         """
         Actions to perform on document submission.
         """
         self.status = "Submitted"
 
-    def on_cancel(self):
+    def on_cancel(self) -> None:
         """
         Actions to perform on document cancellation.
         """
@@ -237,14 +237,16 @@ class BPJSPaymentSummary(Document):
         self.status = "Draft"
 
     @frappe.whitelist()
-    def generate_payment_entry(self) -> dict:
+    def generate_payment_entry(self) -> Dict[str, Any]:
         """
         Create Payment Entry for BPJS Payment Summary.
 
         Returns:
-            dict: Result with status and payment entry name.
+            Dict[str, Any]: Result with status and payment entry name.
         """
         try:
+            from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_summary_service_core import create_payment_entry
+            
             payment_entry_name = create_payment_entry(self)
 
             if payment_entry_name:
@@ -270,25 +272,29 @@ class BPJSPaymentSummary(Document):
             }
 
     @frappe.whitelist()
-    def create_employer_journal(self) -> dict:
+    def create_employer_journal(self) -> Dict[str, Any]:
         """
         Create Journal Entry for BPJS employer contributions.
 
         Returns:
-            dict: Result with status and journal entry name.
+            Dict[str, Any]: Result with status and journal entry name.
         """
+        from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_summary_service_core import PaymentSummaryService
+        
         service = PaymentSummaryService(self)
         return service.create_employer_journal()
 
     @frappe.whitelist()
-    def get_from_salary_slip(self) -> dict:
+    def get_from_salary_slip(self) -> Dict[str, Any]:
         """
         Get BPJS data from salary slips for the specified period.
 
         Returns:
-            dict: Result with status and count.
+            Dict[str, Any]: Result with status and count.
         """
         try:
+            from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_summary_service_core import fetch_salary_slip_data
+            
             return fetch_salary_slip_data(self)
         except Exception as e:
             frappe.log_error(
@@ -298,23 +304,27 @@ class BPJSPaymentSummary(Document):
             frappe.throw(_("Error fetching data from salary slips: {0}").format(str(e)))
 
     @frappe.whitelist()
-    def get_accounts_mapping(self) -> dict:
+    def get_accounts_mapping(self) -> Dict[str, Any]:
         """
         Get account mappings for BPJS components.
 
         Returns:
-            dict: Account mappings for BPJS components
+            Dict[str, Any]: Account mappings for BPJS components
         """
+        from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_summary_service_core import PaymentSummaryService
+        
         service = PaymentSummaryService(self)
         return service.get_accounts_mapping()
 
     @frappe.whitelist()
-    def get_payment_status(self) -> dict:
+    def get_payment_status(self) -> Dict[str, Any]:
         """
         Get payment status of the BPJS payment summary.
 
         Returns:
-            dict: Payment status information
+            Dict[str, Any]: Payment status information
         """
+        from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_summary_service_core import PaymentSummaryService
+        
         service = PaymentSummaryService(self)
         return service.get_payment_status()
