@@ -7,7 +7,7 @@
 Controller for Payroll Entry customization for Indonesian payroll.
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 import frappe
 from frappe import _
@@ -192,6 +192,38 @@ class CustomPayrollEntry(PayrollEntry):
 
         return payment_entry
 
+    def create_salary_slips(self) -> List[str]:
+        """
+        Override the standard create_salary_slips method to propagate
+        the is_december_run field to Salary Slips.
+        
+        Returns:
+            List[str]: List of created Salary Slip names
+        """
+        # Get the result from the parent implementation
+        salary_slips = super().create_salary_slips()
+        
+        # Propagate is_december_run to all created salary slips
+        if salary_slips and hasattr(self, "is_december_run") and self.is_december_run:
+            logger.info(f"Propagating December override to {len(salary_slips)} salary slips")
+            
+            # Update all created salary slips with is_december_override
+            for slip_name in salary_slips:
+                try:
+                    # Update the is_december_override field
+                    frappe.db.set_value(
+                        "Salary Slip", 
+                        slip_name, 
+                        "is_december_override", 
+                        1, 
+                        update_modified=False
+                    )
+                    logger.debug(f"Set is_december_override=1 for slip {slip_name}")
+                except Exception as e:
+                    logger.error(f"Failed to set is_december_override for {slip_name}: {str(e)}")
+        
+        return salary_slips
+
     def create_salary_slips_from_timesheets(self) -> None:
         """
         Create salary slips for employees with timesheets.
@@ -202,6 +234,27 @@ class CustomPayrollEntry(PayrollEntry):
             return
 
         created_slips = pe_functions.make_slips_from_timesheets(self)
+        
+        # Propagate is_december_run to timesheet-based salary slips
+        if created_slips and hasattr(self, "is_december_run") and self.is_december_run:
+            logger.info(f"Propagating December override to {len(created_slips)} timesheet-based salary slips")
+            
+            for slip in created_slips:
+                try:
+                    # Get the slip name from the result
+                    slip_name = slip if isinstance(slip, str) else getattr(slip, "name", None)
+                    if slip_name:
+                        # Update the is_december_override field
+                        frappe.db.set_value(
+                            "Salary Slip", 
+                            slip_name, 
+                            "is_december_override", 
+                            1, 
+                            update_modified=False
+                        )
+                        logger.debug(f"Set is_december_override=1 for timesheet slip {slip_name}")
+                except Exception as e:
+                    logger.error(f"Failed to set is_december_override for timesheet slip: {str(e)}")
 
         if created_slips:
             frappe.msgprint(

@@ -13,6 +13,7 @@ functionality for:
 2. Updating summaries when salary slips are submitted or cancelled
 3. Managing monthly detail records and calculating YTD totals
 4. Handling TER (Tax Exemption Ratio) data
+5. Managing December tax corrections
 """
 
 from typing import Dict, Any, Optional, List, Union
@@ -156,6 +157,14 @@ class EmployeeTaxSummary(Document):
                 logger.error(f"Could not determine month from slip {slip.name}")
                 return
                 
+            # Check for December correction override
+            is_december_override = False
+            if hasattr(slip, "is_december_override") and cint(slip.is_december_override) == 1:
+                is_december_override = True
+                # Force month to December for tax correction
+                month = 12
+                logger.info(f"December correction override for slip {slip.name}, forcing month to 12")
+                
             # Extract values from slip
             values = self._extract_slip_values(slip)
             
@@ -178,11 +187,25 @@ class EmployeeTaxSummary(Document):
             detail.is_using_ter = values["is_using_ter"]
             detail.ter_rate = values["ter_rate"]
             
+            # Update tax correction field if December override
+            if is_december_override and hasattr(detail, "tax_correction"):
+                correction_amount = 0
+                # Get from koreksi_pph21 field if available
+                if hasattr(slip, "koreksi_pph21"):
+                    correction_amount = flt(slip.koreksi_pph21)
+                
+                detail.tax_correction = correction_amount
+                logger.info(f"Updated December tax correction to {correction_amount} for {slip.name}")
+                
+                # If we have a correction description field, set it
+                if hasattr(detail, "correction_note") and correction_amount != 0:
+                    detail.correction_note = "Koreksi Pajak Akhir Tahun"
+                
             # Update additional fields if they exist
             for field, value in values.items():
                 if hasattr(detail, field) and field not in [
                     "gross_pay", "tax_amount", "bpjs_amount", "other_deductions",
-                    "is_using_ter", "ter_rate", "salary_slip"
+                    "is_using_ter", "ter_rate", "salary_slip", "tax_correction"
                 ]:
                     setattr(detail, field, value)
                     
@@ -232,6 +255,12 @@ class EmployeeTaxSummary(Document):
                     detail.is_using_ter = 0
                     detail.ter_rate = 0
                     
+                    # Reset tax correction fields
+                    if hasattr(detail, "tax_correction"):
+                        detail.tax_correction = 0
+                    if hasattr(detail, "correction_note"):
+                        detail.correction_note = ""
+                    
                     # Reset additional fields if they exist
                     for field in ["biaya_jabatan", "netto", "annual_taxable_income"]:
                         if hasattr(detail, field):
@@ -265,12 +294,17 @@ class EmployeeTaxSummary(Document):
             ytd_tax = 0
             ytd_bpjs = 0
             ytd_other = 0
+            ytd_tax_correction = 0
             
             for detail in self.monthly_details or []:
                 ytd_gross += flt(detail.gross_pay)
                 ytd_tax += flt(detail.tax_amount)
                 ytd_bpjs += flt(getattr(detail, "bpjs_deductions_employee", 0))
                 ytd_other += flt(getattr(detail, "other_deductions", 0))
+                
+                # Add tax correction if present
+                if hasattr(detail, "tax_correction"):
+                    ytd_tax_correction += flt(detail.tax_correction)
             
             self.ytd_gross_pay = ytd_gross
             self.ytd_tax = ytd_tax
@@ -279,9 +313,17 @@ class EmployeeTaxSummary(Document):
             if hasattr(self, "ytd_other_deductions"):
                 self.ytd_other_deductions = ytd_other
                 
+            # Update total tax correction if field exists
+            if hasattr(self, "ytd_tax_correction"):
+                self.ytd_tax_correction = ytd_tax_correction
+                
+            # Update total tax including correction if field exists
+            if hasattr(self, "ytd_tax_with_correction"):
+                self.ytd_tax_with_correction = ytd_tax + ytd_tax_correction
+                
             logger.debug(
                 f"Updated totals for {self.name}: gross={ytd_gross}, "
-                f"tax={ytd_tax}, bpjs={ytd_bpjs}"
+                f"tax={ytd_tax}, bpjs={ytd_bpjs}, correction={ytd_tax_correction}"
             )
             
         except Exception as e:
@@ -310,7 +352,8 @@ class EmployeeTaxSummary(Document):
             "ter_rate": 0,
             "biaya_jabatan": 0,
             "netto": 0,
-            "ter_category": ""
+            "ter_category": "",
+            "tax_correction": 0
         }
         
         # Get gross pay
@@ -322,6 +365,9 @@ class EmployeeTaxSummary(Document):
             for deduction in slip.deductions:
                 if deduction.salary_component == "PPh 21":
                     result["tax_amount"] = flt(deduction.amount)
+                elif deduction.salary_component == "PPh 21 Correction":
+                    # Store correction separately
+                    result["tax_correction"] = flt(deduction.amount)
                 elif deduction.salary_component in [
                     "BPJS JHT Employee",
                     "BPJS JP Employee",
@@ -340,6 +386,10 @@ class EmployeeTaxSummary(Document):
         
         if hasattr(slip, "ter_category"):
             result["ter_category"] = slip.ter_category
+        
+        # Get December correction if available
+        if hasattr(slip, "koreksi_pph21"):
+            result["tax_correction"] = flt(slip.koreksi_pph21)
         
         # Get additional calculation fields
         for field in ["biaya_jabatan", "netto"]:
@@ -371,6 +421,16 @@ class EmployeeTaxSummary(Document):
                 
             if hasattr(self, "ter_rate") and has_ter:
                 self.db_set("ter_rate", max_ter_rate, update_modified=False)
+                
+            # Update December correction indicator if field exists
+            if hasattr(self, "has_december_correction"):
+                has_correction = False
+                for detail in self.monthly_details or []:
+                    if detail.month == 12 and hasattr(detail, "tax_correction") and flt(detail.tax_correction) != 0:
+                        has_correction = True
+                        break
+                
+                self.db_set("has_december_correction", 1 if has_correction else 0, update_modified=False)
                 
         except Exception as e:
             logger.error(f"Failed in on_update: {frappe.get_traceback()}")
@@ -434,18 +494,21 @@ def get_or_create_summary(employee: str, year: int) -> Document:
         
         # Initialize monthly details
         for month in range(1, 13):
-            summary.append(
-                "monthly_details",
-                {
-                    "month": month,
-                    "gross_pay": 0,
-                    "tax_amount": 0,
-                    "bpjs_deductions_employee": 0,
-                    "other_deductions": 0,
-                    "is_using_ter": 0,
-                    "ter_rate": 0
-                }
-            )
+            month_detail = {
+                "month": month,
+                "gross_pay": 0,
+                "tax_amount": 0,
+                "bpjs_deductions_employee": 0,
+                "other_deductions": 0,
+                "is_using_ter": 0,
+                "ter_rate": 0
+            }
+            
+            # Add tax_correction field if exists in doctype
+            if frappe.get_meta("Employee Tax Summary Detail").has_field("tax_correction"):
+                month_detail["tax_correction"] = 0
+                
+            summary.append("monthly_details", month_detail)
         
         # Insert document
         summary.insert(ignore_permissions=True)
@@ -563,6 +626,11 @@ def reset_from_cancelled_slip(slip_name: str) -> bool:
         if not month or not year:
             logger.error(f"Could not determine month/year from slip {slip_name}")
             return False
+        
+        # Check for December override - always reset December for December override slips
+        if hasattr(slip, "is_december_override") and cint(slip.is_december_override) == 1:
+            month = 12
+            logger.info(f"December correction override for cancelled slip {slip_name}, resetting month 12")
         
         # Find tax summary
         summary_name = frappe.db.get_value(
@@ -712,6 +780,7 @@ def get_ytd_data(employee: str, year: int, month: int) -> Dict[str, Any]:
         ytd_gross = 0
         ytd_tax = 0
         ytd_bpjs = 0
+        ytd_tax_correction = 0
         monthly_data = []
         
         for detail in summary.monthly_details:
@@ -720,16 +789,21 @@ def get_ytd_data(employee: str, year: int, month: int) -> Dict[str, Any]:
                 ytd_tax += flt(detail.tax_amount)
                 ytd_bpjs += flt(detail.bpjs_deductions_employee)
                 
+                # Include tax correction if available
+                tax_correction = flt(getattr(detail, "tax_correction", 0))
+                ytd_tax_correction += tax_correction
+                
                 monthly_data.append({
                     "month": detail.month,
                     "gross_pay": detail.gross_pay,
                     "tax_amount": detail.tax_amount,
                     "bpjs": detail.bpjs_deductions_employee,
                     "is_using_ter": detail.is_using_ter,
-                    "ter_rate": detail.ter_rate
+                    "ter_rate": detail.ter_rate,
+                    "tax_correction": tax_correction
                 })
         
-        return {
+        result = {
             "status": "success",
             "employee": employee,
             "year": year,
@@ -739,6 +813,13 @@ def get_ytd_data(employee: str, year: int, month: int) -> Dict[str, Any]:
             "ytd_bpjs": ytd_bpjs,
             "monthly_data": monthly_data
         }
+        
+        # Add tax correction data if available
+        if ytd_tax_correction != 0:
+            result["ytd_tax_correction"] = ytd_tax_correction
+            result["ytd_tax_with_correction"] = ytd_tax + ytd_tax_correction
+        
+        return result
         
     except Exception as e:
         logger.error(f"Failed to get YTD data: {frappe.get_traceback()}")
