@@ -53,7 +53,7 @@ class CustomPayrollEntry(PayrollEntry):
         Validate December logic configuration.
         """
         # Check if December logic is enabled
-        is_december = self.get("is_december_run", 0)
+        is_december = self.get("is_december_override", 0)
 
         if is_december:
             # Optional warning if not December period
@@ -132,11 +132,11 @@ class CustomPayrollEntry(PayrollEntry):
             # Log result
             if result.get("status") == "success":
                 logger.info(
-                    f"Successfully processed Payroll Entry {self.name}: " f"{result.get('message')}"
+                    f"Successfully processed Payroll Entry {self.name}: {result.get('message')}"
                 )
             else:
                 logger.warning(
-                    f"Partially processed Payroll Entry {self.name}: " f"{result.get('message')}"
+                    f"Partially processed Payroll Entry {self.name}: {result.get('message')}"
                 )
 
                 # Show message to user
@@ -195,7 +195,7 @@ class CustomPayrollEntry(PayrollEntry):
     def create_salary_slips(self) -> List[str]:
         """
         Override the standard create_salary_slips method to propagate
-        the is_december_run field to Salary Slips.
+        the is_december_override field to Salary Slips.
         
         Returns:
             List[str]: List of created Salary Slip names
@@ -203,8 +203,8 @@ class CustomPayrollEntry(PayrollEntry):
         # Get the result from the parent implementation
         salary_slips = super().create_salary_slips()
         
-        # Propagate is_december_run to all created salary slips
-        if salary_slips and hasattr(self, "is_december_run") and self.is_december_run:
+        # Propagate is_december_override to all created salary slips
+        if salary_slips and hasattr(self, "is_december_override") and self.is_december_override:
             logger.info(f"Propagating December override to {len(salary_slips)} salary slips")
             
             # Update all created salary slips with is_december_override
@@ -235,8 +235,8 @@ class CustomPayrollEntry(PayrollEntry):
 
         created_slips = pe_functions.make_slips_from_timesheets(self)
         
-        # Propagate is_december_run to timesheet-based salary slips
-        if created_slips and hasattr(self, "is_december_run") and self.is_december_run:
+        # Propagate is_december_override to timesheet-based salary slips
+        if created_slips and hasattr(self, "is_december_override") and self.is_december_override:
             logger.info(f"Propagating December override to {len(created_slips)} timesheet-based salary slips")
             
             for slip in created_slips:

@@ -471,6 +471,24 @@ def is_december_calculation(slip: Any) -> bool:
             logger.debug(f"December override flag set for slip {getattr(slip, 'name', 'unknown')}")
             return True
 
+        # Check if payroll_entry has override flag
+        payroll_entry = getattr(slip, "payroll_entry", None)
+        if payroll_entry:
+            # Get full payroll entry doc if needed
+            if isinstance(payroll_entry, str):
+                try:
+                    payroll_entry_doc = frappe.get_doc("Payroll Entry", payroll_entry)
+                    if cint(getattr(payroll_entry_doc, "is_december_override", 0)) == 1:
+                        logger.debug(f"December override flag found in payroll entry for slip {getattr(slip, 'name', 'unknown')}")
+                        return True
+                except Exception as e:
+                    logger.warning(f"Error loading payroll entry {payroll_entry}: {e}")
+            else:
+                # It's already a document
+                if cint(getattr(payroll_entry, "is_december_override", 0)) == 1:
+                    logger.debug(f"December override flag found in payroll entry for slip {getattr(slip, 'name', 'unknown')}")
+                    return True
+
         # Check if month is December
         _, month = get_slip_year_month(slip)
         is_dec = month == 12

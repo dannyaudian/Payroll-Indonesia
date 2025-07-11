@@ -249,6 +249,17 @@
   },
   {
     "doctype": "Custom Field",
+    "dt": "Payroll Entry",
+    "fieldname": "is_december_override",
+    "fieldtype": "Check",
+    "insert_after": "use_ter_method",
+    "label": "Is December Override",
+    "module": "Payroll Indonesia",
+    "name": "Payroll Entry-is_december_override",
+    "default": "0"
+  },
+  {
+    "doctype": "Custom Field",
     "dt": "Salary Slip",
     "fieldname": "payroll_indo_section",
     "fieldtype": "Section Break",
@@ -511,33 +522,9 @@
   {
     "doctype": "Custom Field",
     "dt": "Salary Slip",
-    "fieldname": "bypass_annual_detection",
-    "fieldtype": "Check",
-    "insert_after": "payroll_note",
-    "label": "Bypass Annual Detection",
-    "module": "Payroll Indonesia",
-    "name": "Salary Slip-bypass_annual_detection",
-    "description": "Check this to bypass automatic detection of annual values",
-    "default": "0"
-  },
-  {
-    "doctype": "Custom Field",
-    "dt": "Payroll Entry",
-    "fieldname": "is_december_run",
-    "fieldtype": "Check",
-    "insert_after": "use_ter_method",
-    "label": "Use December Progressive Logic",
-    "module": "Payroll Indonesia",
-    "name": "Payroll Entry-is_december_run",
-    "default": "0",
-    "description": "Centang jika slip yang dihasilkan harus dihitung layaknya bulan Desember"
-  },
-  {
-    "doctype": "Custom Field",
-    "dt": "Salary Slip",
     "fieldname": "is_december_override",
     "fieldtype": "Check",
-    "insert_after": "bypass_annual_detection",
+    "insert_after": "payroll_note",
     "label": "Run as December",
     "module": "Payroll Indonesia",
     "name": "Salary Slip-is_december_override",

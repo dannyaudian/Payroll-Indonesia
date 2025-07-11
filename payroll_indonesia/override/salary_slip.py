@@ -38,11 +38,37 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         # Call the parent validation first
         super().validate()
         
+        # Check for payroll_entry's is_december_override flag
+        self._check_payroll_entry_december_override()
+        
         # Process December logic if enabled
         self._process_december_override()
         
         # Additional validations can be added here
         self._validate_indonesian_fields()
+    
+    def _check_payroll_entry_december_override(self):
+        """
+        Check if payroll entry has is_december_override flag set.
+        
+        This method checks the associated Payroll Entry document and sets
+        the is_december_override flag on the Salary Slip if needed.
+        """
+        if hasattr(self, "payroll_entry") and self.payroll_entry:
+            # Load the Payroll Entry document if it's a string
+            payroll_entry_doc = None
+            try:
+                if isinstance(self.payroll_entry, str):
+                    payroll_entry_doc = frappe.get_doc("Payroll Entry", self.payroll_entry)
+                else:
+                    payroll_entry_doc = self.payroll_entry
+                    
+                # Set is_december_override based on the Payroll Entry setting
+                if getattr(payroll_entry_doc, "is_december_override", 0):
+                    self.is_december_override = 1
+                    logger.info(f"Setting is_december_override=1 for {self.name} based on Payroll Entry")
+            except Exception as e:
+                logger.warning(f"Could not check payroll_entry.is_december_override for {self.name}: {e}")
     
     def _process_december_override(self):
         """
@@ -83,6 +109,7 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             "koreksi_pph21": 0,
             "ytd_gross_pay": 0,
             "ytd_bpjs_deductions": 0,
+            "is_december_override": 0,  # Ensure this field is initialized
         }
         
         for field, default_value in required_fields.items():
