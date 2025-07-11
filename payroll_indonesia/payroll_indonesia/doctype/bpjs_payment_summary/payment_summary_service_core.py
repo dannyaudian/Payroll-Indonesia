@@ -43,7 +43,7 @@ class PaymentSummaryService:
     creating payment entries, and managing journal entries.
     """
 
-    def __init__(self, doc_or_name: Union[str, Any]):
+    def __init__(self, doc_or_name: Union[str, Any]) -> None:
         """
         Initialize the service with a document or document name.
 
@@ -352,7 +352,7 @@ class PaymentSummaryService:
         Get BPJS account mapping for the company.
 
         Returns:
-            dict: Account mapping dict or empty dict if not found
+            Dict[str, Any]: Account mapping dict or empty dict if not found
         """
         mapping = frappe.get_all(
             "BPJS Account Mapping", filters={"company": self.doc.company}, fields=["*"], limit=1
@@ -369,10 +369,10 @@ class PaymentSummaryService:
         Get BPJS account settings.
 
         Returns:
-            dict: Account settings dict
+            Dict[str, Any]: Account settings dict
         """
         # Try to get BPJS Settings first
-        settings = {}
+        settings: Dict[str, Any] = {}
 
         try:
             bpjs_settings = frappe.get_doc("BPJS Settings")
@@ -420,7 +420,7 @@ class PaymentSummaryService:
             mapping: Account mapping dict
 
         Returns:
-            str: Account name or None if not found
+            Optional[str]: Account name or None if not found
         """
         # Try to find account in mapping
         account_field_map = {
@@ -456,9 +456,9 @@ class PaymentSummaryService:
         Calculate totals for each BPJS type from components.
 
         Returns:
-            dict: BPJS type totals
+            Dict[str, float]: BPJS type totals
         """
-        bpjs_totals = {"Kesehatan": 0, "JHT": 0, "JP": 0, "JKK": 0, "JKM": 0}
+        bpjs_totals: Dict[str, float] = {"Kesehatan": 0, "JHT": 0, "JP": 0, "JKK": 0, "JKM": 0}
 
         # Calculate from components
         for comp in self.doc.komponen:

@@ -2,16 +2,32 @@
 // For license information, please see license.txt
 // Last modified: 2025-06-16 09:33:38 by dannyaudian
 
-// Import required functions and ensure they're available
-const flt = function(value) {
-    return frappe.utils.flt(value);
-};
+/**
+ * BPJS Payment Summary Client Script
+ * 
+ * This script handles client-side functionality for the BPJS Payment Summary doctype,
+ * including data fetching from salary slips, calculation of totals, and UI enhancements.
+ */
 
-const format_currency = function(value, currency) {
-    return frappe.format_currency(value, currency);
-};
+// Helper utility functions
+const flt = (value) => frappe.utils.flt(value);
+const format_currency = (value, currency) => frappe.format_currency(value, currency);
 
-// Create debounce function with configurable delay
+// Month names in Indonesian
+const MONTH_NAMES = [
+    'Januari', 'Februari', 'Maret', 'April', 
+    'Mei', 'Juni', 'Juli', 'Agustus', 
+    'September', 'Oktober', 'November', 'Desember'
+];
+
+/**
+ * Creates a debounced function that delays execution
+ * and prevents multiple rapid calls
+ * 
+ * @param {Function} func - Function to debounce
+ * @param {number} delay - Delay in milliseconds
+ * @returns {Function} Debounced function
+ */
 function debounce(func, delay) {
     let timeoutId;
     return function(...args) {
@@ -31,80 +47,377 @@ function debounce(func, delay) {
     };
 }
 
+/**
+ * Fetch data from salary slips based on filter
+ * 
+ * @param {Object} frm - The form object
+ * @returns {Promise<void>}
+ */
+async function fetchFromSalarySlip(frm) {
+    // Validate required fields
+    if (!frm.doc.company) {
+        frappe.msgprint(__('Please select Company before fetching data'));
+        return;
+    }
+    
+    if (!frm.doc.month || !frm.doc.year) {
+        frappe.msgprint(__('Please set Month and Year before fetching data'));
+        return;
+    }
+    
+    try {
+        // Confirm action with user
+        await frappe.confirm(
+            __('This will fetch BPJS data from Salary Slips and may overwrite existing data. Continue?')
+        );
+        
+        // On confirm
+        frappe.show_progress(__('Processing'), 0, 100);
+        
+        const result = await frm.call({
+            doc: frm.doc,
+            method: "get_from_salary_slip",
+            freeze: true,
+            freeze_message: __('Fetching data from salary slips...')
+        });
+        
+        frappe.hide_progress();
+        
+        if (result.message) {
+            frappe.show_alert({
+                message: __('Successfully fetched data from {0} salary slips', [result.message.count]),
+                indicator: 'green'
+            });
+            
+            frm.reload_doc();
+        }
+    } catch (error) {
+        frappe.hide_progress();
+        if (error) {
+            console.error("Error fetching from salary slip:", error);
+            frappe.msgprint({
+                title: __('Error'),
+                indicator: 'red',
+                message: __('Error fetching data: {0}', [error.message || error])
+            });
+        }
+    }
+}
+
+/**
+ * Refresh data from linked salary slips
+ * 
+ * @param {Object} frm - The form object
+ * @returns {Promise<void>}
+ */
+async function refreshData(frm) {
+    // Check if there are employee details with salary slip links
+    if (!frm.doc.employee_details || !frm.doc.employee_details.some(d => d.salary_slip)) {
+        frappe.msgprint(__('No linked salary slips found. Use "Ambil Data dari Salary Slip" first.'));
+        return;
+    }
+    
+    try {
+        // Confirm action with user
+        await frappe.confirm(
+            __('This will refresh data from linked Salary Slips. Continue?')
+        );
+        
+        frappe.show_progress(__('Processing'), 0, 100);
+        
+        const result = await frm.call({
+            doc: frm.doc,
+            method: "update_from_salary_slip",
+            freeze: true,
+            freeze_message: __('Refreshing data from salary slips...')
+        });
+        
+        frappe.hide_progress();
+        
+        if (result.message) {
+            frappe.show_alert({
+                message: __('Successfully updated {0} records', [result.message.updated]),
+                indicator: 'green'
+            });
+            
+            // Set last_synced timestamp
+            frm.set_value('last_synced', frappe.datetime.now_datetime());
+            frm.refresh_field('last_synced');
+            
+            frm.reload_doc();
+        }
+    } catch (error) {
+        frappe.hide_progress();
+        if (error) {
+            console.error("Error refreshing data:", error);
+            frappe.msgprint({
+                title: __('Error'),
+                indicator: 'red',
+                message: __('Error refreshing data: {0}', [error.message || error])
+            });
+        }
+    }
+}
+
+/**
+ * Update month name and month_year_title fields if they exist
+ * 
+ * @param {Object} frm - The form object
+ */
+function updateMonthName(frm) {
+    if (!frm.doc.month || !frm.doc.year) return;
+    
+    if (frm.doc.month >= 1 && frm.doc.month <= 12) {
+        const monthIndex = frm.doc.month - 1;
+        
+        // Set month_name if field exists
+        if (frm.meta.fields.find(field => field.fieldname === "month_name")) {
+            frm.set_value('month_name', MONTH_NAMES[monthIndex]);
+        }
+        
+        // Set month_year_title if field exists
+        if (frm.meta.fields.find(field => field.fieldname === "month_year_title")) {
+            frm.set_value('month_year_title', `${MONTH_NAMES[monthIndex]} ${frm.doc.year}`);
+        }
+    }
+}
+
+/**
+ * Calculate total from all BPJS components
+ * 
+ * @param {Object} frm - The form object
+ */
+function calculate_total(frm) {
+    let total = 0;
+    
+    // Calculate from components table
+    if (frm.doc.komponen) {
+        frm.doc.komponen.forEach(d => {
+            total += flt(d.amount);
+        });
+    }
+    
+    frm.set_value('total', total);
+    frm.refresh_field('total');
+    
+    // Check if account details total matches components total
+    calculate_account_details_total(frm);
+}
+
+/**
+ * Calculate total from account details and compare with components total
+ * 
+ * @param {Object} frm - The form object
+ */
+function calculate_account_details_total(frm) {
+    let account_total = 0;
+    
+    if (frm.doc.account_details) {
+        frm.doc.account_details.forEach(d => {
+            account_total += flt(d.amount);
+        });
+    }
+    
+    if (frm.doc.total && account_total > 0 && Math.abs(frm.doc.total - account_total) > 0.1) {
+        // Set field if exists
+        if (frm.meta.fields.find(field => field.fieldname === "account_total")) {
+            frm.set_value('account_total', account_total);
+            frm.refresh_field('account_total');
+        }
+        
+        frappe.show_alert({
+            message: __('Warning: Account details total ({0}) does not match components total ({1})', 
+                [format_currency(account_total, frm.doc.currency), 
+                 format_currency(frm.doc.total, frm.doc.currency)]),
+            indicator: 'orange'
+        });
+    }
+}
+
+/**
+ * Calculate totals from employee details
+ * 
+ * @param {Object} frm - The form object
+ * @returns {Object} Totals for each BPJS type
+ */
+function calculate_employee_totals(frm) {
+    if (!frm.doc.employee_details) {
+        return {
+            jht_total: 0,
+            jp_total: 0,
+            kesehatan_total: 0,
+            jkk_total: 0,
+            jkm_total: 0
+        };
+    }
+    
+    const totals = {
+        jht_total: 0,
+        jp_total: 0,
+        kesehatan_total: 0,
+        jkk_total: 0,
+        jkm_total: 0
+    };
+    
+    frm.doc.employee_details.forEach(d => {
+        totals.jht_total += flt(d.jht_employee) + flt(d.jht_employer);
+        totals.jp_total += flt(d.jp_employee) + flt(d.jp_employer);
+        totals.kesehatan_total += flt(d.kesehatan_employee) + flt(d.kesehatan_employer);
+        totals.jkk_total += flt(d.jkk);
+        totals.jkm_total += flt(d.jkm);
+    });
+    
+    return totals;
+}
+
+/**
+ * Update components table based on employee details
+ * 
+ * @param {Object} frm - The form object
+ */
+function update_components_from_employees(frm) {
+    if (!frm.doc.employee_details || frm.doc.employee_details.length === 0) return;
+    
+    try {
+        // Get totals from employee details
+        const totals = calculate_employee_totals(frm);
+        
+        // Clear existing components
+        frm.clear_table('komponen');
+        
+        // Component definitions
+        const components = [
+            {
+                name: 'JHT', 
+                total: totals.jht_total,
+                description: 'JHT Contribution (Employee + Employer)'
+            },
+            {
+                name: 'JP', 
+                total: totals.jp_total,
+                description: 'JP Contribution (Employee + Employer)'
+            },
+            {
+                name: 'JKK', 
+                total: totals.jkk_total,
+                description: 'JKK Contribution (Employer)'
+            },
+            {
+                name: 'JKM', 
+                total: totals.jkm_total,
+                description: 'JKM Contribution (Employer)'
+            },
+            {
+                name: 'Kesehatan', 
+                total: totals.kesehatan_total,
+                description: 'Kesehatan Contribution (Employee + Employer)'
+            }
+        ];
+        
+        // Add components if total > 0
+        components.forEach(component => {
+            if (component.total > 0) {
+                const row = frm.add_child('komponen');
+                row.component = `BPJS ${component.name}`;
+                row.component_type = component.name;
+                row.description = component.description;
+                row.amount = component.total;
+            }
+        });
+        
+        frm.refresh_field('komponen');
+        calculate_total(frm);
+    } catch (error) {
+        console.error("Error in update_components_from_employees:", error);
+        frappe.msgprint({
+            title: __('Error'),
+            indicator: 'red',
+            message: __('Error updating components: {0}', [error.message])
+        });
+    }
+}
+
+/**
+ * Create Payment Entry for BPJS Payment
+ * 
+ * @param {Object} frm - The form object
+ * @returns {Promise<void>}
+ */
+async function createPaymentEntry(frm) {
+    try {
+        await frappe.confirm(
+            __('Are you sure you want to create Payment Entry for BPJS payment?')
+        );
+        
+        frappe.show_progress(__('Processing'), 0, 100);
+        const result = await frm.call({
+            doc: frm.doc,
+            method: 'generate_payment_entry',
+            freeze: true,
+            freeze_message: __('Creating Payment Entry...')
+        });
+        
+        frappe.hide_progress();
+        
+        if (result.message) {
+            frappe.show_alert({
+                message: __('Payment Entry {0} created successfully. Please review and submit it.', [result.message]),
+                indicator: 'green'
+            });
+            frm.refresh();
+            frappe.set_route('Form', 'Payment Entry', result.message);
+        }
+    } catch (error) {
+        frappe.hide_progress();
+        frappe.throw(__('Error creating payment entry: {0}', [error.message]));
+    }
+}
+
+// Main form event handlers
 frappe.ui.form.on('BPJS Payment Summary', {
     refresh: function(frm) {
         // Add buttons after submission but before payment
-        if(frm.doc.docstatus === 1) {
+        if (frm.doc.docstatus === 1) {
             // Add Generate Payment Entry button
-            if(!frm.doc.payment_entry) {
-                frm.add_custom_button(__('Create Payment Entry'), async function() {
-                    await frappe.confirm(
-                        __('Are you sure you want to create Payment Entry for BPJS payment?')
-                    );
-                    
-                    try {
-                        frappe.show_progress(__('Processing'), 0, 100);
-                        const result = await frm.call({
-                            doc: frm.doc,
-                            method: 'generate_payment_entry',
-                            freeze: true,
-                            freeze_message: __('Creating Payment Entry...')
-                        });
-                        
-                        frappe.hide_progress();
-                        
-                        if(result.message) {
-                            frappe.show_alert({
-                                message: __('Payment Entry {0} created successfully. Please review and submit it.', [result.message]),
-                                indicator: 'green'
-                            });
-                            frm.refresh();
-                            frappe.set_route('Form', 'Payment Entry', result.message);
-                        }
-                    } catch(error) {
-                        frappe.hide_progress();
-                        frappe.throw(__('Error creating payment entry: {0}', [error.message]));
-                    }
-                }, __('Create'));
+            if (!frm.doc.payment_entry) {
+                frm.add_custom_button(__('Create Payment Entry'), 
+                    () => createPaymentEntry(frm), 
+                    __('Create'));
             }
             
             // Add view buttons for payment entry and journal entry if they exist
-            if(frm.doc.payment_entry) {
-                frm.add_custom_button(__('View Payment Entry'), function() {
+            if (frm.doc.payment_entry) {
+                frm.add_custom_button(__('View Payment Entry'), () => {
                     frappe.set_route('Form', 'Payment Entry', frm.doc.payment_entry);
                 }, __('View'));
             }
             
-            if(frm.doc.journal_entry) {
-                frm.add_custom_button(__('View Journal Entry'), function() {
+            if (frm.doc.journal_entry) {
+                frm.add_custom_button(__('View Journal Entry'), () => {
                     frappe.set_route('Form', 'Journal Entry', frm.doc.journal_entry);
                 }, __('View'));
             }
         }
         
         // Add buttons for draft state
-        if(frm.doc.docstatus === 0) {
+        if (frm.doc.docstatus === 0) {
             // Button to get data from Salary Slip - debounced 10s
             frm.add_custom_button(__('Ambil Data dari Salary Slip'), 
-                debounce(async function() {
-                    await fetchFromSalarySlip(frm);
-                }, 10000), 
+                debounce(async () => await fetchFromSalarySlip(frm), 10000), 
                 __('Data')
             );
             
             // Button to refresh data
             frm.add_custom_button(__('Refresh Data'), 
-                debounce(async function() {
-                    await refreshData(frm);
-                }, 10000),
+                debounce(async () => await refreshData(frm), 10000),
                 __('Data')
             );
             
             // Button to populate employee details
-            if(frm.meta.fields.find(field => field.fieldname === "employee_details")) {
-                if(!frm.doc.employee_details || frm.doc.employee_details.length === 0) {
+            if (frm.meta.fields.find(field => field.fieldname === "employee_details")) {
+                if (!frm.doc.employee_details || frm.doc.employee_details.length === 0) {
                     frm.add_custom_button(__('Generate Employee Details'), 
-                        debounce(async function() {
+                        debounce(async () => {
                             try {
                                 await frappe.confirm(
                                     __('This will add all active employees with BPJS participation. Continue?')
@@ -118,7 +431,7 @@ frappe.ui.form.on('BPJS Payment Summary', {
                                 });
                                 
                                 frm.refresh();
-                            } catch(error) {
+                            } catch (error) {
                                 if (error) {
                                     console.error("Error generating employee details:", error);
                                 }
@@ -131,7 +444,7 @@ frappe.ui.form.on('BPJS Payment Summary', {
             
             // Button to set account details - debounced 10s
             frm.add_custom_button(__('Set Account Details'), 
-                debounce(async function() {
+                debounce(async () => {
                     try {
                         await frappe.confirm(
                             __('This will update account details based on BPJS Settings. Continue?')
@@ -149,7 +462,7 @@ frappe.ui.form.on('BPJS Payment Summary', {
                             message: __('Account details updated'),
                             indicator: 'green'
                         });
-                    } catch(error) {
+                    } catch (error) {
                         if (error) {
                             console.error("Error setting account details:", error);
                         }
@@ -160,7 +473,7 @@ frappe.ui.form.on('BPJS Payment Summary', {
             
             // Button to sync with defaults.json - debounced 10s
             frm.add_custom_button(__('Sync with Defaults.json'), 
-                debounce(async function() {
+                debounce(async () => {
                     try {
                         await frappe.confirm(
                             __('This will update account details based on defaults.json configuration. Continue?')
@@ -187,7 +500,7 @@ frappe.ui.form.on('BPJS Payment Summary', {
                                 indicator: 'orange'
                             });
                         }
-                    } catch(error) {
+                    } catch (error) {
                         if (error) {
                             console.error("Error syncing with defaults.json:", error);
                         }
@@ -210,32 +523,15 @@ frappe.ui.form.on('BPJS Payment Summary', {
                 frm.set_value('year', parseInt(current_date[0]));
                 frm.set_value('month', parseInt(current_date[1]));
                 
-                // Set month_name if field exists
-                if (frm.meta.fields.find(field => field.fieldname === "month_name")) {
-                    const month_names = [
-                        'Januari', 'Februari', 'Maret', 'April', 
-                        'Mei', 'Juni', 'Juli', 'Agustus', 
-                        'September', 'Oktober', 'November', 'Desember'
-                    ];
-                    const month_index = parseInt(current_date[1]) - 1;
-                    frm.set_value('month_name', month_names[month_index]);
-                }
-                
-                // Set month_year_title if field exists
-                if (frm.meta.fields.find(field => field.fieldname === "month_year_title")) {
-                    const month_names = [
-                        'Januari', 'Februari', 'Maret', 'April', 
-                        'Mei', 'Juni', 'Juli', 'Agustus', 
-                        'September', 'Oktober', 'November', 'Desember'
-                    ];
-                    const month_index = parseInt(current_date[1]) - 1;
-                    frm.set_value('month_year_title', `${month_names[month_index]} ${current_date[0]}`);
-                }
+                // Update month name and title
+                updateMonthName(frm);
             }
         }
         
         // Set default for salary_slip_filter if empty
-        if (frm.doc.docstatus === 0 && frm.meta.fields.find(field => field.fieldname === "salary_slip_filter") && !frm.doc.salary_slip_filter) {
+        if (frm.doc.docstatus === 0 && 
+            frm.meta.fields.find(field => field.fieldname === "salary_slip_filter") && 
+            !frm.doc.salary_slip_filter) {
             frm.set_value('salary_slip_filter', 'Periode Saat Ini');
         }
     },
@@ -266,7 +562,7 @@ frappe.ui.form.on('BPJS Payment Summary', {
                 break;
         }
         
-        if(filter_description) {
+        if (filter_description) {
             frm.set_df_property('salary_slip_filter', 'description', filter_description);
             frm.refresh_field('salary_slip_filter');
         }
@@ -389,7 +685,12 @@ frappe.ui.form.on('BPJS Payment Account Detail', {
             }
             
             if (!row.reference_number && frm.doc.month && frm.doc.year) {
-                frappe.model.set_value(cdt, cdn, 'reference_number', `BPJS-${row.account_type}-${frm.doc.month}-${frm.doc.year}`);
+                frappe.model.set_value(
+                    cdt, 
+                    cdn, 
+                    'reference_number', 
+                    `BPJS-${row.account_type}-${frm.doc.month}-${frm.doc.year}`
+                );
             }
         }
     }
@@ -399,88 +700,52 @@ frappe.ui.form.on('BPJS Payment Account Detail', {
 frappe.ui.form.on('BPJS Payment Summary Detail', {
     employee_details_add: function(frm) {
         try {
-            const totals = calculate_employee_totals(frm);
+            calculate_employee_totals(frm);
             update_components_from_employees(frm);
-        } catch (e) {
-            console.error("Error in employee_details_add:", e);
+        } catch (error) {
+            console.error("Error in employee_details_add:", error);
         }
     },
     
-    // Handle changes to all employee BPJS contribution fields
+    // Handle changes to employee BPJS contribution fields
     jht_employee: function(frm) {
-        try {
-            update_components_from_employees(frm);
-        } catch (e) {
-            console.error("Error in jht_employee handler:", e);
-        }
+        update_components_from_employees(frm);
     },
     
     jp_employee: function(frm) {
-        try {
-            update_components_from_employees(frm);
-        } catch (e) {
-            console.error("Error in jp_employee handler:", e);
-        }
+        update_components_from_employees(frm);
     },
     
     kesehatan_employee: function(frm) {
-        try {
-            update_components_from_employees(frm);
-        } catch (e) {
-            console.error("Error in kesehatan_employee handler:", e);
-        }
+        update_components_from_employees(frm);
     },
     
     jht_employer: function(frm) {
-        try {
-            update_components_from_employees(frm);
-        } catch (e) {
-            console.error("Error in jht_employer handler:", e);
-        }
+        update_components_from_employees(frm);
     },
     
     jp_employer: function(frm) {
-        try {
-            update_components_from_employees(frm);
-        } catch (e) {
-            console.error("Error in jp_employer handler:", e);
-        }
+        update_components_from_employees(frm);
     },
     
     jkk: function(frm) {
-        try {
-            update_components_from_employees(frm);
-        } catch (e) {
-            console.error("Error in jkk handler:", e);
-        }
+        update_components_from_employees(frm);
     },
     
     jkm: function(frm) {
-        try {
-            update_components_from_employees(frm);
-        } catch (e) {
-            console.error("Error in jkm handler:", e);
-        }
+        update_components_from_employees(frm);
     },
     
     kesehatan_employer: function(frm) {
-        try {
-            update_components_from_employees(frm);
-        } catch (e) {
-            console.error("Error in kesehatan_employer handler:", e);
-        }
+        update_components_from_employees(frm);
     },
     
     employee_details_remove: function(frm) {
-        try {
-            const totals = calculate_employee_totals(frm);
-            update_components_from_employees(frm);
-        } catch (e) {
-            console.error("Error in employee_details_remove:", e);
-        }
+        calculate_employee_totals(frm);
+        update_components_from_employees(frm);
     },
     
-    // New handler for salary slip link
+    // Handler for salary slip link
     salary_slip: async function(frm, cdt, cdn) {
         const row = locals[cdt][cdn];
         if (row.salary_slip) {
@@ -497,26 +762,33 @@ frappe.ui.form.on('BPJS Payment Summary Detail', {
                     const data = result.message;
                     
                     // Update the current row with data from salary slip
-                    frappe.model.set_value(cdt, cdn, 'jht_employee', data.jht_employee || 0);
-                    frappe.model.set_value(cdt, cdn, 'jp_employee', data.jp_employee || 0);
-                    frappe.model.set_value(cdt, cdn, 'kesehatan_employee', data.kesehatan_employee || 0);
-                    frappe.model.set_value(cdt, cdn, 'jht_employer', data.jht_employer || 0);
-                    frappe.model.set_value(cdt, cdn, 'jp_employer', data.jp_employer || 0);
-                    frappe.model.set_value(cdt, cdn, 'kesehatan_employer', data.kesehatan_employer || 0);
-                    frappe.model.set_value(cdt, cdn, 'jkk', data.jkk || 0);
-                    frappe.model.set_value(cdt, cdn, 'jkm', data.jkm || 0);
-                    frappe.model.set_value(cdt, cdn, 'last_updated', frappe.datetime.now_datetime());
-                    frappe.model.set_value(cdt, cdn, 'is_synced', 1);
+                    const fieldsToUpdate = {
+                        'jht_employee': data.jht_employee || 0,
+                        'jp_employee': data.jp_employee || 0,
+                        'kesehatan_employee': data.kesehatan_employee || 0,
+                        'jht_employer': data.jht_employer || 0,
+                        'jp_employer': data.jp_employer || 0,
+                        'kesehatan_employer': data.kesehatan_employer || 0,
+                        'jkk': data.jkk || 0,
+                        'jkm': data.jkm || 0,
+                        'last_updated': frappe.datetime.now_datetime(),
+                        'is_synced': 1
+                    };
+                    
+                    // Set all fields at once
+                    Object.entries(fieldsToUpdate).forEach(([field, value]) => {
+                        frappe.model.set_value(cdt, cdn, field, value);
+                    });
                     
                     // Calculate the amount field
-                    const amount = frappe.utils.flt(data.jht_employee) + 
-                                  frappe.utils.flt(data.jp_employee) + 
-                                  frappe.utils.flt(data.kesehatan_employee) +
-                                  frappe.utils.flt(data.jht_employer) + 
-                                  frappe.utils.flt(data.jp_employer) + 
-                                  frappe.utils.flt(data.kesehatan_employer) +
-                                  frappe.utils.flt(data.jkk) + 
-                                  frappe.utils.flt(data.jkm);
+                    const amount = flt(data.jht_employee) + 
+                                   flt(data.jp_employee) + 
+                                   flt(data.kesehatan_employee) +
+                                   flt(data.jht_employer) + 
+                                   flt(data.jp_employer) + 
+                                   flt(data.kesehatan_employer) +
+                                   flt(data.jkk) + 
+                                   flt(data.jkm);
                                   
                     frappe.model.set_value(cdt, cdn, 'amount', amount);
                     
@@ -535,297 +807,3 @@ frappe.ui.form.on('BPJS Payment Summary Detail', {
         }
     }
 });
-
-/**
- * Fetch data from salary slips based on filter
- * @param {Object} frm - The form object
- */
-async function fetchFromSalarySlip(frm) {
-    // Validate required fields
-    if(!frm.doc.company) {
-        frappe.msgprint(__('Please select Company before fetching data'));
-        return;
-    }
-    
-    if(!frm.doc.month || !frm.doc.year) {
-        frappe.msgprint(__('Please set Month and Year before fetching data'));
-        return;
-    }
-    
-    try {
-        // Confirm action with user
-        await frappe.confirm(
-            __('This will fetch BPJS data from Salary Slips and may overwrite existing data. Continue?')
-        );
-        
-        // On confirm
-        frappe.show_progress(__('Processing'), 0, 100);
-        
-        const result = await frm.call({
-            doc: frm.doc,
-            method: "get_from_salary_slip",
-            freeze: true,
-            freeze_message: __('Fetching data from salary slips...')
-        });
-        
-        frappe.hide_progress();
-        
-        if(result.message) {
-            frappe.show_alert({
-                message: __('Successfully fetched data from {0} salary slips', [result.message.count]),
-                indicator: 'green'
-            });
-            
-            frm.reload_doc();
-        }
-    } catch (error) {
-        frappe.hide_progress();
-        if (error) {
-            console.error("Error fetching from salary slip:", error);
-            frappe.msgprint({
-                title: __('Error'),
-                indicator: 'red',
-                message: __('Error fetching data: {0}', [error.message || error])
-            });
-        }
-    }
-}
-
-/**
- * Refresh data from linked salary slips
- * @param {Object} frm - The form object
- */
-async function refreshData(frm) {
-    // Check if there are employee details with salary slip links
-    if(!frm.doc.employee_details || !frm.doc.employee_details.some(d => d.salary_slip)) {
-        frappe.msgprint(__('No linked salary slips found. Use "Ambil Data dari Salary Slip" first.'));
-        return;
-    }
-    
-    try {
-        // Confirm action with user
-        await frappe.confirm(
-            __('This will refresh data from linked Salary Slips. Continue?')
-        );
-        
-        frappe.show_progress(__('Processing'), 0, 100);
-        
-        const result = await frm.call({
-            doc: frm.doc,
-            method: "update_from_salary_slip",
-            freeze: true,
-            freeze_message: __('Refreshing data from salary slips...')
-        });
-        
-        frappe.hide_progress();
-        
-        if(result.message) {
-            frappe.show_alert({
-                message: __('Successfully updated {0} records', [result.message.updated]),
-                indicator: 'green'
-            });
-            
-            // Set last_synced timestamp
-            frm.set_value('last_synced', frappe.datetime.now_datetime());
-            frm.refresh_field('last_synced');
-            
-            frm.reload_doc();
-        }
-    } catch (error) {
-        frappe.hide_progress();
-        if (error) {
-            console.error("Error refreshing data:", error);
-            frappe.msgprint({
-                title: __('Error'),
-                indicator: 'red',
-                message: __('Error refreshing data: {0}', [error.message || error])
-            });
-        }
-    }
-}
-
-/**
- * Update month name and month_year_title fields if they exist
- * @param {Object} frm - The form object
- */
-function updateMonthName(frm) {
-    if (!frm.doc.month || !frm.doc.year) return;
-    
-    const month_names = [
-        'Januari', 'Februari', 'Maret', 'April', 
-        'Mei', 'Juni', 'Juli', 'Agustus', 
-        'September', 'Oktober', 'November', 'Desember'
-    ];
-    
-    if (frm.doc.month >= 1 && frm.doc.month <= 12) {
-        // Set month_name if field exists
-        if (frm.meta.fields.find(field => field.fieldname === "month_name")) {
-            frm.set_value('month_name', month_names[frm.doc.month - 1]);
-        }
-        
-        // Set month_year_title if field exists
-        if (frm.meta.fields.find(field => field.fieldname === "month_year_title")) {
-            frm.set_value('month_year_title', `${month_names[frm.doc.month - 1]} ${frm.doc.year}`);
-        }
-    }
-}
-
-/**
- * Calculate total from all BPJS components
- * @param {Object} frm - The form object
- */
-function calculate_total(frm) {
-    let total = 0;
-    
-    // Calculate from components table
-    if(frm.doc.komponen) {
-        frm.doc.komponen.forEach(function(d) {
-            total += frappe.utils.flt(d.amount);
-        });
-    }
-    
-    frm.set_value('total', total);
-    frm.refresh_field('total');
-    
-    // Check if account details total matches components total
-    calculate_account_details_total(frm);
-}
-
-/**
- * Calculate total from account details and compare with components total
- * @param {Object} frm - The form object
- */
-function calculate_account_details_total(frm) {
-    let account_total = 0;
-    
-    if(frm.doc.account_details) {
-        frm.doc.account_details.forEach(function(d) {
-            account_total += frappe.utils.flt(d.amount);
-        });
-    }
-    
-    if(frm.doc.total && account_total > 0 && Math.abs(frm.doc.total - account_total) > 0.1) {
-        // Set field if exists
-        if (frm.meta.fields.find(field => field.fieldname === "account_total")) {
-            frm.set_value('account_total', account_total);
-            frm.refresh_field('account_total');
-        }
-        
-        frappe.show_alert({
-            message: __('Warning: Account details total ({0}) does not match components total ({1})', 
-                [frappe.format_currency(account_total, frm.doc.currency), 
-                 frappe.format_currency(frm.doc.total, frm.doc.currency)]),
-            indicator: 'orange'
-        });
-    }
-}
-
-/**
- * Calculate totals from employee details
- * @param {Object} frm - The form object
- * @returns {Object} Totals for each BPJS type
- */
-function calculate_employee_totals(frm) {
-    if(!frm.doc.employee_details) {
-        return {
-            jht_total: 0,
-            jp_total: 0,
-            kesehatan_total: 0,
-            jkk_total: 0,
-            jkm_total: 0
-        };
-    }
-    
-    let jht_total = 0;
-    let jp_total = 0;
-    let kesehatan_total = 0;
-    let jkk_total = 0;
-    let jkm_total = 0;
-    
-    frm.doc.employee_details.forEach(function(d) {
-        jht_total += frappe.utils.flt(d.jht_employee) + frappe.utils.flt(d.jht_employer);
-        jp_total += frappe.utils.flt(d.jp_employee) + frappe.utils.flt(d.jp_employer);
-        kesehatan_total += frappe.utils.flt(d.kesehatan_employee) + frappe.utils.flt(d.kesehatan_employer);
-        jkk_total += frappe.utils.flt(d.jkk);
-        jkm_total += frappe.utils.flt(d.jkm);
-    });
-    
-    return {
-        jht_total: jht_total,
-        jp_total: jp_total,
-        kesehatan_total: kesehatan_total,
-        jkk_total: jkk_total,
-        jkm_total: jkm_total
-    };
-}
-
-/**
- * Update components table based on employee details
- * @param {Object} frm - The form object
- */
-function update_components_from_employees(frm) {
-    if(!frm.doc.employee_details || frm.doc.employee_details.length === 0) return;
-    
-    try {
-        // Get totals from employee details
-        const totals = calculate_employee_totals(frm);
-        
-        // Clear existing components
-        frm.clear_table('komponen');
-        
-        // Add JHT component
-        if(totals.jht_total > 0) {
-            const row = frm.add_child('komponen');
-            row.component = 'BPJS JHT';
-            row.component_type = 'JHT';
-            row.description = 'JHT Contribution (Employee + Employer)';
-            row.amount = totals.jht_total;
-        }
-        
-        // Add JP component
-        if(totals.jp_total > 0) {
-            const row = frm.add_child('komponen');
-            row.component = 'BPJS JP';
-            row.component_type = 'JP';
-            row.description = 'JP Contribution (Employee + Employer)';
-            row.amount = totals.jp_total;
-        }
-        
-        // Add JKK component
-        if(totals.jkk_total > 0) {
-            const row = frm.add_child('komponen');
-            row.component = 'BPJS JKK';
-            row.component_type = 'JKK';
-            row.description = 'JKK Contribution (Employer)';
-            row.amount = totals.jkk_total;
-        }
-        
-        // Add JKM component
-        if(totals.jkm_total > 0) {
-            const row = frm.add_child('komponen');
-            row.component = 'BPJS JKM';
-            row.component_type = 'JKM';
-            row.description = 'JKM Contribution (Employer)';
-            row.amount = totals.jkm_total;
-        }
-        
-        // Add Kesehatan component
-        if(totals.kesehatan_total > 0) {
-            const row = frm.add_child('komponen');
-            row.component = 'BPJS Kesehatan';
-            row.component_type = 'Kesehatan';
-            row.description = 'Kesehatan Contribution (Employee + Employer)';
-            row.amount = totals.kesehatan_total;
-        }
-        
-        frm.refresh_field('komponen');
-        calculate_total(frm);
-    } catch (e) {
-        console.error("Error in update_components_from_employees:", e);
-        frappe.msgprint({
-            title: __('Error'),
-            indicator: 'red',
-            message: __('Error updating components: {0}', [e.message])
-        });
-    }
-}
