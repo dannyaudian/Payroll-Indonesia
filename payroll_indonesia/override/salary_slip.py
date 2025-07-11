@@ -77,7 +77,15 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         If is_december_override is set, this activates the annual tax correction
         logic by setting bypass_annual_detection and updating the payroll note.
         """
-        if hasattr(self, "is_december_override") and cint(self.is_december_override) == 1:
+        end_date = getattr(self, "end_date", None)
+        is_december_month = False
+        if end_date:
+            try:
+                is_december_month = getdate(end_date).month == 12
+            except Exception:
+                logger.warning(f"Invalid end_date for slip {getattr(self, 'name', '')}: {end_date}")
+
+        if is_december_month or cint(getattr(self, "is_december_override", 0)) == 1:
             # Activate bypass to ensure annual correction is applied
             self.bypass_annual_detection = 1
             

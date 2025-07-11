@@ -422,7 +422,7 @@ def get_ytd_totals(slip: Any) -> Dict[str, float]:
 
 def get_slip_year_month(slip: Any) -> Tuple[int, int]:
     """
-    Extract year and month from salary slip start date.
+    Extract year and month from salary slip dates.
 
     Args:
         slip: The Salary Slip document
@@ -431,7 +431,12 @@ def get_slip_year_month(slip: Any) -> Tuple[int, int]:
         Tuple[int, int]: Year and month
     """
     try:
-        # Try to get from start_date
+        # Prefer end_date if available
+        if hasattr(slip, "end_date") and slip.end_date:
+            date_obj = getdate(slip.end_date)
+            return date_obj.year, date_obj.month
+
+        # Fallback to start_date
         if hasattr(slip, "start_date") and slip.start_date:
             date_obj = getdate(slip.start_date)
             return date_obj.year, date_obj.month
@@ -466,37 +471,23 @@ def is_december_calculation(slip: Any) -> bool:
         bool: True if month is December or is_december_override flag is set
     """
     try:
-        # Check explicit override flag
-        if cint(getattr(slip, "is_december_override", 0)) == 1:
-            logger.debug(f"December override flag set for slip {getattr(slip, 'name', 'unknown')}")
-            return True
+        end_date = getattr(slip, "end_date", None)
+        is_december_month = False
+        if end_date:
+            try:
+                is_december_month = getdate(end_date).month == 12
+            except Exception:
+                logger.warning(f"Invalid end_date for slip {getattr(slip, 'name', 'unknown')}: {end_date}")
 
-        # Check if payroll_entry has override flag
-        payroll_entry = getattr(slip, "payroll_entry", None)
-        if payroll_entry:
-            # Get full payroll entry doc if needed
-            if isinstance(payroll_entry, str):
-                try:
-                    payroll_entry_doc = frappe.get_doc("Payroll Entry", payroll_entry)
-                    if cint(getattr(payroll_entry_doc, "is_december_override", 0)) == 1:
-                        logger.debug(f"December override flag found in payroll entry for slip {getattr(slip, 'name', 'unknown')}")
-                        return True
-                except Exception as e:
-                    logger.warning(f"Error loading payroll entry {payroll_entry}: {e}")
-            else:
-                # It's already a document
-                if cint(getattr(payroll_entry, "is_december_override", 0)) == 1:
-                    logger.debug(f"December override flag found in payroll entry for slip {getattr(slip, 'name', 'unknown')}")
-                    return True
+        is_override = cint(getattr(slip, "is_december_override", 0)) == 1
 
-        # Check if month is December
-        _, month = get_slip_year_month(slip)
-        is_dec = month == 12
-
-        if is_dec:
+        if is_december_month:
             logger.debug(f"December month detected for slip {getattr(slip, 'name', 'unknown')}")
 
-        return is_dec
+        if is_override:
+            logger.debug(f"December override flag set for slip {getattr(slip, 'name', 'unknown')}")
+
+        return is_december_month or is_override
 
     except Exception as e:
         logger.exception(f"Error checking December calculation: {str(e)}")
