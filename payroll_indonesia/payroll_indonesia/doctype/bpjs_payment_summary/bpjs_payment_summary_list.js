@@ -30,7 +30,6 @@ frappe.listview_settings['BPJS Payment Summary'] = {
     formatters: {
         total: (value) => frappe.format_currency(value),
         
-        // Add formatter for payment entry and journal entry references
         payment_entry: (value) => {
             if (!value) return '';
             return `<a href="/app/payment-entry/${encodeURIComponent(value)}">${value}</a>`;
@@ -43,11 +42,9 @@ frappe.listview_settings['BPJS Payment Summary'] = {
     },
     
     onload: function(listview) {
-        // Add action to create payment entry
         listview.page.add_action_item(__('Create Payment Entry'), () => {
             const selected = listview.get_checked_items();
             
-            // Validation checks
             if (selected.length === 0) {
                 frappe.msgprint(__('Please select at least one BPJS Payment Summary'));
                 return;
@@ -70,35 +67,29 @@ frappe.listview_settings['BPJS Payment Summary'] = {
                 return;
             }
             
-            // Confirm before proceeding
             frappe.confirm(
                 __('Create Payment Entry for BPJS Payment Summary: {0}?', [doc.name]),
                 () => {
-                    // Show progress indicator
                     frappe.show_progress(__('Creating Payment Entry...'), 0.5, 1);
                     
-                    // Call server method to create payment entry
                     frappe.call({
-                        method: 'payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_api.create_payment_entry',
+                        method: 'payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.generate_payment_entry',
                         args: {
-                            summary: doc.name
+                            doc: doc.name
                         },
                         callback: (response) => {
                             frappe.hide_progress();
                             
-                            if (response.message && response.message.name) {
+                            if (response.message && response.message.success) {
                                 frappe.show_alert({
                                     message: __('Payment Entry {0} created successfully', [response.message.name]),
                                     indicator: 'green'
                                 }, 5);
                                 
-                                // Refresh list to show updated status
                                 listview.refresh();
-                                
-                                // Navigate to the new payment entry
                                 frappe.set_route('Form', 'Payment Entry', response.message.name);
                             } else {
-                                frappe.msgprint(__('Error creating Payment Entry'));
+                                frappe.msgprint(__(response.message ? response.message.message : 'Error creating Payment Entry'));
                             }
                         }
                     });
@@ -106,7 +97,6 @@ frappe.listview_settings['BPJS Payment Summary'] = {
             );
         });
         
-        // Add action to view employer journal
         listview.page.add_action_item(__('View Employer Journal'), () => {
             const selected = listview.get_checked_items();
             
