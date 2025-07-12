@@ -13,7 +13,7 @@ This class contains customizations for Indonesian payroll regulations.
 import frappe
 from frappe import _
 from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
-from frappe.utils import flt, getdate, cint
+from frappe.utils import flt, cint
 
 from payroll_indonesia.frappe_helpers import get_logger
 
@@ -38,8 +38,8 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         # Call the parent validation first
         super().validate()
         
-        # Check for payroll_entry's is_december_override flag
-        self._check_payroll_entry_december_override()
+        # Auto-populate is_december_override from Payroll Entry
+        self._populate_december_override_from_payroll_entry()
         
         # Process December logic if enabled
         self._process_december_override()
@@ -47,22 +47,26 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         # Additional validations can be added here
         self._validate_indonesian_fields()
     
-    def _check_payroll_entry_december_override(self):
+    def _populate_december_override_from_payroll_entry(self):
         """
-        Check if payroll entry has is_december_override flag set.
+        Auto-populate is_december_override flag from Payroll Entry.
         
         This method checks the associated Payroll Entry document and sets
-        the is_december_override flag on the Salary Slip if needed.
+        the is_december_override flag on the Salary Slip accordingly.
+        The field is read-only and can only be set by this method.
         """
-        if hasattr(self, "payroll_entry") and self.payroll_entry:
+        # Initialize is_december_override to 0
+        self.is_december_override = 0
+        
+        if self.payroll_entry:
             # Load the Payroll Entry document if it's a string
-            payroll_entry_doc = None
             try:
-                if isinstance(self.payroll_entry, str):
-                    payroll_entry_doc = frappe.get_doc("Payroll Entry", self.payroll_entry)
-                else:
-                    payroll_entry_doc = self.payroll_entry
-                    
+                payroll_entry_doc = (
+                    frappe.get_doc("Payroll Entry", self.payroll_entry) 
+                    if isinstance(self.payroll_entry, str) 
+                    else self.payroll_entry
+                )
+                
                 # Set is_december_override based on the Payroll Entry setting
                 if getattr(payroll_entry_doc, "is_december_override", 0):
                     self.is_december_override = 1
@@ -74,22 +78,14 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         """
         Process December override logic for annual tax correction.
         
-        If is_december_override is set, this activates the annual tax correction
-        logic and updates the payroll note.
+        Only uses is_december_override field to determine if annual tax correction
+        should be applied.
         """
-        end_date = getattr(self, "end_date", None)
-        is_december_month = False
-        if end_date:
-            try:
-                is_december_month = getdate(end_date).month == 12
-            except Exception:
-                logger.warning(f"Invalid end_date for slip {getattr(self, 'name', '')}: {end_date}")
-
-        if is_december_month or cint(getattr(self, "is_december_override", 0)) == 1:
+        if cint(self.is_december_override) == 1:
             # Add or update payroll note with December correction information
             december_note = _("Annual tax correction (December) is applied to this salary slip")
             
-            if hasattr(self, "payroll_note") and self.payroll_note:
+            if self.payroll_note:
                 if december_note not in self.payroll_note:
                     self.payroll_note = f"{self.payroll_note}\n{december_note}"
             else:
@@ -114,7 +110,6 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             "koreksi_pph21": 0,
             "ytd_gross_pay": 0,
             "ytd_bpjs_deductions": 0,
-            "is_december_override": 0,  # Ensure this field is initialized
         }
         
         for field, default_value in required_fields.items():

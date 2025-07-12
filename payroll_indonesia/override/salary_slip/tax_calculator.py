@@ -463,26 +463,20 @@ def get_slip_year_month(slip: Any) -> Tuple[int, int]:
 def is_december_calculation(slip: Any) -> bool:
     """
     Determine if this slip should use December calculation logic.
+    
+    Only checks the is_december_override flag on the slip.
 
     Args:
         slip: The Salary Slip document
 
     Returns:
-        bool: True if month is December or is_december_override flag is set
+        bool: True if is_december_override flag is set
     """
     try:
-        end_date = getattr(slip, "end_date", None)
-        is_december_month = False
-        if end_date:
-            is_december_month = getdate(end_date).month == 12
-            if is_december_month:
-                logger.debug(f"December month detected for slip {getattr(slip, 'name', 'unknown')}")
-        
-        is_override = cint(getattr(slip, "is_december_override", 0)) == 1
-        if is_override:
+        is_december_override = cint(getattr(slip, "is_december_override", 0)) == 1
+        if is_december_override:
             logger.debug(f"December override flag set for slip {getattr(slip, 'name', 'unknown')}")
-        
-        return is_december_month or is_override
+        return is_december_override
     except Exception as e:
         logger.exception(f"Error checking December calculation: {str(e)}")
         return False
@@ -881,11 +875,10 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
         Dict[str, Any]: Calculation results
     """
     try:
-        # Check if it's actually December
-        is_december = is_december_calculation(slip)
-        if not is_december:
+        # Check if December override flag is set
+        if not is_december_calculation(slip):
             logger.info(
-                f"Non-December month detected for {getattr(slip, 'employee', 'unknown')}, "
+                f"is_december_override not set for {getattr(slip, 'employee', 'unknown')}, "
                 f"using monthly calculation"
             )
             return calculate_monthly_pph_progressive(slip)
@@ -908,7 +901,7 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
                 slip=slip
             )
             # Add flag to indicate this was a December calculation with TER
-            result["is_december"] = True
+            result["is_december_override"] = True
             return result
 
         # Continue with progressive December method
@@ -930,7 +923,7 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
             "annual_tax": 0.0,
             "correction": 0.0,
             "tax_details": [],
-            "is_december_override": 0,
+            "is_december_override": True,
         }
 
         # Get tax status
@@ -986,9 +979,6 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
         # Calculate monthly values for display
         monthly_biaya_jabatan = annual_biaya_jabatan / 12
         monthly_netto = annual_netto / 12
-
-        # Set December override flag
-        result["is_december_override"] = cint(getattr(slip, "is_december_override", 0))
 
         # Update slip fields
         update_slip_fields(

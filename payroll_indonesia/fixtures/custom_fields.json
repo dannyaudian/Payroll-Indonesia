@@ -253,7 +253,7 @@
     "fieldname": "is_december_override",
     "fieldtype": "Check",
     "insert_after": "use_ter_method",
-    "label": "Is December Override",
+    "label": "Run as December/Desember Override",
     "module": "Payroll Indonesia",
     "name": "Payroll Entry-is_december_override",
     "default": "0"
