@@ -150,8 +150,8 @@ def update_component_amount(doc: Document, method: Optional[str] = None) -> None
             # Progressive method
             doc.is_using_ter = 0
             
-            # Check if this is a December slip with annual correction
-            if doc.end_date.month == 12 or doc.is_december_override:
+            # Apply year-end correction only when override flag is set
+            if getattr(doc, "is_december_override", 0):
                 # December annual correction calculation
                 result = calculate_december_pph(doc)
                 
