@@ -34,38 +34,9 @@ __all__ = [
 
 
 def is_december_calculation(entry: Any) -> bool:
-    """
-    Determine if payroll should use December calculation logic.
+    """Return ``True`` if December override flag is enabled on the entry."""
 
-    The function checks an explicit ``is_december_override`` flag on the
-    :class:`Payroll Entry` and falls back to detecting whether the payroll period
-    ends in December.
-
-    Args:
-        entry: Payroll Entry document
-
-    Returns:
-        bool: ``True`` if December or the override flag is set
-    """
-    # Check explicit override flag
-    if getattr(entry, "is_december_override", 0):
-        return True
-
-    # Check if the payroll period ends in December
-    if hasattr(entry, "end_date") and entry.end_date:
-        end_date = getdate(entry.end_date)
-        return end_date.month == 12
-
-    # Fallback to start_date if end_date isn't available
-    if hasattr(entry, "start_date") and entry.start_date:
-        start_date = getdate(entry.start_date)
-        return start_date.month == 12
-
-    # Check month field if available
-    if getattr(entry, "month", 0) == 12:
-        return True
-
-    return False
+    return bool(getattr(entry, "is_december_override", 0))
 
 
 def calculate_payment_days(
