@@ -471,24 +471,14 @@ def is_december_calculation(slip: Any) -> bool:
         bool: True if month is December or is_december_override flag is set
     """
     try:
-        end_date = getattr(slip, "end_date", None)
-        is_december_month = False
-        if end_date:
-            try:
-                is_december_month = getdate(end_date).month == 12
-            except Exception:
-                logger.warning(f"Invalid end_date for slip {getattr(slip, 'name', 'unknown')}: {end_date}")
-
-        is_override = cint(getattr(slip, "is_december_override", 0)) == 1
-
-        if is_december_month:
+        # Check if month is December or if is_december_override flag is set
+        if slip.end_date.month == 12 or slip.is_december_override:
+            if slip.end_date.month == 12:
             logger.debug(f"December month detected for slip {getattr(slip, 'name', 'unknown')}")
-
-        if is_override:
+            else:
             logger.debug(f"December override flag set for slip {getattr(slip, 'name', 'unknown')}")
-
-        return is_december_month or is_override
-
+            return True
+        return False
     except Exception as e:
         logger.exception(f"Error checking December calculation: {str(e)}")
         return False
