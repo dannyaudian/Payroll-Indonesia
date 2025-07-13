@@ -491,9 +491,10 @@ def create_bpjs_supplier(config):
 def setup_pph21_ter(defaults=None):
     """
     Setup PPh 21 TER rates and other required tables in Payroll Indonesia Settings.
+    
     Args:
         defaults: Configuration data, loaded from defaults.json if None
-
+        
     Returns:
         bool: True if setup was successful, False otherwise
     """
@@ -505,22 +506,22 @@ def setup_pph21_ter(defaults=None):
             if not defaults:
                 logger.warning("Could not load defaults for PPh 21 TER setup")
                 return False
-
+                
         settings = frappe.get_single("Payroll Indonesia Settings")
-
+        
         # Check if all required tables already have data
         tables_filled = (
-            settings.ter_rate_table and
-            settings.ptkp_table and
-            settings.ptkp_ter_mapping_table and
-            settings.tax_brackets_table and
+            settings.ter_rate_table and 
+            settings.ptkp_table and 
+            settings.ptkp_ter_mapping_table and 
+            settings.tax_brackets_table and 
             settings.tipe_karyawan
         )
-
+        
         if tables_filled:
             logger.info("All required tables already have data in Payroll Indonesia Settings")
             return True
-
+        
         # PTKP Table
         if not settings.ptkp_table:
             settings.set("ptkp_table", [])
@@ -532,7 +533,7 @@ def setup_pph21_ter(defaults=None):
                         "ptkp_amount": flt(amount)
                     })
             logger.info(f"Added {len(ptkp_values)} PTKP values")
-
+                    
         # PTKP TER Mapping Table
         if not settings.ptkp_ter_mapping_table:
             settings.set("ptkp_ter_mapping_table", [])
@@ -544,7 +545,7 @@ def setup_pph21_ter(defaults=None):
                         "ter_category": ter_category
                     })
             logger.info(f"Added {len(mapping)} PTKP-TER mappings")
-
+        
         # Tax Brackets Table
         if not settings.tax_brackets_table:
             settings.set("tax_brackets_table", [])
@@ -556,7 +557,7 @@ def setup_pph21_ter(defaults=None):
                     "tax_rate": flt(bracket.get("tax_rate", 0))
                 })
             logger.info(f"Added {len(brackets)} tax brackets")
-
+        
         # Tipe Karyawan
         if not settings.tipe_karyawan:
             settings.set("tipe_karyawan", [])
@@ -568,29 +569,30 @@ def setup_pph21_ter(defaults=None):
                     elif isinstance(tipe, dict) and "tipe_karyawan" in tipe:
                         settings.append("tipe_karyawan", tipe)
             logger.info(f"Added {len(tipe_karyawan)} employee types")
-
+        
         # TER Rates Table
         if not settings.ter_rate_table:
             # Get TER rates from defaults
             ter_rates = defaults.get("ter_rates", {})
-        # Set metadata if available
-        metadata = ter_rates.get("metadata", {})
-        if metadata:
-            for field, value in metadata.items():
-                field_name = f"ter_{field}"
-                if hasattr(settings, field_name):
-                    setattr(settings, field_name, value)
-
+            
+            # Set metadata if available
+            metadata = ter_rates.get("metadata", {})
+            if metadata:
+                for field, value in metadata.items():
+                    field_name = f"ter_{field}"
+                    if hasattr(settings, field_name):
+                        setattr(settings, field_name, value)
+            
             # Prepare TER rate table rows
-        settings.set("ter_rate_table", [])
+            settings.set("ter_rate_table", [])
             count = 0
-
+            
             # Convert dict structure to list of rows
             for category, rates in ter_rates.items():
                 # Skip metadata
                 if category == "metadata":
                     continue
-
+                    
                 # Process each rate in this category
                 for rate_data in rates:
                     # Create a new row with all needed fields
@@ -601,11 +603,11 @@ def setup_pph21_ter(defaults=None):
                         "rate": flt(rate_data.get("rate", 0)),
                         "is_highest_bracket": cint(rate_data.get("is_highest_bracket", 0))
                     }
-            settings.append("ter_rate_table", row)
+                    settings.append("ter_rate_table", row)
                     count += 1
-        
+            
             logger.info(f"Added {count} TER rate rows")
-
+        
         # Save settings
         settings.flags.ignore_permissions = True
         settings.save(ignore_permissions=True)
@@ -617,7 +619,7 @@ def setup_pph21_ter(defaults=None):
     except Exception as e:
         logger.error(f"Error in setup_pph21_ter: {str(e)}")
         # Shorter error message to avoid truncation
-        frappe.log_error("Error setting up required tables in Payroll Indonesia Settings",
+        frappe.log_error("Error setting up required tables in Payroll Indonesia Settings", 
                          "Setup Error")
         return False
     
