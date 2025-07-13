@@ -45,7 +45,7 @@ def get_tax_brackets() -> List[Dict[str, Any]]:
     """
     Get progressive tax brackets from Payroll Indonesia Settings.
     Returns sorted list of brackets by income_from.
-    
+
     Returns:
         List[Dict[str, Any]]: List of tax brackets with income_from, income_to, and tax_rate
     """
@@ -59,7 +59,7 @@ def get_tax_brackets() -> List[Dict[str, Any]]:
         # Get from settings
         settings = frappe.get_cached_doc("Payroll Indonesia Settings")
         brackets = []
-        
+
         # Check if progressive_rates_json exists and use it
         if hasattr(settings, "progressive_rates_json") and settings.progressive_rates_json:
             try:
@@ -68,7 +68,7 @@ def get_tax_brackets() -> List[Dict[str, Any]]:
                     json_brackets = json.loads(settings.progressive_rates_json)
                 else:
                     json_brackets = settings.progressive_rates_json
-                
+
                 for bracket in json_brackets:
                     # Ensure we have all necessary fields
                     income_from = flt(bracket.get("income_from", 0))
@@ -76,24 +76,28 @@ def get_tax_brackets() -> List[Dict[str, Any]]:
                     tax_rate = flt(bracket.get("tax_rate", 0))
                     # Convert rate to percentage if stored as decimal
                     tax_rate = tax_rate * 100 if tax_rate <= 1 else tax_rate
-                    
-                    brackets.append({
-                        "income_from": income_from,
-                        "income_to": income_to,
-                        "tax_rate": tax_rate,
-                    })
+
+                    brackets.append(
+                        {
+                            "income_from": income_from,
+                            "income_to": income_to,
+                            "tax_rate": tax_rate,
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"Error parsing progressive_rates_json: {str(e)}")
-        
+
         # Fallback to tax_bracket_table if progressive_rates_json is not available
         if not brackets and hasattr(settings, "tax_bracket_table") and settings.tax_bracket_table:
             for row in settings.tax_bracket_table:
-                brackets.append({
-                    "income_from": flt(row.income_from),
-                    "income_to": flt(row.income_to),
-                    "tax_rate": flt(row.tax_rate),
-                })
-        
+                brackets.append(
+                    {
+                        "income_from": flt(row.income_from),
+                        "income_to": flt(row.income_to),
+                        "tax_rate": flt(row.tax_rate),
+                    }
+                )
+
         # If no brackets in settings, try config
         if not brackets:
             cfg = get_live_config()
@@ -145,7 +149,7 @@ def get_ptkp_value(tax_status: str) -> float:
         if not tax_status:
             logger.warning("Empty tax status provided. Using default TK0.")
             tax_status = "TK0"
-            
+
         # Try to get from cache first
         cache_key = f"tax:ptkp:{tax_status}"
         cached_value = cache_utils.get_cache(cache_key)
@@ -155,7 +159,7 @@ def get_ptkp_value(tax_status: str) -> float:
         # Get from settings
         settings = frappe.get_cached_doc("Payroll Indonesia Settings")
         ptkp_value = 0
-        
+
         # Get from PTKP table
         if hasattr(settings, "ptkp_table") and settings.ptkp_table:
             for row in settings.ptkp_table:
@@ -164,7 +168,7 @@ def get_ptkp_value(tax_status: str) -> float:
                     # Cache the result for 1 hour
                     cache_utils.set_cache(cache_key, ptkp_value, ttl=3600)
                     return ptkp_value
-        
+
         # If not found in settings, try config
         cfg = get_live_config()
         ptkp_values = cfg.get("ptkp", {})
@@ -276,8 +280,10 @@ def calculate_progressive_tax(pkp: float) -> Tuple[float, List[Dict[str, Any]]]:
 
         # Ensure tax is not unreasonably high (basic sanity check)
         if tax > pkp * 0.5:
-            logger.warning(f"Calculated tax ({tax}) is more than 50% of PKP ({pkp}). This seems incorrect.")
-            
+            logger.warning(
+                f"Calculated tax ({tax}) is more than 50% of PKP ({pkp}). This seems incorrect."
+            )
+
         return flt(tax, 2), details
 
     except Exception as e:
@@ -302,7 +308,7 @@ def get_tax_status(slip: Any) -> str:
         # Try to get from status_pajak field directly
         if hasattr(slip, "status_pajak") and slip.status_pajak:
             return slip.status_pajak
-            
+
         # Try to get from employee_doc field
         employee = getattr(slip, "employee_doc", None)
         if employee and hasattr(employee, "status_pajak") and employee.status_pajak:
@@ -431,25 +437,15 @@ def get_slip_year_month(slip: Any) -> Tuple[int, int]:
         Tuple[int, int]: Year and month
     """
     try:
-        # Prefer end_date if available
-        if hasattr(slip, "end_date") and slip.end_date:
-            date_obj = getdate(slip.end_date)
-            return date_obj.year, date_obj.month
-
-        # Fallback to start_date
-        if hasattr(slip, "start_date") and slip.start_date:
-            date_obj = getdate(slip.start_date)
-            return date_obj.year, date_obj.month
-
-        # Try to get from posting_date
+        # Use posting_date as the primary reference for year and month
         if hasattr(slip, "posting_date") and slip.posting_date:
             date_obj = getdate(slip.posting_date)
             return date_obj.year, date_obj.month
 
-        # Default to current year and month if not found
+        # Fall back to current date when posting_date is unavailable
         now = datetime.now()
         logger.warning(
-            f"No date found in slip {getattr(slip, 'name', 'unknown')}. "
+            f"Posting date not found in slip {getattr(slip, 'name', 'unknown')}. "
             f"Using current date: {now.year}-{now.month}"
         )
         return now.year, now.month
@@ -463,7 +459,7 @@ def get_slip_year_month(slip: Any) -> Tuple[int, int]:
 def is_december_calculation(slip: Any) -> bool:
     """
     Determine if this slip should use December calculation logic.
-    
+
     Only checks the is_december_override flag on the slip.
 
     Args:
@@ -473,10 +469,31 @@ def is_december_calculation(slip: Any) -> bool:
         bool: True if is_december_override flag is set
     """
     try:
-        is_december_override = cint(getattr(slip, "is_december_override", 0)) == 1
-        if is_december_override:
+        # Prioritize Payroll Entry flag if available
+        payroll_entry = getattr(slip, "payroll_entry", None)
+        if payroll_entry:
+            try:
+                entry_doc = (
+                    frappe.get_doc("Payroll Entry", payroll_entry)
+                    if isinstance(payroll_entry, str)
+                    else payroll_entry
+                )
+                override = cint(getattr(entry_doc, "is_december_override", 0)) == 1
+                if override:
+                    logger.debug(
+                        f"December override flag set via Payroll Entry for slip {getattr(slip, 'name', 'unknown')}"
+                    )
+                return override
+            except Exception as e:
+                logger.warning(
+                    f"Unable to read Payroll Entry for {getattr(slip, 'name', 'unknown')}: {e}"
+                )
+
+        # Fallback to slip field
+        override = cint(getattr(slip, "is_december_override", 0)) == 1
+        if override:
             logger.debug(f"December override flag set for slip {getattr(slip, 'name', 'unknown')}")
-        return is_december_override
+        return override
     except Exception as e:
         logger.exception(f"Error checking December calculation: {str(e)}")
         return False
@@ -507,7 +524,7 @@ def update_slip_fields(slip: Any, values: Dict[str, Any]) -> None:
 def get_ter_rate(ter_category: str, monthly_income: float) -> float:
     """
     Get TER rate based on TER category and monthly income from Payroll Indonesia Settings.
-    
+
     Args:
         ter_category: TER category (TER A, TER B, or TER C)
         monthly_income: Monthly taxable income (not annualized)
@@ -524,10 +541,10 @@ def get_ter_rate(ter_category: str, monthly_income: float) -> float:
 
         # Get from settings
         settings = frappe.get_cached_doc("Payroll Indonesia Settings")
-        
+
         # Format TER category to handle case differences
         ter_category = ter_category.upper().strip()
-        
+
         # Try to get rates from ter_rates_json first
         if hasattr(settings, "ter_rates_json") and settings.ter_rates_json:
             try:
@@ -536,45 +553,47 @@ def get_ter_rate(ter_category: str, monthly_income: float) -> float:
                     ter_rates = json.loads(settings.ter_rates_json)
                 else:
                     ter_rates = settings.ter_rates_json
-                
+
                 # Find category in JSON
                 if ter_category in ter_rates:
                     category_rates = ter_rates[ter_category]
-                    
+
                     # Find applicable bracket
                     for bracket in category_rates:
                         income_from = flt(bracket.get("income_from", 0))
                         income_to = flt(bracket.get("income_to", 0))
                         is_highest = cint(bracket.get("is_highest_bracket", 0))
-                        
+
                         if monthly_income >= income_from and (
                             is_highest or income_to == 0 or monthly_income < income_to
                         ):
                             # Get rate and convert to decimal if needed
                             rate = flt(bracket.get("rate", 0))
                             rate = rate / 100 if rate > 1 else rate
-                            
+
                             # Cache the result
                             cache_utils.set_cache(cache_key, rate, ttl=3600)
                             return rate
             except Exception as e:
                 logger.warning(f"Error parsing ter_rates_json: {str(e)}")
-        
+
         # Fallback to ter_rate_table if ter_rates_json not available or parsing failed
         if hasattr(settings, "ter_rate_table") and settings.ter_rate_table:
             # Filter rows by TER category
-            category_rows = [row for row in settings.ter_rate_table if row.status_pajak.upper() == ter_category]
-            
+            category_rows = [
+                row for row in settings.ter_rate_table if row.status_pajak.upper() == ter_category
+            ]
+
             if category_rows:
                 # Sort by income_from ascending
                 sorted_rows = sorted(category_rows, key=lambda x: flt(x.income_from))
-                
+
                 # Find applicable rate based on income
                 for row in sorted_rows:
                     income_from = flt(row.income_from)
                     income_to = flt(row.income_to)
                     is_highest = cint(getattr(row, "is_highest_bracket", 0))
-                    
+
                     if monthly_income >= income_from and (
                         is_highest or income_to == 0 or monthly_income < income_to
                     ):
@@ -587,20 +606,20 @@ def get_ter_rate(ter_category: str, monthly_income: float) -> float:
                         # Cache the result
                         cache_utils.set_cache(cache_key, rate, ttl=3600)
                         return rate
-        
+
         # If no match in settings, use default rates
         default_rates = {
             "TER A": 0.05,  # 5%
             "TER B": 0.10,  # 10%
             "TER C": 0.15,  # 15%
         }
-        
+
         rate = default_rates.get(ter_category, 0.15)
         logger.warning(
             f"No matching TER rate found for category {ter_category}, "
             f"income {monthly_income}. Using default: {rate * 100}%"
         )
-        
+
         # Cache the result
         cache_utils.set_cache(cache_key, rate, ttl=3600)
         return rate
@@ -630,7 +649,7 @@ def get_ter_category(ptkp_code: str) -> str:
 
         # Get mapping from settings
         settings = frappe.get_cached_doc("Payroll Indonesia Settings")
-        
+
         # Check if we have a mapping table
         if hasattr(settings, "ptkp_ter_mapping_table") and settings.ptkp_ter_mapping_table:
             for row in settings.ptkp_ter_mapping_table:
@@ -639,7 +658,7 @@ def get_ter_category(ptkp_code: str) -> str:
                     # Cache the result
                     cache_utils.set_cache(cache_key, category, ttl=3600)
                     return category
-        
+
         # Try from config
         cfg = get_live_config()
         ptkp_to_ter = cfg.get("ptkp_to_ter_mapping", {})
@@ -669,7 +688,7 @@ def get_ter_category(ptkp_code: str) -> str:
             # Default to highest category
             logger.warning(f"Unknown PTKP code '{ptkp_code}', defaulting to TER C")
             category = "TER C"
-        
+
         # Cache the result
         cache_utils.set_cache(cache_key, category, ttl=3600)
         return category
@@ -684,12 +703,12 @@ def calculate_monthly_pph_with_ter(
 ) -> Dict[str, Any]:
     """
     Calculate monthly PPh 21 using TER category.
-    
+
     Args:
         ter_category: TER category (TER A, TER B, or TER C)
         gross_pay: Monthly gross pay (not annualized)
         **kwargs: Additional arguments (slip, etc.)
-        
+
     Returns:
         Dict[str, Any]: Calculation results
     """
@@ -724,7 +743,7 @@ def calculate_monthly_pph_with_ter(
             _update_pph21_component(slip, monthly_tax)
 
         return result
-    
+
     except Exception as e:
         logger.exception(f"Error in TER calculation: {str(e)}")
         return {
@@ -733,7 +752,7 @@ def calculate_monthly_pph_with_ter(
             "gross_pay": gross_pay,
             "ter_rate": 0.0,
             "monthly_tax": 0.0,
-            "error": str(e)
+            "error": str(e),
         }
 
 
@@ -752,20 +771,18 @@ def calculate_monthly_pph_progressive(slip: Any) -> Dict[str, Any]:
         # Check tax calculation method from settings
         settings = frappe.get_cached_doc("Payroll Indonesia Settings")
         tax_method = getattr(settings, "tax_calculation_method", "PROGRESSIVE")
-        
+
         # Use TER if configured
         if tax_method == "TER" and cint(getattr(settings, "use_ter", 0)) == 1:
             tax_status = get_tax_status(slip)
             ter_category = get_ter_category(tax_status)
             gross_pay = flt(getattr(slip, "gross_pay", 0))
-            
+
             # Calculate using TER method
             return calculate_monthly_pph_with_ter(
-                ter_category=ter_category,
-                gross_pay=gross_pay,
-                slip=slip
+                ter_category=ter_category, gross_pay=gross_pay, slip=slip
             )
-        
+
         # Continue with progressive method
         # Initialize result with zeros
         result = {
@@ -886,19 +903,17 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
         # Check tax calculation method from settings
         settings = frappe.get_cached_doc("Payroll Indonesia Settings")
         tax_method = getattr(settings, "tax_calculation_method", "PROGRESSIVE")
-        
+
         # Use TER if configured, even for December
         if tax_method == "TER" and cint(getattr(settings, "use_ter", 0)) == 1:
             tax_status = get_tax_status(slip)
             ter_category = get_ter_category(tax_status)
             gross_pay = flt(getattr(slip, "gross_pay", 0))
-            
+
             # For December with TER, we still use the simple monthly calculation
             # but we might apply additional logic if needed in the future
             result = calculate_monthly_pph_with_ter(
-                ter_category=ter_category,
-                gross_pay=gross_pay,
-                slip=slip
+                ter_category=ter_category, gross_pay=gross_pay, slip=slip
             )
             # Add flag to indicate this was a December calculation with TER
             result["is_december_override"] = True
@@ -1060,7 +1075,7 @@ def _update_pph21_component(slip: Any, tax_amount: float) -> None:
 def _run_tests():
     """Run unit tests for tax calculations"""
     print("Running tax calculator unit tests...")
-    
+
     # TER rate test
     ter_test_category = "TER B"
     ter_test_income = 10000000  # 10 million monthly
@@ -1068,38 +1083,38 @@ def _run_tests():
     ter_test_expected_rate = 0.025  # 2.5%
     print(f"TER rate test: get_ter_rate({ter_test_category}, {ter_test_income}) = {ter_test_rate}")
     assert abs(ter_test_rate - ter_test_expected_rate) < 0.001, "TER rate calculation failed"
-    
+
     # TER tax test
     ter_test_tax = ter_test_income * ter_test_rate
     ter_test_tax_expected = 250000  # 250,000
     print(f"TER tax test: {ter_test_income} * {ter_test_rate} = {ter_test_tax}")
     assert abs(ter_test_tax - ter_test_tax_expected) < 100, "TER tax calculation failed"
-    
+
     # TER category test
     ptkp_code = "TK1"
     ter_category = get_ter_category(ptkp_code)
     expected_category = "TER B"
     print(f"TER category test: get_ter_category({ptkp_code}) = {ter_category}")
     assert ter_category == expected_category, "TER category mapping failed"
-    
+
     # Progressive test
     pkp_test = 60000000  # 60 million annual
     tax_test, _ = calculate_progressive_tax(pkp_test)
     tax_test_expected = 3000000  # 5% of 60 million = 3 million
     print(f"Progressive test: tax on {pkp_test} = {tax_test}")
     assert abs(tax_test - tax_test_expected) < 100, "Progressive tax calculation failed"
-    
+
     # Progressive brackets test
     brackets = get_tax_brackets()
     print(f"Tax brackets: {brackets}")
     assert len(brackets) >= 4, "Failed to get proper tax brackets"
-    
+
     # Tax < 50% of income test
     high_income = 100000000  # 100 million annual
     high_tax, _ = calculate_progressive_tax(high_income)
     print(f"High income test: tax on {high_income} = {high_tax}")
     assert high_tax < high_income * 0.5, "Tax exceeds 50% of income"
-    
+
     print("All tests passed!")
     return True
 
