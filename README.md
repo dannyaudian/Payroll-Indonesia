@@ -109,6 +109,7 @@ The Payroll Indonesia module is modularly optimized to provide top performance a
 * All code adheres to Flake8 standards and Pythonic best practices.
 * Efficient and clear logging using Python’s logging module.
 * Modular design featuring specialized utilities for BPJS, PPh21, YTD calculations, and field validations.
+* See [docs/defaults.md](docs/defaults.md) for a breakdown of configuration defaults.
 
 ## 🧑‍💻 Contributing
 
