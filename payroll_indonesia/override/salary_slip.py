@@ -61,11 +61,15 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         if hasattr(super(), "before_save"):
             super().before_save()
             
+        # Auto-detect December based on end_date
+        self._auto_detect_december_from_date()
+
         # Auto-set override flag if checkbox is active
         self.is_december_override = self.run_as_december or 0
 
         # IMPORTANT: Ensure December flags are consistent before saving
         self._ensure_december_flags_consistency()
+        
     def validate(self):
         """
         Validate Salary Slip with Indonesian-specific requirements.
@@ -73,6 +77,9 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         Extends the standard validation with additional checks and
         sets up fields required for Indonesian payroll processing.
         """
+        # Auto-detect December based on end_date
+        self._auto_detect_december_from_date()
+
         # IMPORTANT: Process December override first - before any other validations
         # This ensures tax calculations use the correct mode regardless of actual date
         self._populate_december_override_from_payroll_entry()
@@ -122,7 +129,7 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         logger.debug(f"December flags for slip {getattr(self, 'name', 'new')}: "
                      f"run_as_december={self.run_as_december}, "
                      f"is_december_override={self.is_december_override}")
-    
+        
     def _populate_december_override_from_payroll_entry(self):
         """
         Auto-populate is_december_override flag from Payroll Entry.
@@ -331,6 +338,38 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         # For now, use the parent implementation
         return super().get_tax_paid_in_period()
 
+    def _auto_detect_december_from_date(self):
+        """
+        Automatically detect December month from end_date and set appropriate flags.
+    
+        If the slip's end_date is in December, both is_december_override and 
+        run_as_december flags will be set to 1.
+        """
+        # Skip if flags are already set
+        if getattr(self, "is_december_override", 0) == 1 or getattr(self, "run_as_december", 0) == 1:
+            return
+        
+        # Check if end_date exists and is in December
+        if hasattr(self, "end_date") and self.end_date:
+            try:
+                from frappe.utils import getdate
+                end_date = getdate(self.end_date)
+            
+                # Check if month is December (12)
+                if end_date.month == 12:
+                    # Set both flags for consistency
+                    self.is_december_override = 1
+                    self.run_as_december = 1
+                
+                    logger.info(
+                        f"December month auto-detected from end_date {self.end_date} "
+                        f"for slip {getattr(self, 'name', 'new')}"
+                    )
+            except Exception as e:
+                # Log but don't interrupt flow
+                logger.warning(
+                    f"Error checking December from end_date for slip {getattr(self, 'name', 'new')}: {str(e)}"
+                )
 
 # Re-export the class for import by other modules
 __all__ = ["IndonesiaPayrollSalarySlip"]

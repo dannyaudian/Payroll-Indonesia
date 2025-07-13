@@ -756,24 +756,32 @@ def calculate_monthly_pph_with_ter(
         }
 
 
-def calculate_monthly_pph_progressive(slip: Any) -> Dict[str, Any]:
+def calculate_monthly_pph_progressive(slip: Any, skip_ytd_check: bool = False) -> Dict[str, Any]:
     """
     Calculate PPh 21 using progressive rates for non-December months.
     Checks tax calculation method from settings and uses TER if configured.
 
     Args:
         slip: The Salary Slip document
+        skip_ytd_check: If True, bypasses any YTD-based calculations
+                        (useful for fallback from December calculation)
 
     Returns:
         Dict[str, Any]: Calculation results
     """
     try:
+        # Log if we're skipping YTD checks
+        if skip_ytd_check:
+            logger.info(
+                f"Skipping YTD calculation due to skip_ytd_check=True for slip {getattr(slip, 'name', 'unknown')}"
+            )
+
         # Check tax calculation method from settings
         settings = frappe.get_cached_doc("Payroll Indonesia Settings")
         tax_method = getattr(settings, "tax_calculation_method", "PROGRESSIVE")
 
-        # Use TER if configured
-        if tax_method == "TER" and cint(getattr(settings, "use_ter", 0)) == 1:
+        # Use TER if configured and not skipping due to fallback
+        if tax_method == "TER" and cint(getattr(settings, "use_ter", 0)) == 1 and not skip_ytd_check:
             tax_status = get_tax_status(slip)
             ter_category = get_ter_category(tax_status)
             gross_pay = flt(getattr(slip, "gross_pay", 0))
@@ -798,6 +806,7 @@ def calculate_monthly_pph_progressive(slip: Any) -> Dict[str, Any]:
             "annual_tax": 0.0,
             "monthly_tax": 0.0,
             "tax_details": [],
+            "skip_ytd_check": skip_ytd_check,  # Include in result for logging
         }
 
         # Get tax status
@@ -824,6 +833,7 @@ def calculate_monthly_pph_progressive(slip: Any) -> Dict[str, Any]:
         # Calculate netto
         netto = gross_pay - biaya_jabatan - total_bpjs
         result["monthly_netto"] = netto
+        result["netto_income"] = netto  # Also store as netto_income for reference
 
         # Calculate annual values
         annual_netto = netto * MONTHS_PER_YEAR
@@ -836,6 +846,7 @@ def calculate_monthly_pph_progressive(slip: Any) -> Dict[str, Any]:
         # Calculate PKP
         pkp = max(0, annual_netto - ptkp)
         result["pkp"] = pkp
+        result["taxable_income"] = pkp / MONTHS_PER_YEAR  # Monthly taxable income
 
         # Calculate tax
         annual_tax, tax_details = calculate_progressive_tax(pkp)
@@ -855,7 +866,10 @@ def calculate_monthly_pph_progressive(slip: Any) -> Dict[str, Any]:
         _update_pph21_component(slip, monthly_tax)
 
         employee_id = getattr(slip, "employee", "unknown")
-        logger.debug(f"Monthly PPh calculation for {employee_id}: {result}")
+        logger.debug(
+            f"Monthly PPh calculation for {employee_id}: {result}" +
+            (f" (skipping YTD)" if skip_ytd_check else "")
+        )
         return result
 
     except Exception as e:
@@ -876,8 +890,8 @@ def calculate_monthly_pph_progressive(slip: Any) -> Dict[str, Any]:
             "monthly_tax": 0,
             "tax_details": [],
             "error": str(e),
+            "skip_ytd_check": skip_ytd_check,  # Include in result even on error
         }
-
 
 def calculate_december_pph(slip: Any) -> Dict[str, Any]:
     """

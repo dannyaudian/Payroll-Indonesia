@@ -72,14 +72,15 @@ class CustomPayrollEntry(PayrollEntry):
             if end_month == 12:
                 # Set the December override flag
                 self.is_december_override = 1
-                logger.info(
-                    f"Auto-detected December from end_date for Payroll Entry {self.name} - "
-                    f"setting is_december_override=1"
-                )
                 
                 # Also set run_as_december for consistency if it exists
                 if hasattr(self, "run_as_december"):
                     self.run_as_december = 1
+                    
+                logger.info(
+                    f"Auto-detected December from end_date for Payroll Entry {self.name} - "
+                    f"setting is_december_override=1 and run_as_december=1"
+                )
 
     def _validate_december_logic(self) -> None:
         """
@@ -92,6 +93,11 @@ class CustomPayrollEntry(PayrollEntry):
         is_december = self.get("is_december_override", 0)
 
         if is_december:
+            # Ensure run_as_december is also set for consistency
+            if hasattr(self, "run_as_december") and not self.run_as_december:
+                self.run_as_december = 1
+                logger.debug(f"Set run_as_december=1 to match is_december_override for {self.name}")
+            
             # Log that December mode is active without any date validation
             logger.info(
                 f"Payroll Entry {self.name} is using December override mode for annual tax calculation"
@@ -107,8 +113,25 @@ class CustomPayrollEntry(PayrollEntry):
                 alert=True
             )
         else:
-            # Optionally log that regular mode is being used
-            logger.debug(f"Payroll Entry {self.name} using regular monthly tax calculation")
+            # Check if run_as_december is set but is_december_override is not
+            if hasattr(self, "run_as_december") and self.run_as_december:
+                self.is_december_override = 1
+                logger.info(
+                    f"Setting is_december_override=1 to match run_as_december for Payroll Entry {self.name}"
+                )
+                
+                # Now that is_december_override is set, show the message
+                frappe.msgprint(
+                    _(
+                        "December override mode is active: Annual tax calculation and correction "
+                        "will be applied to all salary slips generated from this Payroll Entry."
+                    ),
+                    indicator="blue",
+                    alert=True
+                )
+            else:
+                # Optionally log that regular mode is being used
+                logger.debug(f"Payroll Entry {self.name} using regular monthly tax calculation")
     
     def _validate_ter_method_logic(self) -> None:
         """
@@ -248,7 +271,7 @@ class CustomPayrollEntry(PayrollEntry):
                     "payroll_entry": self.name,
                     "docstatus": 0,  # Only update draft slips
                 },
-                fields=["name", "is_december_override", "use_ter_method"]
+                fields=["name", "is_december_override", "run_as_december", "use_ter_method"]
             )
             
             if not slips:
@@ -260,13 +283,16 @@ class CustomPayrollEntry(PayrollEntry):
             for slip in slips:
                 fields_to_update = {}
                 
-                # Check December override flag
+                # Check December override flag - always set BOTH flags for consistency
                 if hasattr(self, "is_december_override") and self.is_december_override:
-                    if not slip.get("is_december_override"):
+                    # Check if either flag is not set
+                    if not slip.get("is_december_override") or not slip.get("run_as_december"):
                         fields_to_update["is_december_override"] = 1
-                        
-                        # Also set run_as_december for consistency
                         fields_to_update["run_as_december"] = 1
+                        logger.debug(
+                            f"Setting December flags for slip {slip.name}: "
+                            f"is_december_override=1, run_as_december=1"
+                        )
                 
                 # Check TER method flag
                 if hasattr(self, "use_ter_method") and self.use_ter_method:
@@ -332,6 +358,12 @@ class CustomPayrollEntry(PayrollEntry):
         apply_december = hasattr(self, "is_december_override") and self.is_december_override
         apply_ter = hasattr(self, "use_ter_method") and self.use_ter_method
         
+        # Also check run_as_december flag
+        if not apply_december and hasattr(self, "run_as_december") and self.run_as_december:
+            apply_december = True
+            # Sync flags for consistency
+            self.is_december_override = 1
+        
         # IMPORTANT: Also auto-detect December from end_date
         # This allows the flag to be automatically set based on the date
         # even if it wasn't explicitly set by the user
@@ -339,19 +371,19 @@ class CustomPayrollEntry(PayrollEntry):
             end_month = getdate(self.end_date).month
             if end_month == 12:
                 apply_december = True
-                # Also set the flag on the Payroll Entry for consistency
+                # Set both December flags on the Payroll Entry for consistency
                 self.is_december_override = 1
-                # Set run_as_december as well if it exists
                 if hasattr(self, "run_as_december"):
                     self.run_as_december = 1
                 logger.info(
-                    f"Auto-detected December from end_date for Payroll Entry {self.name} during slip creation"
+                    f"Auto-detected December from end_date for Payroll Entry {self.name} during slip creation - "
+                    f"setting is_december_override=1 and run_as_december=1"
                 )
         
         if apply_december or apply_ter:
             flag_info = []
             if apply_december:
-                flag_info.append("December override")
+                flag_info.append("December override (is_december_override=1, run_as_december=1)")
             if apply_ter:
                 flag_info.append("TER method")
             
@@ -370,13 +402,19 @@ class CustomPayrollEntry(PayrollEntry):
                     # Build a dict of fields to update
                     fields_to_update = {}
                     
-                    # Check December override
+                    # Check December override - always set BOTH flags for consistency
                     if apply_december:
                         existing_override = frappe.db.get_value("Salary Slip", slip_name, "is_december_override")
-                        if not existing_override:
+                        existing_run = frappe.db.get_value("Salary Slip", slip_name, "run_as_december") 
+                        
+                        # Only update if at least one flag is not set
+                        if not existing_override or not existing_run:
                             fields_to_update["is_december_override"] = 1
-                            # Also set run_as_december for consistency
                             fields_to_update["run_as_december"] = 1
+                            logger.debug(
+                                f"Setting December flags for slip {slip_name}: "
+                                f"is_december_override=1, run_as_december=1"
+                            )
                     
                     # Check TER method
                     if apply_ter:
@@ -421,6 +459,13 @@ class CustomPayrollEntry(PayrollEntry):
         if ss_status == 0 and sal_slips:
             # Check if we need to apply any flags
             apply_december = hasattr(self, "is_december_override") and self.is_december_override
+            
+            # Also check run_as_december flag
+            if not apply_december and hasattr(self, "run_as_december") and self.run_as_december:
+                apply_december = True
+                # Sync flags for consistency
+                self.is_december_override = 1
+                
             apply_ter = hasattr(self, "use_ter_method") and self.use_ter_method
             
             # IMPORTANT: Also auto-detect December from end_date
@@ -428,13 +473,13 @@ class CustomPayrollEntry(PayrollEntry):
                 end_month = getdate(self.end_date).month
                 if end_month == 12:
                     apply_december = True
-                    # Also set the flag on the Payroll Entry for consistency
+                    # Set both December flags on the Payroll Entry for consistency
                     self.is_december_override = 1
-                    # Set run_as_december as well if it exists
                     if hasattr(self, "run_as_december"):
                         self.run_as_december = 1
                     logger.info(
-                        f"Auto-detected December from end_date for Payroll Entry {self.name} during slip list retrieval"
+                        f"Auto-detected December from end_date for Payroll Entry {self.name} during slip list retrieval - "
+                        f"setting is_december_override=1 and run_as_december=1"
                     )
             
             if apply_december or apply_ter:
@@ -446,13 +491,19 @@ class CustomPayrollEntry(PayrollEntry):
                     for slip_name in slip_names:
                         fields_to_update = {}
                         
-                        # Check December override
+                        # Check December override - always set BOTH flags for consistency
                         if apply_december:
                             existing_override = frappe.db.get_value("Salary Slip", slip_name, "is_december_override")
-                            if not existing_override:
+                            existing_run = frappe.db.get_value("Salary Slip", slip_name, "run_as_december")
+                            
+                            # Only update if at least one flag is not set
+                            if not existing_override or not existing_run:
                                 fields_to_update["is_december_override"] = 1
-                                # Also set run_as_december for consistency
                                 fields_to_update["run_as_december"] = 1
+                                logger.debug(
+                                    f"Setting December flags for slip {slip_name}: "
+                                    f"is_december_override=1, run_as_december=1"
+                                )
                         
                         # Check TER method
                         if apply_ter:
@@ -499,6 +550,13 @@ class CustomPayrollEntry(PayrollEntry):
             
         # Check if we need to apply any flags
         apply_december = hasattr(self, "is_december_override") and self.is_december_override
+        
+        # Also check run_as_december flag
+        if not apply_december and hasattr(self, "run_as_december") and self.run_as_december:
+            apply_december = True
+            # Sync flags for consistency
+            self.is_december_override = 1
+            
         apply_ter = hasattr(self, "use_ter_method") and self.use_ter_method
         
         # IMPORTANT: Also auto-detect December from end_date
@@ -506,20 +564,20 @@ class CustomPayrollEntry(PayrollEntry):
             end_month = getdate(self.end_date).month
             if end_month == 12:
                 apply_december = True
-                # Also set the flag on the Payroll Entry for consistency
+                # Set both December flags on the Payroll Entry for consistency
                 self.is_december_override = 1
-                # Set run_as_december as well if it exists
                 if hasattr(self, "run_as_december"):
                     self.run_as_december = 1
                 logger.info(
-                    f"Auto-detected December from end_date for Payroll Entry {self.name} during timesheet slip creation"
+                    f"Auto-detected December from end_date for Payroll Entry {self.name} during timesheet slip creation - "
+                    f"setting is_december_override=1 and run_as_december=1"
                 )
         
         # Propagate flags to timesheet-based salary slips
         if apply_december or apply_ter:
             flag_info = []
             if apply_december:
-                flag_info.append("December override")
+                flag_info.append("December override (is_december_override=1, run_as_december=1)")
             if apply_ter:
                 flag_info.append("TER method")
                 
@@ -533,13 +591,19 @@ class CustomPayrollEntry(PayrollEntry):
                         # Build a dict of fields to update
                         fields_to_update = {}
                         
-                        # Check December override
+                        # Check December override - always set BOTH flags for consistency
                         if apply_december:
                             existing_override = frappe.db.get_value("Salary Slip", slip_name, "is_december_override")
-                            if not existing_override:
+                            existing_run = frappe.db.get_value("Salary Slip", slip_name, "run_as_december")
+                            
+                            # Only update if at least one flag is not set
+                            if not existing_override or not existing_run:
                                 fields_to_update["is_december_override"] = 1
-                                # Also set run_as_december for consistency
                                 fields_to_update["run_as_december"] = 1
+                                logger.debug(
+                                    f"Setting December flags for timesheet slip {slip_name}: "
+                                    f"is_december_override=1, run_as_december=1"
+                                )
                         
                         # Check TER method
                         if apply_ter:

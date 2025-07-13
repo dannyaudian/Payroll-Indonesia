@@ -30,6 +30,7 @@ __all__ = [
     "submit_salary_slips",
     "post_submit",
     "calculate_employer_contributions",
+    "auto_sync_december_flags", # Add new function to exports
 ]
 
 
@@ -37,6 +38,75 @@ def is_december_calculation(entry: Any) -> bool:
     """Return ``True`` if December override flag is enabled on the entry."""
 
     return bool(getattr(entry, "is_december_override", 0))
+
+
+def auto_sync_december_flags(doc: Any) -> bool:
+    """
+    Auto-detect December from end_date and synchronize December-related flags.
+    
+    This utility function provides centralized logic for:
+    1. Detecting December month from end_date
+    2. Setting is_december_override and run_as_december flags consistently
+    3. Synchronizing the flags when one is set but not the other
+    
+    Can be used in both Payroll Entry and Salary Slip documents.
+    
+    Args:
+        doc: Document with end_date and December flags (Payroll Entry or Salary Slip)
+        
+    Returns:
+        bool: True if December flags were set or synced, False otherwise
+    """
+    changes_made = False
+    
+    # Initialize flags if they don't exist
+    if not hasattr(doc, "is_december_override"):
+        doc.is_december_override = 0
+        changes_made = True
+    
+    if not hasattr(doc, "run_as_december"):
+        doc.run_as_december = 0
+        changes_made = True
+    
+    # Check if either flag is already set - if so, sync the other flag
+    if doc.is_december_override and not doc.run_as_december:
+        doc.run_as_december = 1
+        logger.debug(
+            f"Synced run_as_december=1 to match is_december_override for {doc.doctype} {getattr(doc, 'name', 'new')}"
+        )
+        changes_made = True
+    elif doc.run_as_december and not doc.is_december_override:
+        doc.is_december_override = 1
+        logger.debug(
+            f"Synced is_december_override=1 to match run_as_december for {doc.doctype} {getattr(doc, 'name', 'new')}"
+        )
+        changes_made = True
+    
+    # Skip end_date check if flags are already set
+    if doc.is_december_override:
+        return changes_made
+    
+    # Auto-detect December from end_date
+    if hasattr(doc, "end_date") and doc.end_date:
+        try:
+            end_month = getdate(doc.end_date).month
+            if end_month == 12:
+                # Set both December flags
+                doc.is_december_override = 1
+                doc.run_as_december = 1
+                
+                logger.info(
+                    f"Auto-detected December from end_date {doc.end_date} for {doc.doctype} {getattr(doc, 'name', 'new')} - "
+                    f"setting is_december_override=1 and run_as_december=1"
+                )
+                
+                changes_made = True
+        except Exception as e:
+            logger.warning(
+                f"Error checking December from end_date for {doc.doctype} {getattr(doc, 'name', 'new')}: {str(e)}"
+            )
+    
+    return changes_made
 
 
 def calculate_payment_days(
@@ -156,8 +226,13 @@ def create_salary_slip(employee_data: Dict[str, Any], entry: Any) -> str:
     if hasattr(slip, "income_tax_slab"):
         slip.income_tax_slab = None
 
-    # Set December override flag
-    slip.is_december_override = 1 if is_december_calculation(entry) else 0
+    # Set December override flags - use synced flags from entry
+    if hasattr(entry, "is_december_override") and entry.is_december_override:
+        slip.is_december_override = 1
+        slip.run_as_december = 1
+    else:
+        # Check if the slip itself should be December based on its end_date
+        auto_sync_december_flags(slip)
 
     # Add department and designation if available
     if "department" in employee_data:
@@ -194,6 +269,9 @@ def make_slips_from_timesheets(entry: Any) -> List[str]:
     if not getattr(entry, "salary_slip_based_on_timesheet", 0):
         logger.info("Payroll entry not based on timesheets, skipping")
         return []
+
+    # Ensure December flags are synced on the entry
+    auto_sync_december_flags(entry)
 
     # Get employees with timesheets in the period
     employees = frappe.db.sql(
@@ -302,6 +380,9 @@ def post_submit(entry: Any) -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: Result summary
     """
+    # Ensure December flags are properly synced
+    auto_sync_december_flags(entry)
+    
     result = {"status": "success", "message": "", "submitted": 0, "failed": 0}
 
     try:

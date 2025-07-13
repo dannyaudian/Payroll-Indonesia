@@ -236,35 +236,81 @@ def update_component_amount(doc: Document, method: Optional[str] = None) -> None
         # IMPORTANT: First priority - Check if December override flag is active
         # No date-based checks are performed, only flag-based
         if is_december(doc):
-            # Override detected - use progressive annual correction method
-            doc.is_using_ter = 0  # Force disable TER for December
-            logger.info(
-                f"December override flag detected for {doc.name} - using progressive annual method "
-                f"(is_december_override={doc.is_december_override}, run_as_december={getattr(doc, 'run_as_december', 0)})"
-            )
+            # Check if Employee Tax Summary exists and contains valid data
+            year = getdate(doc.posting_date).year if hasattr(doc, "posting_date") else getdate().year
+            summary_name = frappe.db.get_value("Employee Tax Summary", 
+                                              {"employee": doc.employee, "year": year})
             
-            # December annual correction calculation
-            result = calculate_december_pph(doc)
+            has_valid_summary = False
             
-            # Get regular monthly tax and correction amount
-            monthly_tax = result.get("monthly_tax", 0.0)
-            correction_amount = result.get("correction", 0.0)
+            if summary_name:
+                # Check if summary has valid data
+                summary = frappe.get_doc("Employee Tax Summary", summary_name)
+                has_valid_summary = (
+                    hasattr(summary, "ytd_gross_pay") and 
+                    flt(summary.ytd_gross_pay) > 0 and
+                    hasattr(summary, "ytd_tax") and 
+                    summary.monthly_details and 
+                    len(summary.monthly_details) > 0
+                )
+                
+                logger.info(
+                    f"December override: Found tax summary {summary_name} for {doc.employee}/{year}, "
+                    f"valid data: {has_valid_summary}, "
+                    f"ytd_gross_pay: {getattr(summary, 'ytd_gross_pay', 0)}"
+                )
+            else:
+                logger.info(
+                    f"December override: No tax summary found for {doc.employee}/{year}, "
+                    f"will use monthly calculation method"
+                )
             
-            # Set tax amount to monthly tax (correction will be added separately)
-            tax_amount = monthly_tax
-            
-            # Store the correction amount in the dedicated field
-            doc.koreksi_pph21 = correction_amount
-            
-            logger.info(
-                f"December calculation applied for {doc.name} - "
-                f"monthly tax: {monthly_tax}, correction: {correction_amount}, "
-                f"total: {monthly_tax + correction_amount}"
-            )
-            
-            # Add the correction as a separate component if it exists
-            if correction_amount != 0:
-                _add_or_update_correction_component(doc, correction_amount)
+            if has_valid_summary:
+                # Valid summary exists - use progressive annual correction method
+                doc.is_using_ter = 0  # Force disable TER for December
+                logger.info(
+                    f"December override with valid tax summary for {doc.name} - using progressive annual method "
+                    f"(is_december_override={doc.is_december_override}, run_as_december={getattr(doc, 'run_as_december', 0)})"
+                )
+                
+                # December annual correction calculation
+                result = calculate_december_pph(doc)
+                
+                # Get regular monthly tax and correction amount
+                monthly_tax = result.get("monthly_tax", 0.0)
+                correction_amount = result.get("correction", 0.0)
+                
+                # Set tax amount to monthly tax (correction will be added separately)
+                tax_amount = monthly_tax
+                
+                # Store the correction amount in the dedicated field
+                doc.koreksi_pph21 = correction_amount
+                
+                logger.info(
+                    f"December calculation applied for {doc.name} - "
+                    f"monthly tax: {monthly_tax}, correction: {correction_amount}, "
+                    f"total: {monthly_tax + correction_amount}"
+                )
+                
+                # Add the correction as a separate component if it exists
+                if correction_amount != 0:
+                    _add_or_update_correction_component(doc, correction_amount)
+            else:
+                # No valid summary - fallback to standard monthly progressive method
+                doc.is_using_ter = 0
+                logger.info(
+                    f"December override without valid tax summary for {doc.name} - "
+                    f"falling back to monthly progressive method"
+                )
+                
+                # Use monthly progressive calculation with skip_ytd_check to force monthly calculation
+                result = calculate_monthly_pph_progressive(doc, skip_ytd_check=True)
+                tax_amount = result.get("monthly_tax", 0.0)
+                
+                # Reset correction amount for fallback method
+                doc.koreksi_pph21 = 0.0
+                
+                logger.info(f"Fallback monthly progressive method applied for {doc.name} - tax: {tax_amount}")
         
         else:
             # Not December override - decide between TER and progressive methods
@@ -309,6 +355,15 @@ def update_component_amount(doc: Document, method: Optional[str] = None) -> None
         _update_component_amount(doc, "PPh 21", tax_amount)
         doc.pph21 = tax_amount
 
+        # Update taxable and netto income if available in result
+        if result.get("taxable_income") is not None:
+            if hasattr(doc, "taxable_income"):
+                doc.taxable_income = result.get("taxable_income")
+            
+        if result.get("netto_income") is not None:
+            if hasattr(doc, "netto_income"):
+                doc.netto_income = result.get("netto_income")
+
         # Calculate biaya jabatan and netto
         biaya_jabatan = min(doc.gross_pay * (BIAYA_JABATAN_PERCENT / 100), BIAYA_JABATAN_MAX)
         doc.biaya_jabatan = biaya_jabatan
@@ -330,7 +385,7 @@ def update_component_amount(doc: Document, method: Optional[str] = None) -> None
         logger.debug(f"Component update completed for Salary Slip {doc.name}")
     except Exception as e:
         logger.exception(f"Error calculating totals for {doc.name}: {e}")
-
+        
 def _add_or_update_correction_component(doc: Document, correction_amount: float) -> None:
     """
     Add or update the PPh 21 Correction component in the salary slip.
