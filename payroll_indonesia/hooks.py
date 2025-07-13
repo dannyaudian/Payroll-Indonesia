@@ -20,7 +20,10 @@ required_apps = ["erpnext", "hrms"]
 before_install = "payroll_indonesia.fixtures.setup.before_install"
 after_install = "payroll_indonesia.fixtures.setup.after_install"
 after_sync = "payroll_indonesia.setup.setup_module.after_sync"
-after_migrate = "payroll_indonesia.setup.setup_module.setup_accounts"
+after_migrate = [
+    "payroll_indonesia.setup.setup_module.setup_accounts",
+    "payroll_indonesia.fixtures.setup.setup_default_salary_structure"
+]
 
 # List view JS
 doctype_list_js = {

@@ -785,27 +785,45 @@ def setup_default_salary_structure():
         bool: True if created or already exists, False otherwise
     """
     try:
-        # Check if a default structure already exists
+        # First check if a default structure already exists using the standard names
         default_names = [
             "Default Salary Structure",
             "Default Structure",
             "Indonesia Standard Structure",
+            "Payroll Indonesia Default"
         ]
+
+        existing_structure = None
         for name in default_names:
             if frappe.db.exists("Salary Structure", name):
                 logger.info(f"Default salary structure already exists: {name}")
-                return False
+                existing_structure = name
+                break
 
-        # Create the default structure using the imported helper
-        logger.info("Creating default salary structure")
+        result = False
+
+        # If no structure exists, try to create the standard one first
+        if not existing_structure:
+            logger.info("Creating default salary structure with standard method")
         result = salary_structure.ensure_default_salary_structure()
 
         if result:
             logger.info("Default salary structure created successfully")
             return True
         else:
-            logger.warning("Failed to create default salary structure")
-            return False
+                logger.warning("Standard method failed, trying alternative method")
+
+        # If the standard method failed or we didn't try it, use the alternative method
+        # which always attempts to create a structure with a different name
+        if not result:
+            logger.info("Creating default salary structure with alternative method")
+            result = salary_structure.create_default_salary_structure()
+            if result:
+                logger.info("Default salary structure created successfully with alternative method")
+                return True
+            else:
+                logger.warning("Alternative method also failed to create salary structure")
+                return False
 
     except Exception as e:
         logger.error(f"Error setting up default salary structure: {str(e)}")
