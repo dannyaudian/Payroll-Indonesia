@@ -450,54 +450,138 @@ def create_parent_expense_account(company: str) -> Optional[str]:
 
 @safe_execute(log_exception=True)
 def write_json_file_if_enabled(doc) -> bool:
-    """
-    Write settings to a JSON file if enabled.
+    """Write settings to ``defaults.json`` if the flag is enabled.
+
+    The exported JSON mirrors the structure used by :mod:`payroll_indonesia.config`.
+    Existing ``app_info.last_updated`` and ``app_info.updated_by`` values are kept
+    intact when rewriting the file.
 
     Args:
-        doc: Document instance with settings data
+        doc: ``Payroll Indonesia Settings`` document instance.
 
     Returns:
-        bool: True if successful, False otherwise
+        bool: ``True`` if the file was written, ``False`` otherwise.
     """
+
+    # only continue when sync is enabled
+    sync_to_defaults = getattr(doc, "sync_to_defaults", False)
+    if not sync_to_defaults:
+        logger.debug("Sync to defaults.json is disabled")
+        return False
+
+    app_path = frappe.get_app_path("payroll_indonesia")
+    config_path = Path(app_path) / "config"
+    defaults_file = config_path / "defaults.json"
+
+    logger.debug(f"Syncing settings to defaults.json at {defaults_file}")
+
+    if not config_path.exists():
+        os.makedirs(config_path)
+        logger.debug(f"Created config directory at {config_path}")
+
+    existing = {}
+    if defaults_file.exists():
+        try:
+            with open(defaults_file, "r", encoding="utf-8") as f:
+                existing = json.load(f)
+        except Exception:
+            logger.warning("Could not load existing defaults.json, starting fresh")
+
+    export_data: Dict[str, Any] = {}
+
+    # --- application information ---
+    app_info = existing.get("app_info", {})
+    export_data["app_info"] = {
+        "version": getattr(doc, "app_version", "1.0.0"),
+        "last_updated": app_info.get("last_updated", getattr(doc, "app_last_updated", str(now()))),
+        "updated_by": app_info.get(
+            "updated_by", getattr(doc, "app_updated_by", frappe.session.user)
+        ),
+    }
+
+    # --- BPJS settings ---
+    bpjs = {
+        "kesehatan_employee_percent": flt(getattr(doc, "kesehatan_employee_percent", 0)),
+        "kesehatan_employer_percent": flt(getattr(doc, "kesehatan_employer_percent", 0)),
+        "kesehatan_max_salary": flt(getattr(doc, "kesehatan_max_salary", 0)),
+        "jht_employee_percent": flt(getattr(doc, "jht_employee_percent", 0)),
+        "jht_employer_percent": flt(getattr(doc, "jht_employer_percent", 0)),
+        "jp_employee_percent": flt(getattr(doc, "jp_employee_percent", 0)),
+        "jp_employer_percent": flt(getattr(doc, "jp_employer_percent", 0)),
+        "jp_max_salary": flt(getattr(doc, "jp_max_salary", 0)),
+        "jkk_percent": flt(getattr(doc, "jkk_percent", 0)),
+        "jkm_percent": flt(getattr(doc, "jkm_percent", 0)),
+    }
     try:
-        # Check if sync to defaults.json is enabled
-        sync_to_defaults = getattr(doc, "sync_to_defaults", False)
-        if not sync_to_defaults:
-            logger.debug("Sync to defaults.json is disabled")
-            return False
+        bpjs["gl_accounts"] = json.loads(getattr(doc, "bpjs_account_mapping_json", "{}"))
+    except Exception:
+        bpjs["gl_accounts"] = {}
+    export_data["bpjs"] = bpjs
 
-        # Get app path
-        app_path = frappe.get_app_path("payroll_indonesia")
-        config_path = Path(app_path) / "config"
-        defaults_file = config_path / "defaults.json"
+    # --- Tax settings ---
+    export_data["tax"] = {
+        "umr_default": flt(getattr(doc, "umr_default", 0)),
+        "biaya_jabatan_percent": flt(getattr(doc, "biaya_jabatan_percent", 0)),
+        "biaya_jabatan_max": flt(getattr(doc, "biaya_jabatan_max", 0)),
+        "npwp_mandatory": cint(getattr(doc, "npwp_mandatory", 0)),
+        "tax_calculation_method": getattr(doc, "tax_calculation_method", "TER"),
+        "use_ter": cint(getattr(doc, "use_ter", 0)),
+        "use_gross_up": cint(getattr(doc, "use_gross_up", 0)),
+    }
 
-        logger.debug(f"Syncing settings to defaults.json at {defaults_file}")
+    # --- PTKP table ---
+    ptkp_table = {}
+    for row in getattr(doc, "ptkp_table", []):
+        if row.ptkp_status:
+            ptkp_table[row.ptkp_status] = flt(row.ptkp_amount)
+    if ptkp_table:
+        export_data["ptkp"] = ptkp_table
 
-        # Ensure config directory exists
-        if not config_path.exists():
-            os.makedirs(config_path)
-            logger.debug(f"Created config directory at {config_path}")
+    # --- PTKP to TER mapping ---
+    ter_map = {}
+    for row in getattr(doc, "ptkp_ter_mapping_table", []):
+        if row.ptkp_status and row.ter_category:
+            ter_map[row.ptkp_status] = row.ter_category
+    if ter_map:
+        export_data["ptkp_to_ter_mapping"] = ter_map
 
-        # Prepare data to export
-        export_data = {}
+    # --- Tax brackets & TER rates ---
+    tax_brackets = [row.as_dict() for row in getattr(doc, "tax_brackets_table", [])]
+    if tax_brackets:
+        export_data["tax_brackets"] = tax_brackets
 
-        # Add app info
-        export_data["app_info"] = {
-            "version": getattr(doc, "app_version", "1.0.0"),
-            "last_updated": str(now()),
-            "updated_by": frappe.session.user,
-        }
+    ter_rates = [row.as_dict() for row in getattr(doc, "ter_rate_table", [])]
+    if ter_rates:
+        export_data["ter_rates"] = ter_rates
 
-        # Export common settings like BPJS, tax settings, etc.
-        # This should be customized based on what needs to be exported
+    # --- GL accounts ---
+    gl_accounts: Dict[str, Any] = {}
+    try:
+        if getattr(doc, "expense_accounts_json", None):
+            gl_accounts["expense_accounts"] = json.loads(doc.expense_accounts_json)
+        if getattr(doc, "payable_accounts_json", None):
+            gl_accounts["payable_accounts"] = json.loads(doc.payable_accounts_json)
+        if getattr(doc, "parent_accounts_json", None):
+            gl_accounts["parent_accounts"] = json.loads(doc.parent_accounts_json)
+    except Exception:
+        logger.warning("Invalid GL account JSON in settings")
+    if gl_accounts:
+        export_data["gl_accounts"] = gl_accounts
 
-        # Write to file
-        with open(defaults_file, "w") as f:
+    # --- other settings section ---
+    export_data["settings"] = {
+        "sync_to_defaults": cint(getattr(doc, "sync_to_defaults", 0)),
+        "parent_account_candidates_expense": getattr(doc, "parent_account_candidates_expense", ""),
+        "parent_account_candidates_liability": getattr(
+            doc, "parent_account_candidates_liability", ""
+        ),
+    }
+
+    try:
+        with open(defaults_file, "w", encoding="utf-8") as f:
             json.dump(export_data, f, indent=4)
-
         logger.info(f"Successfully wrote settings to defaults.json by {frappe.session.user}")
         return True
-
     except Exception as e:
         logger.error(f"Error writing settings to defaults.json: {str(e)}")
         return False
