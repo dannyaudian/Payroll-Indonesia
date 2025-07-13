@@ -13,7 +13,7 @@ This class contains customizations for Indonesian payroll regulations.
 import frappe
 from frappe import _
 from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
-from frappe.utils import flt, cint
+from payroll_indonesia.override.salary_slip_functions import is_december
 
 from payroll_indonesia.frappe_helpers import get_logger
 
@@ -62,10 +62,14 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             # Load the Payroll Entry document if it's a string
             try:
                 payroll_entry_doc = (
-                    frappe.get_doc("Payroll Entry", self.payroll_entry) 
-                    if isinstance(self.payroll_entry, str) 
+                    frappe.get_doc("Payroll Entry", self.payroll_entry)
+                    if isinstance(self.payroll_entry, str)
                     else self.payroll_entry
                 )
+
+                # Ensure self.payroll_entry holds the loaded document for
+                # functions that expect the Payroll Entry doc
+                self.payroll_entry = payroll_entry_doc
                 
                 # Set is_december_override based on the Payroll Entry setting
                 if getattr(payroll_entry_doc, "is_december_override", 0):
@@ -81,7 +85,7 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         Only uses is_december_override field to determine if annual tax correction
         should be applied.
         """
-        if cint(self.is_december_override) == 1:
+        if is_december(self):
             # Add or update payroll note with December correction information
             december_note = _("Annual tax correction (December) is applied to this salary slip")
             
