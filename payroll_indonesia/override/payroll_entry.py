@@ -50,26 +50,33 @@ class CustomPayrollEntry(PayrollEntry):
 
     def _validate_december_logic(self) -> None:
         """
-        Validate December logic configuration.
+        Log December override mode status without any date validation.
+
+        This method simply checks if the December override flag is enabled
+        and logs the status without validating dates or month periods.
         """
-        # Check if December logic is enabled
+        # Check if December override is enabled
         is_december = self.get("is_december_override", 0)
 
         if is_december:
-            # Optional warning if not December period
-            if hasattr(self, "end_date") and self.end_date:
-                end_month = getdate(self.end_date).month
-                if end_month != 12:
-                    frappe.msgprint(
-                        _(
-                            "December Progressive Logic is enabled but payroll period "
-                            "doesn't end in December. Please verify this is intended."
-                        ),
-                        indicator="yellow",
-                    )
+            # Log that December mode is active without any date validation
+            logger.info(
+                f"Payroll Entry {self.name} is using December override mode for annual tax calculation"
+            )
 
-            logger.info(f"Payroll Entry {self.name} using December logic")
-
+            # Add a message for the user for clarity
+            frappe.msgprint(
+                _(
+                    "December override mode is active: Annual tax calculation and correction "
+                    "will be applied to all salary slips generated from this Payroll Entry."
+                ),
+                indicator="blue",
+                alert=True
+            )
+        else:
+            # Optionally log that regular mode is being used
+            logger.debug(f"Payroll Entry {self.name} using regular monthly tax calculation")
+            
     def _validate_employees(self) -> None:
         """
         Validate employee data required for Indonesian payroll.

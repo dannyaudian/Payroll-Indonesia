@@ -881,45 +881,38 @@ def calculate_monthly_pph_progressive(slip: Any) -> Dict[str, Any]:
 
 def calculate_december_pph(slip: Any) -> Dict[str, Any]:
     """
-    Calculate year-end tax correction for December.
-    Uses actual YTD income for more accurate annual tax calculation.
-    Checks tax calculation method from settings and uses TER if configured.
+    Calculate year-end tax correction for December or when override flag is set.
 
+    This function calculates the annual tax correction based on actual YTD income
+    and the current slip. It handles both the regular monthly tax amount and the
+    correction amount separately. No date validation is performed - it relies
+    solely on the document parameters.
+
+    Key features:
+    - Relies on is_december_override flag only, not on calendar month
+    - Calculates both monthly_tax (regular component) and correction (year-end adjustment)
+    - Handles missing or zero YTD values gracefully
+    - Works with progressive tax calculation method only (TER is handled elsewhere)
     Args:
         slip: The Salary Slip document
 
     Returns:
-        Dict[str, Any]: Calculation results
+        Dict[str, Any]: Calculation results with monthly_tax and correction values
     """
     try:
-        # Check if December override flag is set
+        # Verify December override flag is set (no date check)
+        # If flag is not set, delegate to regular monthly calculation
         if not is_december_calculation(slip):
             logger.info(
-                f"is_december_override not set for {getattr(slip, 'employee', 'unknown')}, "
-                f"using monthly calculation"
+                f"December override flag not set for slip {getattr(slip, 'name', 'unknown')}, "
+                f"using regular monthly calculation"
             )
-            return calculate_monthly_pph_progressive(slip)
-
-        # Check tax calculation method from settings
-        settings = frappe.get_cached_doc("Payroll Indonesia Settings")
-        tax_method = getattr(settings, "tax_calculation_method", "PROGRESSIVE")
-
-        # Use TER if configured, even for December
-        if tax_method == "TER" and cint(getattr(settings, "use_ter", 0)) == 1:
-            tax_status = get_tax_status(slip)
-            ter_category = get_ter_category(tax_status)
-            gross_pay = flt(getattr(slip, "gross_pay", 0))
-
-            # For December with TER, we still use the simple monthly calculation
-            # but we might apply additional logic if needed in the future
-            result = calculate_monthly_pph_with_ter(
-                ter_category=ter_category, gross_pay=gross_pay, slip=slip
-            )
-            # Add flag to indicate this was a December calculation with TER
-            result["is_december_override"] = True
+            result = calculate_monthly_pph_progressive(slip)
+            # Add zero correction explicitly
+            result["correction"] = 0.0
             return result
 
-        # Continue with progressive December method
+        logger.info(f"Calculating December annual tax correction for slip {getattr(slip, 'name', 'unknown')}")
         # Initialize result with zeros
         result = {
             "tax_method": "PROGRESSIVE_DECEMBER",
@@ -936,6 +929,7 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
             "ptkp": 0.0,
             "pkp": 0.0,
             "annual_tax": 0.0,
+            "monthly_tax": 0.0,  # Added regular monthly component
             "correction": 0.0,
             "tax_details": [],
             "is_december_override": True,
@@ -944,56 +938,77 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
         # Get tax status
         tax_status = get_tax_status(slip)
         result["tax_status"] = tax_status
+        logger.debug(f"Tax status: {tax_status}")
 
         # Get current values
         current_gross = flt(getattr(slip, "gross_pay", 0))
         current_bpjs = flt(getattr(slip, "total_bpjs", 0))
         result["current_gross"] = current_gross
         result["current_bpjs"] = current_bpjs
+        logger.debug(f"Current gross: {current_gross}, BPJS: {current_bpjs}")
 
-        # Get YTD values
+        # Get YTD values with fallback to zeros if missing
         ytd = get_ytd_totals(slip)
-        result["ytd_gross"] = ytd.get("gross", 0)
-        result["ytd_bpjs"] = ytd.get("bpjs", 0)
-        result["ytd_tax_paid"] = ytd.get("pph21", 0)
+        ytd_gross = ytd.get("gross", 0)
+        ytd_bpjs = ytd.get("bpjs", 0)
+        ytd_tax_paid = ytd.get("pph21", 0)
 
+        result["ytd_gross"] = ytd_gross
+        result["ytd_bpjs"] = ytd_bpjs
+        result["ytd_tax_paid"] = ytd_tax_paid
+
+        logger.debug(f"YTD gross: {ytd_gross}, BPJS: {ytd_bpjs}, tax paid: {ytd_tax_paid}")
         # Calculate annual values
-        annual_gross = ytd.get("gross", 0) + current_gross
-        annual_bpjs = ytd.get("bpjs", 0) + current_bpjs
+        annual_gross = ytd_gross + current_gross
+        annual_bpjs = ytd_bpjs + current_bpjs
         result["annual_gross"] = annual_gross
         result["annual_bpjs"] = annual_bpjs
+        logger.debug(f"Annual gross: {annual_gross}, BPJS: {annual_bpjs}")
 
         # Calculate annual biaya jabatan
         annual_biaya_jabatan = min(
             annual_gross * (BIAYA_JABATAN_PERCENT / 100), BIAYA_JABATAN_MAX * 12
         )
         result["annual_biaya_jabatan"] = annual_biaya_jabatan
+        logger.debug(f"Annual biaya jabatan: {annual_biaya_jabatan}")
 
         # Calculate annual netto
         annual_netto = annual_gross - annual_biaya_jabatan - annual_bpjs
         result["annual_netto"] = annual_netto
+        logger.debug(f"Annual netto: {annual_netto}")
 
         # Get PTKP
         ptkp = get_ptkp_value(tax_status)
         result["ptkp"] = ptkp
+        logger.debug(f"PTKP: {ptkp}")
 
-        # Calculate PKP
+        # Calculate PKP (rounded down to nearest 1000)
         pkp = max(0, annual_netto - ptkp)
+        pkp = int(pkp / 1000) * 1000  # Round down to nearest 1000
         result["pkp"] = pkp
+        logger.debug(f"PKP: {pkp}")
 
         # Calculate tax
         annual_tax, tax_details = calculate_progressive_tax(pkp)
         result["annual_tax"] = annual_tax
         result["tax_details"] = tax_details
+        logger.debug(f"Annual tax: {annual_tax}")
 
-        # Calculate correction
-        ytd_tax_paid = ytd.get("pph21", 0)
+        # Calculate monthly tax (what would be paid in a regular month)
+        monthly_tax = annual_tax / MONTHS_PER_YEAR
+        result["monthly_tax"] = flt(monthly_tax, 2)
+        logger.debug(f"Monthly tax component: {monthly_tax}")
+
+        # Calculate correction (additional amount needed after considering already paid taxes)
         correction = annual_tax - ytd_tax_paid
         result["correction"] = flt(correction, 2)
+        logger.debug(f"Correction amount: {correction}")
 
         # Calculate monthly values for display
-        monthly_biaya_jabatan = annual_biaya_jabatan / 12
-        monthly_netto = annual_netto / 12
+        monthly_biaya_jabatan = min(
+            current_gross * (BIAYA_JABATAN_PERCENT / 100), BIAYA_JABATAN_MAX
+        )
+        monthly_netto = current_gross - monthly_biaya_jabatan - current_bpjs
 
         # Update slip fields
         update_slip_fields(
@@ -1002,15 +1017,18 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
                 "biaya_jabatan": monthly_biaya_jabatan,
                 "netto": monthly_netto,
                 "koreksi_pph21": correction,
-                "pph21": correction,
+                "pph21": monthly_tax,  # Set regular monthly tax component
             },
         )
 
-        # Also update any PPh 21 component
-        _update_pph21_component(slip, correction)
+        # Update PPh 21 component with monthly tax
+        _update_pph21_component(slip, monthly_tax)
 
         employee_id = getattr(slip, "employee", "unknown")
-        logger.debug(f"December PPh calculation for {employee_id}: {result}")
+        logger.info(
+            f"December PPh calculation for {employee_id}: "
+            f"monthly tax={monthly_tax}, correction={correction}, total={monthly_tax + correction}"
+        )
         return result
 
     except Exception as e:
@@ -1040,12 +1058,12 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
             "ptkp": 0,
             "pkp": 0,
             "annual_tax": 0,
+            "monthly_tax": 0,  # Added regular monthly component
             "correction": 0,
             "tax_details": [],
             "is_december_override": cint(getattr(slip, "is_december_override", 0)),
             "error": str(e),
         }
-
 
 def _update_pph21_component(slip: Any, tax_amount: float) -> None:
     """

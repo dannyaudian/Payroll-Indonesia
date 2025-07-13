@@ -35,17 +35,17 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         Extends the standard validation with additional checks and
         sets up fields required for Indonesian payroll processing.
         """
-        # Call the parent validation first
-        super().validate()
-        
-        # Auto-populate is_december_override from Payroll Entry
+        # Process December override first - before any other validations
+        # This ensures tax calculations use the correct mode
         self._populate_december_override_from_payroll_entry()
-        
-        # Process December logic if enabled
         self._process_december_override()
         
-        # Additional validations can be added here
+        # Validate required Indonesian fields
         self._validate_indonesian_fields()
+        
+        # Call the parent validation after our special overrides
+        # This ensures our logic has priority over standard behavior
+        super().validate()
     
     def _populate_december_override_from_payroll_entry(self):
         """
@@ -72,9 +72,10 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
                 self.payroll_entry = payroll_entry_doc
                 
                 # Set is_december_override based on the Payroll Entry setting
-                if getattr(payroll_entry_doc, "is_december_override", 0):
+                # directly from the document field without any month validation
+                if hasattr(payroll_entry_doc, 'is_december_override') and payroll_entry_doc.is_december_override:
                     self.is_december_override = 1
-                    logger.info(f"Setting is_december_override=1 for {self.name} based on Payroll Entry")
+                    logger.info(f"December override activated for slip {self.name} from Payroll Entry {payroll_entry_doc.name}")
             except Exception as e:
                 logger.warning(f"Could not check payroll_entry.is_december_override for {self.name}: {e}")
     
@@ -95,7 +96,7 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             else:
                 self.payroll_note = december_note
                 
-            logger.info(f"December correction activated for salary slip {self.name}")
+            logger.info(f"December tax correction mode is active for salary slip {self.name}")
     
     def _validate_indonesian_fields(self):
         """

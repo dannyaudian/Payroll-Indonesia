@@ -118,21 +118,8 @@ def update_component_amount(doc: Document, method: Optional[str] = None) -> None
         doc.gross_pay = _calculate_gross_pay(doc)
         logger.debug(f"Calculated gross pay: {doc.gross_pay}")
 
-    # Get TER information
+    # Get settings
     settings = frappe.get_cached_doc("Payroll Indonesia Settings")
-    status_raw = get_status_pajak(doc)
-    mapping = get_ptkp_to_ter_mapping()
-    ter_category = mapping.get(status_raw, "")
-    is_ter_employee = bool(ter_category)
-
-    logger.info(
-        "Tax calculation path - slip=%s, status=%s, ter_category=%s, is_ter=%s, use_ter=%s",
-        doc.name,
-        status_raw,
-        ter_category,
-        is_ter_employee,
-        settings.use_ter,
-    )
 
     try:
         # Calculate and update BPJS components
@@ -144,49 +131,72 @@ def update_component_amount(doc: Document, method: Optional[str] = None) -> None
         tax_amount = 0.0
         correction_amount = 0.0
 
-        # Calculate tax amount based on method
-        if settings.tax_calculation_method == "TER" and settings.use_ter and is_ter_employee:
-            # TER method
-            doc.is_using_ter = 1
-            result = calculate_monthly_pph_with_ter(
-                ter_category=ter_category,
-                gross_pay=doc.gross_pay,
-                slip=doc,
+        # First priority: Check if December override flag is active
+        if is_december(doc):
+            # Override detected - use progressive annual correction method
+            doc.is_using_ter = 0  # Force disable TER for December
+            logger.info(f"December override flag detected for {doc.name} - using progressive annual method")
+            
+            # December annual correction calculation
+            result = calculate_december_pph(doc)
+            
+            # Get regular monthly tax and correction amount
+            monthly_tax = result.get("monthly_tax", 0.0)
+            correction_amount = result.get("correction", 0.0)
+            
+            # Set tax amount to monthly tax (correction will be added separately)
+            tax_amount = monthly_tax
+            
+            # Store the correction amount in the dedicated field
+            doc.koreksi_pph21 = correction_amount
+            
+            logger.info(
+                f"December calculation applied for {doc.name} - "
+                f"monthly tax: {monthly_tax}, correction: {correction_amount}, "
+                f"total: {monthly_tax + correction_amount}"
             )
-            tax_amount = result.get("monthly_tax", 0.0)
-            logger.info(f"TER method applied for {doc.name} - tax: {tax_amount}")
+            
+            # Add the correction as a separate component if it exists
+            if correction_amount != 0:
+                _add_or_update_correction_component(doc, correction_amount)
+        
         else:
-            # Progressive method
-            doc.is_using_ter = 0
-
-            # Apply year-end correction only when override flag is set
-            if is_december(doc):
-                # December annual correction calculation
-                result = calculate_december_pph(doc)
-
-                # Get regular monthly tax and correction amount
-                monthly_tax = result.get("monthly_tax", 0.0)
-                correction_amount = result.get("correction", 0.0)
-
-                # Set tax amount to monthly tax (correction will be added separately)
-                tax_amount = monthly_tax
-
-                # Store the correction amount in the dedicated field
-                doc.koreksi_pph21 = correction_amount
-
-                logger.info(
-                    f"December correction applied for {doc.name} - "
-                    f"monthly tax: {monthly_tax}, correction: {correction_amount}, "
-                    f"total: {monthly_tax + correction_amount}"
+            # Not December override - decide between TER and progressive methods
+            # Get TER information
+            status_raw = get_status_pajak(doc)
+            mapping = get_ptkp_to_ter_mapping()
+            ter_category = mapping.get(status_raw, "")
+            is_ter_employee = bool(ter_category)
+            
+            logger.info(
+                "Tax calculation path - slip=%s, status=%s, ter_category=%s, is_ter=%s, use_ter=%s",
+                doc.name,
+                status_raw,
+                ter_category,
+                is_ter_employee,
+                settings.use_ter,
+            )
+            
+            # Use TER method if enabled in settings and employee has a TER category
+            if settings.tax_calculation_method == "TER" and settings.use_ter and is_ter_employee:
+                # TER method
+                doc.is_using_ter = 1
+                result = calculate_monthly_pph_with_ter(
+                    ter_category=ter_category,
+                    gross_pay=doc.gross_pay,
+                    slip=doc,
                 )
-
-                # Add the correction as a separate component if it exists
-                if correction_amount != 0:
-                    _add_or_update_correction_component(doc, correction_amount)
+                tax_amount = result.get("monthly_tax", 0.0)
+                # Reset correction amount for TER method
+                doc.koreksi_pph21 = 0.0
+                logger.info(f"TER method applied for {doc.name} - tax: {tax_amount}, ter_category: {ter_category}")
             else:
-                # Standard monthly progressive calculation
+                # Standard progressive method (non-December, non-TER)
+                doc.is_using_ter = 0
                 result = calculate_monthly_pph_progressive(doc)
                 tax_amount = result.get("monthly_tax", 0.0)
+                # Reset correction amount for standard method
+                doc.koreksi_pph21 = 0.0
                 logger.info(f"Progressive method applied for {doc.name} - tax: {tax_amount}")
 
         # Update PPh 21 component and field
@@ -214,7 +224,6 @@ def update_component_amount(doc: Document, method: Optional[str] = None) -> None
         logger.debug(f"Component update completed for Salary Slip {doc.name}")
     except Exception as e:
         logger.exception(f"Error calculating totals for {doc.name}: {e}")
-
 
 def _add_or_update_correction_component(doc: Document, correction_amount: float) -> None:
     """
