@@ -28,6 +28,20 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     for Indonesian tax calculations, BPJS, and other local requirements.
     """
     
+    def before_insert(self):
+        """
+        Prepare Salary Slip before insertion.
+        
+        This method ensures the December override flag is set
+        before the document is inserted into the database.
+        """
+        # Call parent's before_insert if it exists
+        if hasattr(super(), "before_insert"):
+            super().before_insert()
+            
+        # Set December override flag from Payroll Entry
+        self._populate_december_override_from_payroll_entry()
+        
     def validate(self):
         """
         Validate Salary Slip with Indonesian-specific requirements.
@@ -37,6 +51,8 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         """
         # Process December override first - before any other validations
         # This ensures tax calculations use the correct mode
+        # We call this even if already called in before_insert for safety
+        # (in case document was created through other means)
         self._populate_december_override_from_payroll_entry()
         self._process_december_override()
         
@@ -54,49 +70,77 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         This method checks the associated Payroll Entry document and sets
         the is_december_override flag on the Salary Slip accordingly.
         The field is read-only and can only be set by this method.
-        """
-        # Initialize is_december_override to 0
-        self.is_december_override = 0
         
-        if self.payroll_entry:
+        It's safe to call this method multiple times as it will only 
+        update the flag if needed and has proper error handling.
+        """
+        # Skip if the flag is already set to avoid unnecessary processing
+        if getattr(self, "is_december_override", 0) == 1:
+            logger.debug(f"December override already active for slip {getattr(self, 'name', 'new')}")
+            return
+            
+        # Skip if no payroll entry - handle manually created slips
+        if not getattr(self, "payroll_entry", None):
+            logger.debug(f"No Payroll Entry for slip {getattr(self, 'name', 'new')}, skipping December override check")
+            return
+            
+        # Initialize is_december_override to 0 if not already set
+        if not hasattr(self, "is_december_override"):
+            self.is_december_override = 0
+            
+        try:
             # Load the Payroll Entry document if it's a string
-            try:
-                payroll_entry_doc = (
-                    frappe.get_doc("Payroll Entry", self.payroll_entry)
-                    if isinstance(self.payroll_entry, str)
-                    else self.payroll_entry
-                )
-
-                # Ensure self.payroll_entry holds the loaded document for
-                # functions that expect the Payroll Entry doc
+            payroll_entry_doc = None
+            if isinstance(self.payroll_entry, str):
+                payroll_entry_doc = frappe.get_doc("Payroll Entry", self.payroll_entry)
+                # Store the document for future reference
                 self.payroll_entry = payroll_entry_doc
+            else:
+                # It's already a document
+                payroll_entry_doc = self.payroll_entry
                 
-                # Set is_december_override based on the Payroll Entry setting
-                # directly from the document field without any month validation
-                if hasattr(payroll_entry_doc, 'is_december_override') and payroll_entry_doc.is_december_override:
-                    self.is_december_override = 1
-                    logger.info(f"December override activated for slip {self.name} from Payroll Entry {payroll_entry_doc.name}")
-            except Exception as e:
-                logger.warning(f"Could not check payroll_entry.is_december_override for {self.name}: {e}")
+            # Safety check in case payroll_entry is empty string or None
+            if not payroll_entry_doc:
+                logger.debug(f"Empty Payroll Entry for slip {getattr(self, 'name', 'new')}")
+                return
+                
+            # Check for is_december_override attribute safely
+            if hasattr(payroll_entry_doc, 'is_december_override') and payroll_entry_doc.is_december_override:
+                # Set flag on salary slip
+                self.is_december_override = 1
+                
+                # Log the inheritance
+                slip_name = getattr(self, 'name', 'new')
+                pe_name = getattr(payroll_entry_doc, 'name', 'unknown')
+                logger.info(f"December override flag inherited for slip {slip_name} from Payroll Entry {pe_name}")
+                
+        except Exception as e:
+            # Log but don't interrupt flow
+            logger.warning(
+                f"Error checking December override from Payroll Entry for slip {getattr(self, 'name', 'new')}: {str(e)}"
+            )
     
     def _process_december_override(self):
         """
         Process December override logic for annual tax correction.
         
-        Only uses is_december_override field to determine if annual tax correction
-        should be applied.
+        Only uses is_december flag (determined by salary_slip_functions.is_december)
+        to determine if annual tax correction should be applied.
+        This allows the flag to be determined flexibly based on either the document field
+        or inheritance from Payroll Entry.
         """
+        # Use is_december() function which checks both direct flag and inherited flags
         if is_december(self):
             # Add or update payroll note with December correction information
             december_note = _("Annual tax correction (December) is applied to this salary slip")
             
-            if self.payroll_note:
+            if getattr(self, "payroll_note", ""):
                 if december_note not in self.payroll_note:
                     self.payroll_note = f"{self.payroll_note}\n{december_note}"
             else:
                 self.payroll_note = december_note
                 
-            logger.info(f"December tax correction mode is active for salary slip {self.name}")
+            logger.info(f"December tax correction mode is active for salary slip {getattr(self, 'name', 'new')}")
     
     def _validate_indonesian_fields(self):
         """
@@ -120,6 +164,10 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         for field, default_value in required_fields.items():
             if not hasattr(self, field) or getattr(self, field) is None:
                 setattr(self, field, default_value)
+                
+        # Ensure is_december_override is set
+        if not hasattr(self, "is_december_override"):
+            self.is_december_override = 0
     
     def calculate_tax_by_tax_slab(self):
         """

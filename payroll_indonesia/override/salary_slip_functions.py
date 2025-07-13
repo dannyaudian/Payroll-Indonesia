@@ -43,12 +43,67 @@ EMPLOYER_COMPONENTS = (
 )
 
 
-def is_december(doc):
-    """Check if the slip belongs to a December payroll entry."""
-    # Selalu kembalikan True jika payroll_entry.is_december_override aktif
-    return getattr(doc, "payroll_entry", None) and getattr(
-        doc.payroll_entry, "is_december_override", 0
-    )
+def is_december(doc) -> bool:
+    """
+    Check if the slip should use December calculation logic.
+    
+    This function checks for the December override flag from multiple sources:
+    1. First checks if the document itself has is_december_override=1
+    2. If not set on document, attempts to inherit from linked Payroll Entry
+    3. Falls back to False if neither source has the flag set
+    
+    The function automatically inherits the December flag from Payroll Entry
+    to the Salary Slip if not already set.
+    
+    Args:
+        doc: The Salary Slip document
+    
+    Returns:
+        bool: True if December calculation should be used
+    """
+    # First check document's own is_december_override flag
+    doc_override = cint(getattr(doc, "is_december_override", 0)) == 1
+    
+    if doc_override:
+        logger.debug(f"Using December calculation for slip {getattr(doc, 'name', 'unknown')} (flag set on document)")
+        return True
+    
+    # If not set on document, try to get from Payroll Entry
+    payroll_entry_id = getattr(doc, "payroll_entry", None)
+    if not payroll_entry_id:
+        logger.debug(f"Not using December calculation for slip {getattr(doc, 'name', 'unknown')} (no Payroll Entry)")
+        return False
+    
+    # Try to load the Payroll Entry
+    try:
+        # Check if it's already a document or a string reference
+        if isinstance(payroll_entry_id, str):
+            payroll_entry = frappe.get_doc("Payroll Entry", payroll_entry_id)
+        else:
+            # Assume it's already a document
+            payroll_entry = payroll_entry_id
+        
+        # Get is_december_override from Payroll Entry
+        pe_override = cint(getattr(payroll_entry, "is_december_override", 0)) == 1
+        
+        if pe_override:
+            # If Payroll Entry has override flag, set it on the document for future reference
+            if hasattr(doc, "is_december_override") and not doc_override:
+                doc.is_december_override = 1
+                logger.info(
+                    f"Inheriting December override flag from Payroll Entry {payroll_entry.name} "
+                    f"to Salary Slip {getattr(doc, 'name', 'unknown')}"
+                )
+            
+            return True
+        
+        return False
+        
+    except Exception as e:
+        logger.warning(
+            f"Failed to check December override from Payroll Entry for slip {getattr(doc, 'name', 'unknown')}: {str(e)}"
+        )
+        return False
 
 
 __all__ = [
@@ -58,6 +113,7 @@ __all__ = [
     "enqueue_tax_summary_update",
     "update_tax_summary",
     "update_employee_history",
+    "is_december",  # Explicitly export is_december function
 ]
 
 
@@ -91,6 +147,12 @@ def initialize_fields(doc: Document, method: Optional[str] = None) -> None:
         if not hasattr(doc, field) or getattr(doc, field) is None:
             setattr(doc, field, default)
             logger.debug(f"Initialized field {field}={default} for {doc.name}")
+            
+    # Check for December override inheritance from Payroll Entry
+    if not getattr(doc, "is_december_override", 0) and getattr(doc, "payroll_entry", None):
+        # The is_december function will handle the inheritance if applicable
+        if is_december(doc):
+            logger.debug(f"December override flag inherited for {doc.name}")
 
 
 def update_component_amount(doc: Document, method: Optional[str] = None) -> None:
@@ -132,6 +194,7 @@ def update_component_amount(doc: Document, method: Optional[str] = None) -> None
         correction_amount = 0.0
 
         # First priority: Check if December override flag is active
+        # This will automatically inherit from Payroll Entry if needed
         if is_december(doc):
             # Override detected - use progressive annual correction method
             doc.is_using_ter = 0  # Force disable TER for December
