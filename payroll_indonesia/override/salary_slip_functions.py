@@ -8,6 +8,10 @@ Functions for Salary Slip customization for Indonesian payroll.
 These functions handle component updates, calculations, and post-submit operations
 for salary slips, particularly focusing on tax calculations and BPJS components
 for Indonesian regulations.
+
+IMPORTANT: All December calculations are based on the is_december_override flag,
+not on the actual calendar month. This allows for year-end tax corrections
+to be applied at any time of year.
 """
 
 import frappe
@@ -47,6 +51,10 @@ def is_december(doc) -> bool:
     """
     Check if the slip should use December calculation logic.
     
+    IMPORTANT: This function relies SOLELY on the is_december_override flag,
+    not on any date-based checks. This allows for year-end tax corrections
+    to be applied regardless of the actual calendar month.
+    
     This function checks for the December override flag from multiple sources:
     1. First checks if the document itself has is_december_override=1
     2. If not set on document, attempts to inherit from linked Payroll Entry
@@ -65,7 +73,20 @@ def is_december(doc) -> bool:
     doc_override = cint(getattr(doc, "is_december_override", 0)) == 1
     
     if doc_override:
+        # Also set run_as_december flag for consistency if available
+        if hasattr(doc, "run_as_december") and not doc.run_as_december:
+            doc.run_as_december = 1
+            
         logger.debug(f"Using December calculation for slip {getattr(doc, 'name', 'unknown')} (flag set on document)")
+        return True
+    
+    # Check run_as_december flag as an alternative
+    if hasattr(doc, "run_as_december") and doc.run_as_december:
+        # Set is_december_override for consistency
+        if hasattr(doc, "is_december_override"):
+            doc.is_december_override = 1
+            
+        logger.debug(f"Using December calculation for slip {getattr(doc, 'name', 'unknown')} (run_as_december flag set)")
         return True
     
     # If not set on document, try to get from Payroll Entry
@@ -83,17 +104,23 @@ def is_december(doc) -> bool:
             # Assume it's already a document
             payroll_entry = payroll_entry_id
         
-        # Get is_december_override from Payroll Entry
+        # Check either is_december_override or run_as_december on Payroll Entry
         pe_override = cint(getattr(payroll_entry, "is_december_override", 0)) == 1
+        pe_run_as_december = cint(getattr(payroll_entry, "run_as_december", 0)) == 1
         
-        if pe_override:
+        if pe_override or pe_run_as_december:
             # If Payroll Entry has override flag, set it on the document for future reference
-            if hasattr(doc, "is_december_override") and not doc_override:
+            if hasattr(doc, "is_december_override"):
                 doc.is_december_override = 1
-                logger.info(
-                    f"Inheriting December override flag from Payroll Entry {payroll_entry.name} "
-                    f"to Salary Slip {getattr(doc, 'name', 'unknown')}"
-                )
+                
+            # Also set run_as_december for consistency
+            if hasattr(doc, "run_as_december"):
+                doc.run_as_december = 1
+                
+            logger.info(
+                f"Inheriting December override flag from Payroll Entry {payroll_entry.name} "
+                f"to Salary Slip {getattr(doc, 'name', 'unknown')}"
+            )
             
             return True
         
@@ -147,6 +174,19 @@ def initialize_fields(doc: Document, method: Optional[str] = None) -> None:
         if not hasattr(doc, field) or getattr(doc, field) is None:
             setattr(doc, field, default)
             logger.debug(f"Initialized field {field}={default} for {doc.name}")
+    
+    # Initialize December flags if they don't exist
+    if not hasattr(doc, "is_december_override"):
+        doc.is_december_override = 0
+        
+    if not hasattr(doc, "run_as_december"):
+        doc.run_as_december = 0
+    
+    # Ensure December flags are in sync
+    if getattr(doc, "is_december_override", 0) and not getattr(doc, "run_as_december", 0):
+        doc.run_as_december = 1
+    elif getattr(doc, "run_as_december", 0) and not getattr(doc, "is_december_override", 0):
+        doc.is_december_override = 1
             
     # Check for December override inheritance from Payroll Entry
     if not getattr(doc, "is_december_override", 0) and getattr(doc, "payroll_entry", None):
@@ -193,12 +233,15 @@ def update_component_amount(doc: Document, method: Optional[str] = None) -> None
         tax_amount = 0.0
         correction_amount = 0.0
 
-        # First priority: Check if December override flag is active
-        # This will automatically inherit from Payroll Entry if needed
+        # IMPORTANT: First priority - Check if December override flag is active
+        # No date-based checks are performed, only flag-based
         if is_december(doc):
             # Override detected - use progressive annual correction method
             doc.is_using_ter = 0  # Force disable TER for December
-            logger.info(f"December override flag detected for {doc.name} - using progressive annual method")
+            logger.info(
+                f"December override flag detected for {doc.name} - using progressive annual method "
+                f"(is_december_override={doc.is_december_override}, run_as_december={getattr(doc, 'run_as_december', 0)})"
+            )
             
             # December annual correction calculation
             result = calculate_december_pph(doc)
@@ -293,7 +336,7 @@ def _add_or_update_correction_component(doc: Document, correction_amount: float)
     Add or update the PPh 21 Correction component in the salary slip.
 
     This function adds a separate deduction component for the annual tax correction
-    in December salary slips.
+    in December salary slips (or any slip with is_december_override=1).
 
     Args:
         doc: The Salary Slip document
@@ -673,9 +716,12 @@ def _set_payroll_note(doc: Document) -> None:
     if getattr(doc, "is_using_ter", 0):
         notes.append(f"Perhitungan pajak menggunakan metode TER ({getattr(doc, 'ter_rate', 0)}%)")
 
-    # Add December note if December override
-    if is_december(doc):
-        notes.append("Slip ini menggunakan perhitungan koreksi pajak akhir tahun (Desember)")
+    # IMPORTANT: Add December note if December override flag is set
+    # No date-based checks are performed
+    if getattr(doc, "is_december_override", 0):
+        notes.append(
+            "Slip ini menggunakan perhitungan koreksi pajak akhir tahun (Desember/Override)"
+        )
 
         # Add correction amount if it exists
         correction = getattr(doc, "koreksi_pph21", 0)
@@ -710,6 +756,10 @@ def _update_component_amount(doc: Document, component_name: str, amount: float) 
 def _get_or_create_tax_row(slip: Document) -> Tuple[Any, Any]:
     """
     Get or create a tax summary row for the salary slip.
+    
+    IMPORTANT: This function uses the posting_date or start_date
+    to determine the year and month for tax summary purposes only.
+    It does not affect whether December calculations are applied.
 
     Args:
         slip: Salary Slip document
@@ -717,7 +767,7 @@ def _get_or_create_tax_row(slip: Document) -> Tuple[Any, Any]:
     Returns:
         Tuple containing (monthly detail row, parent tax summary)
     """
-    # Determine year
+    # Determine year from posting date
     if hasattr(slip, "start_date") and slip.start_date:
         year = getdate(slip.start_date).year
     else:
@@ -726,7 +776,6 @@ def _get_or_create_tax_row(slip: Document) -> Tuple[Any, Any]:
     # Find or create tax summary
     filters = {"employee": slip.employee, "year": year}
     summary_name = frappe.db.get_value("Employee Tax Summary", filters)
-
     if summary_name:
         summary = frappe.get_doc("Employee Tax Summary", summary_name)
     else:
@@ -736,7 +785,8 @@ def _get_or_create_tax_row(slip: Document) -> Tuple[Any, Any]:
         summary.year = year
         summary.insert(ignore_permissions=True)
 
-    # Determine month
+    # Determine month for tax summary organization only 
+    # (this doesn't affect whether December calculations are applied)
     if hasattr(slip, "start_date") and slip.start_date:
         month = getdate(slip.start_date).month
     else:
@@ -762,6 +812,8 @@ def _get_or_create_tax_row(slip: Document) -> Tuple[Any, Any]:
                 "salary_slip": "",
                 "is_using_ter": 0,
                 "ter_rate": 0,
+                "is_december_override": 1 if getattr(slip, "is_december_override", 0) else 0,
+                "run_as_december": 1 if getattr(slip, "run_as_december", 0) else 0
             },
         )
 
@@ -819,6 +871,12 @@ def _update_tax_detail_from_slip(row: Any, slip: Document) -> None:
     # Update correction information if field exists
     if hasattr(row, "tax_correction") and hasattr(slip, "koreksi_pph21"):
         row.tax_correction = flt(slip.koreksi_pph21)
+        
+    # IMPORTANT: Update December override flags
+    if hasattr(row, "is_december_override") and hasattr(slip, "is_december_override"):
+        row.is_december_override = cint(slip.is_december_override)
+    if hasattr(row, "run_as_december") and hasattr(slip, "run_as_december"):
+        row.run_as_december = cint(slip.run_as_december)
 
 
 def _zero_tax_detail(row: Any) -> None:
@@ -845,6 +903,12 @@ def _zero_tax_detail(row: Any) -> None:
         row.ter_rate = 0
     if hasattr(row, "tax_correction"):
         row.tax_correction = 0
+    
+    # Reset December override flags if they exist
+    if hasattr(row, "is_december_override"):
+        row.is_december_override = 0
+    if hasattr(row, "run_as_december"):
+        row.run_as_december = 0
 
 
 def _calculate_ytd_totals(summary: Document) -> None:

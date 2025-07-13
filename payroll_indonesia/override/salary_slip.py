@@ -26,23 +26,29 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     
     Extends the standard SalarySlip class with additional functionality
     for Indonesian tax calculations, BPJS, and other local requirements.
+    
+    Key features:
+    - Uses is_december_override flag instead of date-based December detection
+    - Supports TER tax calculation method
+    - Handles Indonesian payroll specifics like BPJS and PPh 21
     """
     
     def before_insert(self):
         """
         Prepare Salary Slip before insertion.
         
-        This method ensures the December override flag is set
+        This method ensures all required flags are properly set
         before the document is inserted into the database.
         """
         # Call parent's before_insert if it exists
         if hasattr(super(), "before_insert"):
             super().before_insert()
             
-        # Set December override flag from Payroll Entry
+        # IMPORTANT: Set December override flag from Payroll Entry
+        # This replaces any date-based December detection
         self._populate_december_override_from_payroll_entry()
         
-        # Make sure run_as_december and is_december_override are in sync
+        # Ensure run_as_december and is_december_override are in sync
         self._ensure_december_flags_consistency()
         
     def before_save(self):
@@ -55,9 +61,11 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         if hasattr(super(), "before_save"):
             super().before_save()
             
-        # Ensure December flags are consistent
+        # Auto-set override flag if checkbox is active
+        self.is_december_override = self.run_as_december or 0
+
+        # IMPORTANT: Ensure December flags are consistent before saving
         self._ensure_december_flags_consistency()
-        
     def validate(self):
         """
         Validate Salary Slip with Indonesian-specific requirements.
@@ -65,16 +73,14 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         Extends the standard validation with additional checks and
         sets up fields required for Indonesian payroll processing.
         """
-        # Process December override first - before any other validations
-        # This ensures tax calculations use the correct mode
-        # We call this even if already called in before_insert for safety
-        # (in case document was created through other means)
+        # IMPORTANT: Process December override first - before any other validations
+        # This ensures tax calculations use the correct mode regardless of actual date
         self._populate_december_override_from_payroll_entry()
         
         # Ensure December flags are consistent
         self._ensure_december_flags_consistency()
         
-        # Process December override effects
+        # Apply December override effects (notes, UI indicators)
         self._process_december_override()
         
         # Check TER method settings
@@ -92,7 +98,8 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         Ensure that run_as_december and is_december_override flags are consistent.
         
         This method synchronizes both flags so they always have the same value,
-        regardless of which one was set originally.
+        regardless of which one was set originally. This is critical for ensuring
+        December tax calculations are applied correctly.
         """
         # Initialize the flags if they don't exist
         if not hasattr(self, "run_as_december"):
@@ -101,7 +108,8 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         if not hasattr(self, "is_december_override"):
             self.is_december_override = 0
             
-        # Synchronize the flags in both directions
+        # IMPORTANT: Synchronize the flags in both directions
+        # This ensures consistency regardless of which flag was set
         if self.run_as_december and not self.is_december_override:
             self.is_december_override = 1
             logger.debug(f"Set is_december_override=1 based on run_as_december for slip {getattr(self, 'name', 'new')}")
@@ -110,7 +118,7 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             self.run_as_december = 1
             logger.debug(f"Set run_as_december=1 based on is_december_override for slip {getattr(self, 'name', 'new')}")
             
-        # Log the final state for debugging
+        # Log the final state for auditing
         logger.debug(f"December flags for slip {getattr(self, 'name', 'new')}: "
                      f"run_as_december={self.run_as_december}, "
                      f"is_december_override={self.is_december_override}")
@@ -119,12 +127,10 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         """
         Auto-populate is_december_override flag from Payroll Entry.
         
-        This method checks the associated Payroll Entry document and sets
-        the is_december_override flag on the Salary Slip accordingly.
-        The field is read-only and can only be set by this method.
-        
-        It's safe to call this method multiple times as it will only 
-        update the flag if needed and has proper error handling.
+        IMPORTANT: This method replaces date-based December detection.
+        The is_december_override flag is the sole determinant of whether
+        December tax calculation logic should be applied, regardless of
+        the actual calendar month of the slip.
         """
         # Skip if the flag is already set to avoid unnecessary processing
         if getattr(self, "is_december_override", 0) == 1:
@@ -156,7 +162,8 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
                 logger.debug(f"Empty Payroll Entry for slip {getattr(self, 'name', 'new')}")
                 return
                 
-            # Check for December override flags in Payroll Entry (try both field names)
+            # IMPORTANT: Check for December override flags in Payroll Entry (try both field names)
+            # No date-based checks are performed - only flag-based
             is_december = False
             
             # Try is_december_override first
@@ -169,13 +176,14 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
                 
             # Set flag on salary slip if needed
             if is_december:
+                # IMPORTANT: Set both flags for consistency
                 self.is_december_override = 1
                 
                 # Also set run_as_december for consistency
                 if hasattr(self, "run_as_december"):
                     self.run_as_december = 1
                 
-                # Log the inheritance
+                # Log the inheritance for audit
                 slip_name = getattr(self, 'name', 'new')
                 pe_name = getattr(payroll_entry_doc, 'name', 'unknown')
                 logger.info(f"December override flags inherited for slip {slip_name} from Payroll Entry {pe_name}")
@@ -242,12 +250,14 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         """
         Process December override logic for annual tax correction.
         
-        Only uses is_december flag (determined by salary_slip_functions.is_december)
-        to determine if annual tax correction should be applied.
-        This allows the flag to be determined flexibly based on either the document field
-        or inheritance from Payroll Entry.
+        IMPORTANT: This method applies December-specific logic based solely on
+        the is_december_override flag, not on the calendar month or date.
+        
+        It uses the is_december() function which checks for flag-based override
+        from either the document itself or its linked Payroll Entry.
         """
-        # Use is_december() function which checks both direct flag and inherited flags
+        # IMPORTANT: Use is_december() function which checks flag-based override
+        # No date-based checks are performed
         if is_december(self):
             # Add or update payroll note with December correction information
             december_note = _("Annual tax correction (December) is applied to this salary slip")
@@ -258,7 +268,9 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             else:
                 self.payroll_note = december_note
                 
-            logger.info(f"December tax correction mode is active for salary slip {getattr(self, 'name', 'new')}")
+            # IMPORTANT: Log for auditing December calculations
+            logger.info(f"December tax correction mode is active for salary slip {getattr(self, 'name', 'new')} "
+                       f"(is_december_override={self.is_december_override}, run_as_december={getattr(self, 'run_as_december', 0)})")
     
     def _validate_indonesian_fields(self):
         """
@@ -283,7 +295,8 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             if not hasattr(self, field) or getattr(self, field) is None:
                 setattr(self, field, default_value)
                 
-        # Ensure December flags are set
+        # IMPORTANT: Ensure December flags are set
+        # These flags control December calculation logic
         if not hasattr(self, "is_december_override"):
             self.is_december_override = 0
             
