@@ -205,31 +205,36 @@ def _seed_ter_rates(settings: "frappe.Document", defaults: Dict[str, Any]) -> bo
             if hasattr(settings, "ter_fallback_rate") and metadata.get("fallback_rate"):
                 settings.ter_fallback_rate = flt(metadata.get("fallback_rate"))
 
-        # Add TER rates
-        count = 0
+        # Prepare TER rate table rows
+        ter_rate_table_rows = []
+
+        # Convert dict structure to list of rows
         for category, rates in ter_rates.items():
             # Skip metadata
             if category == "metadata":
                 continue
 
-            # Add each rate
-            for rate in rates:
-                settings.append(
-                    "ter_rate_table",
-                    {
+            # Process each rate in this category
+            for rate_data in rates:
+                # Create a new row with all needed fields
+                new_row = {
                         "status_pajak": category,
-                        "income_from": flt(rate.get("income_from", 0)),
-                        "income_to": flt(rate.get("income_to", 0)),
-                        "rate": flt(rate.get("rate", 0)),
-                        "is_highest_bracket": cint(rate.get("is_highest_bracket", 0)),
-                        "description": f"TER rate for {category}",
-                    },
-                )
-                count += 1
+                    "ter_category": category,  # Additional field for clarity
+                    "income_from": flt(rate_data.get("income_from", 0)),
+                    "income_to": flt(rate_data.get("income_to", 0)),
+                    "rate": flt(rate_data.get("rate", 0)),
+                    "is_highest_bracket": cint(rate_data.get("is_highest_bracket", 0)),
+                    "description": f"TER rate for {category}: {flt(rate_data.get('income_from', 0)):,.0f} to {flt(rate_data.get('income_to', 0)):,.0f}"
+                }
+                ter_rate_table_rows.append(new_row)
 
-        logger.info(f"Added {count} TER rates")
-        return count > 0
+        # Set the table in settings
+        settings.set("ter_rate_table", [])
+        for row in ter_rate_table_rows:
+            settings.append("ter_rate_table", row)
 
+        logger.info(f"Added {len(ter_rate_table_rows)} TER rates")
+        return len(ter_rate_table_rows) > 0
     except Exception as e:
         logger.error(f"Error seeding TER rates: {str(e)}")
         return False

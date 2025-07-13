@@ -1,15 +1,44 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import sys
 
 REQUIRED_KEYS = ["ptkp", "ptkp_to_ter_mapping", "tax_brackets", "tipe_karyawan"]
 
+def get_default_path() -> Path:
+    """Get the default path to defaults.json based on script location."""
+    # Get the directory where this script is located
+    script_dir = Path(__file__).parent.absolute()
+    
+    # Navigate to the payroll_indonesia/config directory
+    default_path = script_dir.parent / "payroll_indonesia" / "config" / "defaults.json"
+    
+    # Also check for the file in the root directory of the app
+    alternate_path = script_dir.parent / "defaults.json"
+    
+    if default_path.exists():
+        return default_path
+    elif alternate_path.exists():
+        return alternate_path
+    else:
+        # Fall back to the original default
+        return Path("payroll_indonesia/config/defaults.json")
 
-def load_defaults(path: str | Path) -> dict:
+
+def load_defaults(path: str | Path = None) -> dict:
     """Load defaults.json from the given path."""
-    with Path(path).open() as f:
+    if path is None:
+        path = get_default_path()
+    
+    path = Path(path)
+    if not path.exists():
+        print(f"Error: File not found at {path}")
+        sys.exit(1)
+        
+    print(f"Loading defaults from: {path}")
+    with path.open() as f:
         return json.load(f)
 
 
@@ -72,18 +101,18 @@ def validate_defaults(data: dict) -> list[str]:
     return errors
 
 
-def main(path: str = "payroll_indonesia/config/defaults.json") -> None:
+def main(path: str = None) -> None:
     """Audit a defaults.json file and print results."""
     data = load_defaults(path)
     errors = validate_defaults(data)
 
     if errors:
-        print("Audit failed:")
+        print("\n--- AUDIT FAILED ---")
         for err in errors:
-            print(f"- {err}")
+            print(f"❌ {err}")
         sys.exit(1)
 
-    print(f"All checks passed for {path}")
+    print(f"\nAll checks passed for defaults.json! ✅")
 
 
 if __name__ == "__main__":
@@ -92,8 +121,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Audit defaults.json")
     parser.add_argument(
         "--path",
-        default="payroll_indonesia/config/defaults.json",
-        help="Path to defaults.json",
+        default=None,
+        help="Path to defaults.json (defaults to ../payroll_indonesia/config/defaults.json relative to script)",
     )
     args = parser.parse_args()
     main(args.path)

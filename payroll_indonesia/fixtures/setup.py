@@ -488,69 +488,85 @@ def create_bpjs_supplier(config):
         raise
 
 
-def setup_pph21_ter(config, force_update=False):
+def setup_pph21_ter(defaults=None):
     """
-    Setup default TER rates based on PMK-168/PMK.010/2023 using config data.
-
+    Setup PPh 21 TER rates in Payroll Indonesia Settings.
+    Properly converts dict structure to child table format.
     Args:
-        config: Configuration dictionary from defaults.json
-        force_update: Whether to force update existing rates
-
+        defaults: Configuration data, loaded from defaults.json if None
     Returns:
-        bool: True if successful, False otherwise
+        bool: True if setup was successful, False otherwise
     """
-    if not doctype_defined("Payroll Indonesia Settings"):
-        logger.warning("Payroll Indonesia Settings doctype not found")
-        return False
-
     try:
+        # Load defaults if not provided
+        if defaults is None:
+            from payroll_indonesia.setup.settings_migration import _load_defaults
+            defaults = _load_defaults()
+            if not defaults:
+                logger.warning("Could not load defaults for PPh 21 TER setup")
+                return False
+
+        # Get settings document
         settings = frappe.get_single("Payroll Indonesia Settings")
 
-        if not force_update:
-            cats = {"TER A", "TER B", "TER C"}
-            existing = {row.status_pajak for row in settings.ter_rate_table}
-            if cats.issubset(existing):
-                logger.info("TER categories already setup for PMK 168/2023")
-                return True
+        # If TER rates already exist, return
+        if hasattr(settings, "ter_rate_table") and settings.ter_rate_table:
+            logger.info("TER rates already exist in settings")
+            return False
 
-        # Clear existing TER rates
-        settings.ter_rate_table = []
-
-        ter_rates = config.get("ter_rates", {})
+        # Get TER rates from defaults
+        ter_rates = defaults.get("ter_rates", {})
         if not ter_rates:
-            logger.warning("No TER rates found in configuration")
-            raise ValidationError("No TER rates found in configuration")
+            logger.warning("No TER rates found in defaults")
+            return False
 
-        count = 0
-        for status, rates in ter_rates.items():
+        # Set metadata if available
+        metadata = ter_rates.get("metadata", {})
+        if metadata:
+            for field, value in metadata.items():
+                field_name = f"ter_{field}"
+                if hasattr(settings, field_name):
+                    setattr(settings, field_name, value)
+
+        # Prepare TER rate table rows
+        ter_rate_table_rows = []
+
+        # Convert dict structure to list of rows
+        for category, rates in ter_rates.items():
             # Skip metadata
-            if status == "metadata":
+            if category == "metadata":
                 continue
 
+            # Process each rate in this category
             for rate_data in rates:
-                settings.append(
-                    "ter_rate_table",
-                    {
-                        "status_pajak": status,
-                        "income_from": flt(rate_data["income_from"]),
-                        "income_to": flt(rate_data["income_to"]),
-                        "rate": flt(rate_data["rate"]),
-                        "description": f"{status} - {flt(rate_data['income_from']):,.0f} to {flt(rate_data['income_to']):,.0f}",
+                # Create a new row with all needed fields
+                new_row = {
+                    "status_pajak": category,
+                    "ter_category": category,  # Additional field for clarity
+                    "income_from": flt(rate_data.get("income_from", 0)),
+                    "income_to": flt(rate_data.get("income_to", 0)),
+                    "rate": flt(rate_data.get("rate", 0)),
                         "is_highest_bracket": cint(rate_data.get("is_highest_bracket", 0)),
-                    },
-                )
-                count += 1
+                    "description": f"TER rate for {category}: {flt(rate_data.get('income_from', 0)):,.0f} to {flt(rate_data.get('income_to', 0)):,.0f}"
+                }
+                ter_rate_table_rows.append(new_row)
 
+        # Set the table in settings
+        settings.set("ter_rate_table", [])
+        for row in ter_rate_table_rows:
+            settings.append("ter_rate_table", row)
+
+        # Save settings
         settings.flags.ignore_permissions = True
         settings.save(ignore_permissions=True)
 
-        logger.info(f"Processed {count} TER rates successfully")
-        return count > 0
+        logger.info(f"Added {len(ter_rate_table_rows)} TER rate entries to settings")
+        return True
 
     except Exception as e:
-        logger.error(f"Error setting up TER rates: {str(e)}")
-        raise
-
+        logger.error(f"Error setting up PPh 21 TER rates: {str(e)}")
+        frappe.log_error(f"Error setting up PPh 21 TER rates: {str(e)}", "TER Setup Error")
+        return False
 
 def setup_income_tax_slab(config, force_update=False):
     """
