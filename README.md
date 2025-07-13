@@ -104,6 +104,19 @@ The Payroll Indonesia module is modularly optimized to provide top performance a
 * **📈 Employee Tax Summary:** Automated YTD calculation, comprehensive annual tax summaries per employee.
 * **🛡 BPJS Settings & PPh 21 Settings:** Robust validation for contribution settings, salary limits, and automatic synchronization with central configurations.
 
+## 🔍 Audit defaults.json
+
+Use `audit_defaults.py` to verify that the bundled `defaults.json` contains the
+expected keys and valid rows.
+
+```bash
+# run inside a bench instance
+bench --site your_site.local execute scripts.audit_defaults.main
+
+# or run directly with Python
+python scripts/audit_defaults.py --path payroll_indonesia/config/defaults.json
+```
+
 ## 🛠️ Technical Notes
 
 * All code adheres to Flake8 standards and Pythonic best practices.
