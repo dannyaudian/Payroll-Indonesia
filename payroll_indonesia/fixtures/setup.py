@@ -528,46 +528,44 @@ def setup_pph21_ter(defaults=None):
                 if hasattr(settings, field_name):
                     setattr(settings, field_name, value)
 
-        # Prepare TER rate table rows
+        # ==== PATCH AGAR TER RATE TABLE MUNCUL DI PAYROLL INDONESIA SETTINGS ====
         ter_rate_table_rows = []
-
-        # Convert dict structure to list of rows
         for category, rates in ter_rates.items():
             # Skip metadata
             if category == "metadata":
                 continue
-
+                
             # Process each rate in this category
             for rate_data in rates:
                 # Create a new row with all needed fields
                 new_row = {
                     "status_pajak": category,
-                    "ter_category": category,  # Additional field for clarity
+                    "ter_category": category,  # Add category field explicitly
                     "income_from": flt(rate_data.get("income_from", 0)),
                     "income_to": flt(rate_data.get("income_to", 0)),
                     "rate": flt(rate_data.get("rate", 0)),
-                        "is_highest_bracket": cint(rate_data.get("is_highest_bracket", 0)),
+                    "is_highest_bracket": cint(rate_data.get("is_highest_bracket", 0)),
                     "description": f"TER rate for {category}: {flt(rate_data.get('income_from', 0)):,.0f} to {flt(rate_data.get('income_to', 0)):,.0f}"
                 }
                 ter_rate_table_rows.append(new_row)
-
+        
         # Set the table in settings
         settings.set("ter_rate_table", [])
         for row in ter_rate_table_rows:
             settings.append("ter_rate_table", row)
-
+        
         # Save settings
         settings.flags.ignore_permissions = True
         settings.save(ignore_permissions=True)
-
+        
         logger.info(f"Added {len(ter_rate_table_rows)} TER rate entries to settings")
         return True
-
+        
     except Exception as e:
         logger.error(f"Error setting up PPh 21 TER rates: {str(e)}")
         frappe.log_error(f"Error setting up PPh 21 TER rates: {str(e)}", "TER Setup Error")
         return False
-
+    
 def setup_income_tax_slab(config, force_update=False):
     """
     Create Income Tax Slab for Indonesia using config data.
