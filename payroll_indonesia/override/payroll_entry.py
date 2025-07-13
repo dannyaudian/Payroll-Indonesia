@@ -11,7 +11,7 @@ from typing import Any, Dict, List, Optional
 
 import frappe
 from frappe import _
-from frappe.utils import getdate
+from frappe.utils import getdate, flt
 from hrms.payroll.doctype.payroll_entry.payroll_entry import PayrollEntry
 
 import payroll_indonesia.payroll_indonesia.validations as validations
@@ -36,6 +36,9 @@ class CustomPayrollEntry(PayrollEntry):
 
             # Validate December logic
             self._validate_december_logic()
+            
+            # Validate TER method logic
+            self._validate_ter_method_logic()
 
             # Validate employees if applicable
             self._validate_employees()
@@ -76,6 +79,34 @@ class CustomPayrollEntry(PayrollEntry):
         else:
             # Optionally log that regular mode is being used
             logger.debug(f"Payroll Entry {self.name} using regular monthly tax calculation")
+    
+    def _validate_ter_method_logic(self) -> None:
+        """
+        Log TER method status.
+        
+        This method checks if the TER method flag is enabled and logs the status.
+        """
+        # Check if TER method is enabled
+        use_ter = self.get("use_ter_method", 0)
+        
+        if use_ter:
+            # Log that TER method is active
+            logger.info(
+                f"Payroll Entry {self.name} is using TER method for tax calculation"
+            )
+            
+            # Add a message for the user for clarity
+            frappe.msgprint(
+                _(
+                    "TER method is active: Tax will be calculated using TER rates "
+                    "for all eligible employees in this Payroll Entry."
+                ),
+                indicator="blue",
+                alert=True
+            )
+        else:
+            # Optionally log that standard progressive method is being used
+            logger.debug(f"Payroll Entry {self.name} using standard progressive tax calculation")
             
     def _validate_employees(self) -> None:
         """
@@ -133,7 +164,7 @@ class CustomPayrollEntry(PayrollEntry):
             if not self._has_salary_slips():
                 self.create_salary_slips()
             else:
-                # Update existing slips with December flag if needed
+                # Update existing slips with flags if needed
                 self._update_existing_slips_flags()
 
             # Submit salary slips using dedicated function
@@ -173,16 +204,12 @@ class CustomPayrollEntry(PayrollEntry):
         
     def _update_existing_slips_flags(self) -> None:
         """
-        Update existing salary slips with the current December override flag.
+        Update existing salary slips with the current flags.
         
-        Only updates slips where the flag hasn't been manually set, to avoid
+        Only updates slips where the flags haven't been manually set, to avoid
         overriding user preferences. This ensures that all slips attached to
         this Payroll Entry have consistent flags.
         """
-        if not hasattr(self, "is_december_override") or not self.is_december_override:
-            # Skip if December override is not active on this entry
-            return
-            
         try:
             # Get all draft salary slips for this payroll entry
             slips = frappe.get_all(
@@ -191,7 +218,7 @@ class CustomPayrollEntry(PayrollEntry):
                     "payroll_entry": self.name,
                     "docstatus": 0,  # Only update draft slips
                 },
-                fields=["name", "is_december_override"]
+                fields=["name", "is_december_override", "use_ter_method"]
             )
             
             if not slips:
@@ -201,25 +228,33 @@ class CustomPayrollEntry(PayrollEntry):
             updated_count = 0
             
             for slip in slips:
-                # Skip slips that already have the flag set
-                if slip.get("is_december_override"):
-                    continue
-                    
-                # Update the flag
-                frappe.db.set_value(
-                    "Salary Slip",
-                    slip.name,
-                    "is_december_override",
-                    1,
-                    update_modified=False
-                )
-                updated_count += 1
+                fields_to_update = {}
+                
+                # Check December override flag
+                if hasattr(self, "is_december_override") and self.is_december_override:
+                    if not slip.get("is_december_override"):
+                        fields_to_update["is_december_override"] = 1
+                
+                # Check TER method flag
+                if hasattr(self, "use_ter_method") and self.use_ter_method:
+                    if not slip.get("use_ter_method"):
+                        fields_to_update["use_ter_method"] = 1
+                
+                # Update if we have fields to change
+                if fields_to_update:
+                    frappe.db.set_value(
+                        "Salary Slip",
+                        slip.name,
+                        fields_to_update,
+                        update_modified=False
+                    )
+                    updated_count += 1
                 
             if updated_count > 0:
-                logger.info(f"Updated December override flag on {updated_count} existing salary slips")
+                logger.info(f"Updated flags on {updated_count} existing salary slips")
                 
         except Exception as e:
-            logger.warning(f"Error updating existing slips' December flags: {str(e)}")
+            logger.warning(f"Error updating existing slips' flags: {str(e)}")
 
     def make_payment_entry(self) -> Dict[str, Any]:
         """
@@ -255,43 +290,61 @@ class CustomPayrollEntry(PayrollEntry):
     def create_salary_slips(self) -> List[str]:
         """
         Override the standard create_salary_slips method to propagate
-        the is_december_override field to Salary Slips.
+        flags to Salary Slips.
         
         Returns:
             List[str]: List of created Salary Slip names
         """
-        # Before calling parent implementation, store if we need to apply December flag
-        apply_december = False
-        if hasattr(self, "is_december_override") and self.is_december_override:
-            apply_december = True
-            logger.info(f"Will apply December override flag to new salary slips from {self.name}")
+        # Before calling parent implementation, store flags we need to apply
+        apply_december = hasattr(self, "is_december_override") and self.is_december_override
+        apply_ter = hasattr(self, "use_ter_method") and self.use_ter_method
+        
+        if apply_december or apply_ter:
+            flag_info = []
+            if apply_december:
+                flag_info.append("December override")
+            if apply_ter:
+                flag_info.append("TER method")
+            
+            logger.info(f"Will apply flags to new salary slips from {self.name}: {', '.join(flag_info)}")
         
         # Get the result from the parent implementation
         salary_slips = super().create_salary_slips()
         
-        # Propagate is_december_override to all created salary slips
-        if salary_slips and apply_december:
-            logger.info(f"Propagating December override to {len(salary_slips)} salary slips")
+        # Propagate flags to all created salary slips
+        if salary_slips and (apply_december or apply_ter):
+            logger.info(f"Propagating flags to {len(salary_slips)} salary slips")
             
-            # Update all created salary slips with is_december_override
+            # Update all created salary slips with flags
             for slip_name in salary_slips:
                 try:
-                    # Check if slip already has override set
-                    existing_override = frappe.db.get_value("Salary Slip", slip_name, "is_december_override")
+                    # Build a dict of fields to update
+                    fields_to_update = {}
                     
-                    # Only update if not already set to respect manual changes
-                    if not existing_override:
-                        # Update the is_december_override field
+                    # Check December override
+                    if apply_december:
+                        existing_override = frappe.db.get_value("Salary Slip", slip_name, "is_december_override")
+                        if not existing_override:
+                            fields_to_update["is_december_override"] = 1
+                    
+                    # Check TER method
+                    if apply_ter:
+                        existing_ter = frappe.db.get_value("Salary Slip", slip_name, "use_ter_method")
+                        if not existing_ter:
+                            fields_to_update["use_ter_method"] = 1
+                    
+                    # Update fields if needed
+                    if fields_to_update:
                         frappe.db.set_value(
                             "Salary Slip", 
                             slip_name, 
-                            "is_december_override", 
-                            1, 
+                            fields_to_update, 
                             update_modified=False
                         )
-                        logger.debug(f"Set is_december_override=1 for slip {slip_name}")
+                        logger.debug(f"Set flags for slip {slip_name}: {fields_to_update}")
+                        
                 except Exception as e:
-                    logger.error(f"Failed to set is_december_override for {slip_name}: {str(e)}")
+                    logger.error(f"Failed to set flags for {slip_name}: {str(e)}")
         
         return salary_slips
 
@@ -313,33 +366,46 @@ class CustomPayrollEntry(PayrollEntry):
         # Get the original list from parent method
         sal_slips = super().get_sal_slip_list(ss_status, as_dict)
         
-        # If the payroll entry has December override, make sure it's properly set on all slips
-        if hasattr(self, "is_december_override") and self.is_december_override and sal_slips:
-            # Only perform this if we're getting draft slips (can't modify submitted ones)
-            if ss_status == 0:
+        # Only update flags if we're getting draft slips and have slips to update
+        if ss_status == 0 and sal_slips:
+            # Check if we need to apply any flags
+            apply_december = hasattr(self, "is_december_override") and self.is_december_override
+            apply_ter = hasattr(self, "use_ter_method") and self.use_ter_method
+            
+            if apply_december or apply_ter:
                 try:
                     # Get the list of slip names
                     slip_names = [slip.name for slip in sal_slips] if as_dict else sal_slips
                     
                     # Update slips in batch for efficiency
                     for slip_name in slip_names:
-                        # Check if slip already has override set
-                        existing_override = frappe.db.get_value("Salary Slip", slip_name, "is_december_override")
+                        fields_to_update = {}
                         
-                        # Only update if not already set to respect manual changes
-                        if not existing_override:
+                        # Check December override
+                        if apply_december:
+                            existing_override = frappe.db.get_value("Salary Slip", slip_name, "is_december_override")
+                            if not existing_override:
+                                fields_to_update["is_december_override"] = 1
+                        
+                        # Check TER method
+                        if apply_ter:
+                            existing_ter = frappe.db.get_value("Salary Slip", slip_name, "use_ter_method")
+                            if not existing_ter:
+                                fields_to_update["use_ter_method"] = 1
+                        
+                        # Update fields if needed
+                        if fields_to_update:
                             frappe.db.set_value(
                                 "Salary Slip", 
                                 slip_name, 
-                                "is_december_override", 
-                                1, 
+                                fields_to_update, 
                                 update_modified=False
                             )
                     
-                    logger.debug(f"Checked December override for {len(slip_names)} salary slips")
+                    logger.debug(f"Checked flags for {len(slip_names)} salary slips")
                     
                 except Exception as e:
-                    logger.warning(f"Error checking December overrides in get_sal_slip_list: {str(e)}")
+                    logger.warning(f"Error checking flags in get_sal_slip_list: {str(e)}")
         
         return sal_slips
 
@@ -354,43 +420,65 @@ class CustomPayrollEntry(PayrollEntry):
 
         created_slips = pe_functions.make_slips_from_timesheets(self)
         
-        # Propagate is_december_override to timesheet-based salary slips
-        if created_slips and hasattr(self, "is_december_override") and self.is_december_override:
-            logger.info(f"Propagating December override to {len(created_slips)} timesheet-based salary slips")
-            
-            for slip in created_slips:
-                try:
-                    # Get the slip name from the result
-                    slip_name = slip if isinstance(slip, str) else getattr(slip, "name", None)
-                    if slip_name:
-                        # Check if slip already has override set
-                        existing_override = frappe.db.get_value("Salary Slip", slip_name, "is_december_override")
-                        
-                        # Only update if not already set to respect manual changes
-                        if not existing_override:
-                            # Update the is_december_override field
-                            frappe.db.set_value(
-                                "Salary Slip", 
-                                slip_name, 
-                                "is_december_override", 
-                                1, 
-                                update_modified=False
-                            )
-                            logger.debug(f"Set is_december_override=1 for timesheet slip {slip_name}")
-                except Exception as e:
-                    logger.error(f"Failed to set is_december_override for timesheet slip: {str(e)}")
-
-        if created_slips:
-            frappe.msgprint(
-                _("Created {0} salary slips from timesheets").format(len(created_slips))
-            )
-        else:
+        # If no slips were created, show message and return
+        if not created_slips:
             frappe.msgprint(
                 _(
                     "No salary slips created from timesheets. "
                     "Check if timesheets exist for this period."
                 )
             )
+            return
+            
+        # Check if we need to apply any flags
+        apply_december = hasattr(self, "is_december_override") and self.is_december_override
+        apply_ter = hasattr(self, "use_ter_method") and self.use_ter_method
+        
+        # Propagate flags to timesheet-based salary slips
+        if apply_december or apply_ter:
+            flag_info = []
+            if apply_december:
+                flag_info.append("December override")
+            if apply_ter:
+                flag_info.append("TER method")
+                
+            logger.info(f"Propagating flags to {len(created_slips)} timesheet-based salary slips: {', '.join(flag_info)}")
+            
+            for slip in created_slips:
+                try:
+                    # Get the slip name from the result
+                    slip_name = slip if isinstance(slip, str) else getattr(slip, "name", None)
+                    if slip_name:
+                        # Build a dict of fields to update
+                        fields_to_update = {}
+                        
+                        # Check December override
+                        if apply_december:
+                            existing_override = frappe.db.get_value("Salary Slip", slip_name, "is_december_override")
+                            if not existing_override:
+                                fields_to_update["is_december_override"] = 1
+                        
+                        # Check TER method
+                        if apply_ter:
+                            existing_ter = frappe.db.get_value("Salary Slip", slip_name, "use_ter_method")
+                            if not existing_ter:
+                                fields_to_update["use_ter_method"] = 1
+                        
+                        # Update fields if needed
+                        if fields_to_update:
+                            frappe.db.set_value(
+                                "Salary Slip", 
+                                slip_name, 
+                                fields_to_update, 
+                                update_modified=False
+                            )
+                            logger.debug(f"Set flags for timesheet slip {slip_name}: {fields_to_update}")
+                except Exception as e:
+                    logger.error(f"Failed to set flags for timesheet slip: {str(e)}")
+
+        frappe.msgprint(
+            _("Created {0} salary slips from timesheets").format(len(created_slips))
+        )
 
     def fill_employee_details(self) -> None:
         """

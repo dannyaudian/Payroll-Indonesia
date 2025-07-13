@@ -42,6 +42,22 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         # Set December override flag from Payroll Entry
         self._populate_december_override_from_payroll_entry()
         
+        # Make sure run_as_december and is_december_override are in sync
+        self._ensure_december_flags_consistency()
+        
+    def before_save(self):
+        """
+        Process before saving the document.
+        
+        Ensures flag consistency and handles other pre-save operations.
+        """
+        # Call parent's before_save if it exists
+        if hasattr(super(), "before_save"):
+            super().before_save()
+            
+        # Ensure December flags are consistent
+        self._ensure_december_flags_consistency()
+        
     def validate(self):
         """
         Validate Salary Slip with Indonesian-specific requirements.
@@ -54,7 +70,15 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         # We call this even if already called in before_insert for safety
         # (in case document was created through other means)
         self._populate_december_override_from_payroll_entry()
+        
+        # Ensure December flags are consistent
+        self._ensure_december_flags_consistency()
+        
+        # Process December override effects
         self._process_december_override()
+        
+        # Check TER method settings
+        self._populate_ter_method_from_payroll_entry()
         
         # Validate required Indonesian fields
         self._validate_indonesian_fields()
@@ -62,6 +86,34 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
         # Call the parent validation after our special overrides
         # This ensures our logic has priority over standard behavior
         super().validate()
+    
+    def _ensure_december_flags_consistency(self):
+        """
+        Ensure that run_as_december and is_december_override flags are consistent.
+        
+        This method synchronizes both flags so they always have the same value,
+        regardless of which one was set originally.
+        """
+        # Initialize the flags if they don't exist
+        if not hasattr(self, "run_as_december"):
+            self.run_as_december = 0
+            
+        if not hasattr(self, "is_december_override"):
+            self.is_december_override = 0
+            
+        # Synchronize the flags in both directions
+        if self.run_as_december and not self.is_december_override:
+            self.is_december_override = 1
+            logger.debug(f"Set is_december_override=1 based on run_as_december for slip {getattr(self, 'name', 'new')}")
+            
+        elif self.is_december_override and not self.run_as_december:
+            self.run_as_december = 1
+            logger.debug(f"Set run_as_december=1 based on is_december_override for slip {getattr(self, 'name', 'new')}")
+            
+        # Log the final state for debugging
+        logger.debug(f"December flags for slip {getattr(self, 'name', 'new')}: "
+                     f"run_as_december={self.run_as_december}, "
+                     f"is_december_override={self.is_december_override}")
     
     def _populate_december_override_from_payroll_entry(self):
         """
@@ -104,20 +156,86 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
                 logger.debug(f"Empty Payroll Entry for slip {getattr(self, 'name', 'new')}")
                 return
                 
-            # Check for is_december_override attribute safely
+            # Check for December override flags in Payroll Entry (try both field names)
+            is_december = False
+            
+            # Try is_december_override first
             if hasattr(payroll_entry_doc, 'is_december_override') and payroll_entry_doc.is_december_override:
-                # Set flag on salary slip
+                is_december = True
+                
+            # Also check run_as_december
+            elif hasattr(payroll_entry_doc, 'run_as_december') and payroll_entry_doc.run_as_december:
+                is_december = True
+                
+            # Set flag on salary slip if needed
+            if is_december:
                 self.is_december_override = 1
+                
+                # Also set run_as_december for consistency
+                if hasattr(self, "run_as_december"):
+                    self.run_as_december = 1
                 
                 # Log the inheritance
                 slip_name = getattr(self, 'name', 'new')
                 pe_name = getattr(payroll_entry_doc, 'name', 'unknown')
-                logger.info(f"December override flag inherited for slip {slip_name} from Payroll Entry {pe_name}")
+                logger.info(f"December override flags inherited for slip {slip_name} from Payroll Entry {pe_name}")
                 
         except Exception as e:
             # Log but don't interrupt flow
             logger.warning(
                 f"Error checking December override from Payroll Entry for slip {getattr(self, 'name', 'new')}: {str(e)}"
+            )
+            
+    def _populate_ter_method_from_payroll_entry(self):
+        """
+        Auto-populate use_ter_method flag from Payroll Entry.
+        
+        This method checks the associated Payroll Entry document and sets
+        the use_ter_method flag on the Salary Slip accordingly.
+        """
+        # Skip if the flag is already set to avoid unnecessary processing
+        if getattr(self, "use_ter_method", 0) == 1:
+            logger.debug(f"TER method already active for slip {getattr(self, 'name', 'new')}")
+            return
+            
+        # Skip if no payroll entry - handle manually created slips
+        if not getattr(self, "payroll_entry", None):
+            logger.debug(f"No Payroll Entry for slip {getattr(self, 'name', 'new')}, skipping TER method check")
+            return
+            
+        # Initialize use_ter_method to 0 if not already set
+        if not hasattr(self, "use_ter_method"):
+            self.use_ter_method = 0
+            
+        try:
+            # Get the Payroll Entry document
+            payroll_entry_doc = None
+            if isinstance(self.payroll_entry, str):
+                payroll_entry_doc = frappe.get_doc("Payroll Entry", self.payroll_entry)
+                # Store the document for future reference
+                self.payroll_entry = payroll_entry_doc
+            else:
+                # It's already a document
+                payroll_entry_doc = self.payroll_entry
+                
+            # Safety check in case payroll_entry is empty string or None
+            if not payroll_entry_doc:
+                return
+                
+            # Check for use_ter_method attribute safely
+            if hasattr(payroll_entry_doc, 'use_ter_method') and payroll_entry_doc.use_ter_method:
+                # Set flag on salary slip
+                self.use_ter_method = 1
+                
+                # Log the inheritance
+                slip_name = getattr(self, 'name', 'new')
+                pe_name = getattr(payroll_entry_doc, 'name', 'unknown')
+                logger.info(f"TER method flag inherited for slip {slip_name} from Payroll Entry {pe_name}")
+                
+        except Exception as e:
+            # Log but don't interrupt flow
+            logger.warning(
+                f"Error checking TER method from Payroll Entry for slip {getattr(self, 'name', 'new')}: {str(e)}"
             )
     
     def _process_december_override(self):
@@ -165,9 +283,16 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
             if not hasattr(self, field) or getattr(self, field) is None:
                 setattr(self, field, default_value)
                 
-        # Ensure is_december_override is set
+        # Ensure December flags are set
         if not hasattr(self, "is_december_override"):
             self.is_december_override = 0
+            
+        if not hasattr(self, "run_as_december"):
+            self.run_as_december = 0
+            
+        # Ensure TER method flag is set
+        if not hasattr(self, "use_ter_method"):
+            self.use_ter_method = 0
     
     def calculate_tax_by_tax_slab(self):
         """
