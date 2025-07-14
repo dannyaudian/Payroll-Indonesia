@@ -255,6 +255,42 @@ class TestTaxCalculator(unittest.TestCase):
         self.assertEqual(salary_slip.monthly_tax, 0)
         self.assertEqual(salary_slip.annual_taxable_income, 0)
 
+    def test_december_correction_with_summary(self):
+        """Ensure December correction uses YTD tax correction from summary"""
+        employee = self.test_employees["complete"]
+
+        # Create an Employee Tax Summary with YTD correction
+        year = getdate("2025-12-01").year
+        tax_summary = frappe.get_doc(
+            {
+                "doctype": "Employee Tax Summary",
+                "employee": employee.name,
+                "year": year,
+                "ytd_gross_pay": 100000000,
+                "ytd_tax": 3000000,
+                "ytd_bpjs": 0,
+                "ytd_taxable_components": 100000000,
+                "ytd_tax_deductions": 0,
+                "ytd_tax_correction": 500000,
+            }
+        )
+        tax_summary.insert(ignore_permissions=True)
+
+        # Create December salary slip
+        salary_slip = self.create_salary_slip(employee)
+        salary_slip.posting_date = getdate("2025-12-15")
+        salary_slip.save(ignore_permissions=True)
+
+        from payroll_indonesia.override.salary_slip.tax_calculator import calculate_december_pph
+
+        _, details = calculate_december_pph(salary_slip)
+
+        expected_correction = details["annual_tax"] - (
+            details["ytd_pph21"] + details.get("ytd_tax_correction", 0)
+        )
+
+        self.assertEqual(flt(details.get("correction_amount"), 2), flt(expected_correction, 2))
+
 
 def run_tax_calculator_tests():
     """Run tax calculator tests"""
