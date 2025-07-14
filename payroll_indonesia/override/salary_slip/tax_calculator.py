@@ -908,9 +908,18 @@ def calculate_december_pph(slip: Any) -> Tuple[float, Dict[str, Any]]:
         tax_summary = frappe.get_all(
             "Employee Tax Summary",
             filters={"employee": employee, "year": year},
-            fields=["ytd_gross_pay", "ytd_tax", "ytd_bpjs", "ytd_taxable_components", "ytd_tax_deductions"],
-            limit=1
+            fields=[
+                "ytd_gross_pay",
+                "ytd_tax",
+                "ytd_bpjs",
+                "ytd_taxable_components",
+                "ytd_tax_deductions",
+                "ytd_tax_correction",
+            ],
+            limit=1,
         )
+
+        ytd_tax_correction = 0
 
         if tax_summary:
             # Use data from Employee Tax Summary
@@ -919,7 +928,10 @@ def calculate_december_pph(slip: Any) -> Tuple[float, Dict[str, Any]]:
             ytd_bpjs = flt(tax_summary[0].ytd_bpjs)
             ytd_taxable = flt(tax_summary[0].ytd_taxable_components)
             ytd_deductions = flt(tax_summary[0].ytd_tax_deductions)
-            logger.debug(f"Using YTD data from Employee Tax Summary: gross={ytd_gross}, tax={ytd_tax}, bpjs={ytd_bpjs}")
+            ytd_tax_correction = flt(tax_summary[0].ytd_tax_correction)
+            logger.debug(
+                f"Using YTD data from Employee Tax Summary: gross={ytd_gross}, tax={ytd_tax}, correction={ytd_tax_correction}, bpjs={ytd_bpjs}"
+            )
         else:
             # Fall back to calculating from salary slips
             ytd = get_ytd_totals(slip)
@@ -928,6 +940,7 @@ def calculate_december_pph(slip: Any) -> Tuple[float, Dict[str, Any]]:
             ytd_bpjs = flt(ytd.get("bpjs", 0))
             ytd_taxable = ytd_gross  # Approximate
             ytd_deductions = ytd_bpjs  # Approximate
+            ytd_tax_correction = 0
 
         # Get tax status (PTKP code)
         tax_status = get_tax_status(slip)
@@ -975,9 +988,12 @@ def calculate_december_pph(slip: Any) -> Tuple[float, Dict[str, Any]]:
         
         # Calculate tax using progressive method
         annual_tax, tax_details = calculate_progressive_tax(annual_pkp)
-        
+
         # Calculate December tax (annual tax - YTD tax)
         december_tax = annual_tax - ytd_tax
+
+        # Calculate year-end correction considering prior adjustments
+        correction_amount = annual_tax - (ytd_tax + ytd_tax_correction)
 
         # Prepare calculation details
         details = {
@@ -988,12 +1004,14 @@ def calculate_december_pph(slip: Any) -> Tuple[float, Dict[str, Any]]:
             "ytd_gross": ytd_gross,
             "ytd_bpjs": ytd_bpjs,
             "ytd_pph21": ytd_tax,
+            "ytd_tax_correction": ytd_tax_correction,
             "annual_taxable": annual_taxable,
             "biaya_jabatan": biaya_jabatan,
             "tax_deductions": tax_deductions,
             "annual_pkp": annual_pkp,
             "annual_tax": annual_tax,
             "december_tax": december_tax,
+            "correction_amount": correction_amount,
             "tax_brackets": tax_details,
             "components": tax_components
         }
