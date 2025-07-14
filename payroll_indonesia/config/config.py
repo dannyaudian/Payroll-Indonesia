@@ -10,7 +10,7 @@ Provides functions to load configuration from defaults.json and live settings.
 
 import json
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Union
 
 import frappe
 from payroll_indonesia.frappe_helpers import logger
@@ -21,6 +21,8 @@ __all__ = [
     "get_config_value",
     "reset_config_cache",
     "doctype_defined",
+    "get_tax_effect_types",
+    "get_component_tax_effect",
 ]
 
 # Global cache for config
@@ -110,6 +112,34 @@ def get_live_config() -> Dict[str, Any]:
                         if not key.startswith("_") and value is not None:
                             merged_config[key] = value
 
+                    # Handle special cases for table fields
+                    if hasattr(live_settings, "ptkp_table") and live_settings.ptkp_table:
+                        merged_config["ptkp"] = {row.status_pajak: row.ptkp_amount for row in live_settings.ptkp_table}
+                    
+                    if hasattr(live_settings, "ptkp_ter_mapping_table") and live_settings.ptkp_ter_mapping_table:
+                        merged_config["ptkp_to_ter_mapping"] = {
+                            row.ptkp_status: row.ter_category for row in live_settings.ptkp_ter_mapping_table
+                        }
+                    
+                    if hasattr(live_settings, "tax_brackets_table") and live_settings.tax_brackets_table:
+                        merged_config["tax_brackets"] = [
+                            {
+                                "income_from": row.income_from,
+                                "income_to": row.income_to,
+                                "tax_rate": row.tax_rate
+                            } 
+                            for row in live_settings.tax_brackets_table
+                        ]
+
+                    # Process tax component mapping if available
+                    if hasattr(live_settings, "tax_component_mapping_json") and live_settings.tax_component_mapping_json:
+                        try:
+                            tax_component_mapping = json.loads(live_settings.tax_component_mapping_json)
+                            if isinstance(tax_component_mapping, dict):
+                                merged_config["tax_component_config"] = tax_component_mapping
+                        except Exception as e:
+                            logger.warning(f"Error parsing tax_component_mapping_json: {str(e)}")
+
                     logger.info("Successfully merged live settings with default configuration")
                     return merged_config
                 else:
@@ -164,3 +194,101 @@ def reset_config_cache() -> None:
     global _config_cache
     _config_cache = None
     logger.debug("Configuration cache has been reset")
+
+
+def get_tax_effect_types() -> Dict[str, Any]:
+    """
+    Get tax effect type definitions from config.
+    
+    Returns:
+        Dict containing tax effect types configuration
+    """
+    try:
+        config = get_live_config()
+        tax_effect_types = config.get("tax", {}).get("tax_effect_types", {})
+        
+        if not tax_effect_types:
+            # Fallback defaults
+            return {
+                "default_earning_tax_effect": "Penambah Bruto/Objek Pajak",
+                "default_deduction_tax_effect": "Pengurang Netto/Tax Deduction",
+                "options": [
+                    "Penambah Bruto/Objek Pajak",
+                    "Pengurang Netto/Tax Deduction",
+                    "Tidak Berpengaruh ke Pajak",
+                    "Natura/Fasilitas (Objek Pajak)",
+                    "Natura/Fasilitas (Non-Objek Pajak)"
+                ]
+            }
+            
+        return tax_effect_types
+    except Exception as e:
+        logger.error(f"Error retrieving tax effect types: {str(e)}")
+        # Return minimal fallback
+        return {
+            "default_earning_tax_effect": "Penambah Bruto/Objek Pajak",
+            "default_deduction_tax_effect": "Pengurang Netto/Tax Deduction",
+            "options": ["Penambah Bruto/Objek Pajak", "Pengurang Netto/Tax Deduction", "Tidak Berpengaruh ke Pajak"]
+        }
+
+
+def get_component_tax_effect(component_name: str, component_type: str = "Earning") -> str:
+    """
+    Get the tax effect for a salary component based on configuration.
+    
+    Args:
+        component_name: The name of the salary component
+        component_type: Whether the component is used as 'Earning' or 'Deduction'
+        
+    Returns:
+        str: The appropriate tax effect type
+    """
+    try:
+        config = get_live_config()
+        
+        # First check if the component is explicitly categorized in tax_component_config
+        tax_component_config = config.get("tax_component_config", {}).get("tax_components", {})
+        
+        for category, components in tax_component_config.items():
+            if component_name in components:
+                if category == "penambah_bruto":
+                    return "Penambah Bruto/Objek Pajak"
+                elif category == "pengurang_netto":
+                    return "Pengurang Netto/Tax Deduction"
+                elif category == "tidak_berpengaruh":
+                    return "Tidak Berpengaruh ke Pajak"
+                elif category == "natura_objek":
+                    return "Natura/Fasilitas (Objek Pajak)"
+                elif category == "natura_non_objek":
+                    return "Natura/Fasilitas (Non-Objek Pajak)"
+                
+        # Next check if component is defined in salary_components
+        salary_components = config.get("salary_components", {})
+        component_list = []
+        
+        if component_type == "Earning":
+            component_list = salary_components.get("earnings", [])
+        else:
+            component_list = salary_components.get("deductions", [])
+            
+        for comp in component_list:
+            if comp.get("name") == component_name:
+                tax_effects = comp.get("tax_effect_by_type", [])
+                for effect in tax_effects:
+                    if effect.get("component_type") == component_type:
+                        return effect.get("tax_effect_type")
+        
+        # If not found, use defaults based on component type
+        tax_effect_types = get_tax_effect_types()
+        if component_type == "Earning":
+            return tax_effect_types.get("default_earning_tax_effect", "Penambah Bruto/Objek Pajak")
+        else:
+            return tax_effect_types.get("default_deduction_tax_effect", "Pengurang Netto/Tax Deduction")
+            
+    except Exception as e:
+        logger.error(f"Error getting tax effect for {component_name} as {component_type}: {str(e)}")
+        # Fallback to sensible defaults
+        if component_type == "Earning":
+            return "Penambah Bruto/Objek Pajak"
+        else:
+            return "Pengurang Netto/Tax Deduction"

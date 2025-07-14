@@ -1,142 +1,309 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
+# Last modified: 2025-07-05 by dannyaudian
 
 """
-Utility functions for salary calculations in Indonesian payroll.
+Salary utilities module - Helper functions for salary processing
 """
 
 import logging
-from datetime import datetime, date
-from typing import Any, Dict, Optional, Union, cast
+from typing import Dict, List, Tuple, Any, Optional
+from datetime import datetime
 
 import frappe
-from frappe.utils import getdate, flt
+from frappe import _
+from frappe.utils import flt, cint, getdate, date_diff
 
-from payroll_indonesia.override.salary_slip.tax_calculator import get_ytd_totals
-from payroll_indonesia.constants import MONTHS_PER_YEAR
+from payroll_indonesia.frappe_helpers import logger
+from payroll_indonesia.config.config import get_component_tax_effect
+from payroll_indonesia.constants import (
+    TAX_DEDUCTION_EFFECT,
+    TAX_OBJEK_EFFECT,
+    TAX_NON_OBJEK_EFFECT,
+    NATURA_OBJEK_EFFECT,
+    NATURA_NON_OBJEK_EFFECT,
+)
 
-__all__ = ["calculate_ytd_and_ytm"]
+__all__ = [
+    "calculate_ytd_and_ytm",
+    "get_component_details",
+    "get_component_amounts",
+    "categorize_components_by_tax_effect",
+]
 
-logger = logging.getLogger("salary_utils")
 
-
-def calculate_ytd_and_ytm(slip: Any, ref_date: Optional[Union[str, date]] = None) -> Dict[str, Any]:
+def calculate_ytd_and_ytm(employee: str, date: Any) -> Dict[str, Dict[str, float]]:
     """
-    Calculate year-to-date and year-to-make values for salary components.
-
+    Calculate year-to-date and year-to-month totals for an employee.
+    
     Args:
-        slip: Salary slip document
-        ref_date: Reference date for calculations (defaults to slip.posting_date)
-
+        employee: Employee ID
+        date: Reference date
+        
     Returns:
-        Dict with YTD and YTM values
+        Dict: Dictionary containing YTD and YTM totals for gross pay, taxable, deductions, etc.
     """
-    # Use provided date or slip posting date or today
-    if ref_date is None:
-        ref_date = getattr(slip, "posting_date", None)
-        if not ref_date:
-            logger.warning(
-                f"No posting_date for slip {getattr(slip, 'name', 'unknown')}, using today"
-            )
-            ref_date = date.today()
+    try:
+        if not employee or not date:
+            return {"ytd": {}, "ytm": {}}
+        
+        date_obj = getdate(date)
+        year = date_obj.year
+        month = date_obj.month
+        
+        # Initialize result
+        result = {
+            "ytd": {
+                "gross": 0.0,
+                "taxable": 0.0,
+                "deductions": 0.0,
+                "bpjs": 0.0,
+                "pph21": 0.0,
+                "net": 0.0
+            },
+            "ytm": {
+                "gross": 0.0,
+                "taxable": 0.0,
+                "deductions": 0.0,
+                "bpjs": 0.0,
+                "pph21": 0.0,
+                "net": 0.0
+            }
+        }
+        
+        # Query salary slips for this employee in current year
+        slips = frappe.get_all(
+            "Salary Slip",
+            filters={
+                "employee": employee,
+                "docstatus": 1,
+                "posting_date": ["between", [f"{year}-01-01", f"{year}-12-31"]]
+            },
+            fields=[
+                "name", "posting_date", "gross_pay", "total_deduction", "net_pay", 
+                "tax_components_json", "pph21"
+            ],
+            order_by="posting_date"
+        )
+        
+        # Process each slip
+        for slip in slips:
+            slip_date = getdate(slip.posting_date)
+            slip_month = slip_date.month
+            
+            # Extract values
+            gross = flt(slip.gross_pay)
+            deductions = flt(slip.total_deduction)
+            net = flt(slip.net_pay)
+            pph21 = flt(slip.pph21) if hasattr(slip, "pph21") else 0.0
+            
+            # Get taxable income and BPJS from tax_components_json if available
+            taxable = 0.0
+            bpjs = 0.0
+            
+            if hasattr(slip, "tax_components_json") and slip.tax_components_json:
+                try:
+                    tax_components = frappe.parse_json(slip.tax_components_json)
+                    if tax_components and isinstance(tax_components, dict):
+                        # Extract taxable income (penambah_bruto)
+                        if "total" in tax_components and "penambah_bruto" in tax_components["total"]:
+                            taxable = flt(tax_components["total"]["penambah_bruto"])
+                        
+                        # Extract BPJS (assuming they're in pengurang_netto)
+                        if "pengurang_netto" in tax_components:
+                            for component, amount in tax_components["pengurang_netto"].items():
+                                if "bpjs" in component.lower():
+                                    bpjs += flt(amount)
+                except Exception as e:
+                    logger.warning(f"Error parsing tax_components_json: {str(e)}")
+            
+            # Add to YTD
+            result["ytd"]["gross"] += gross
+            result["ytd"]["taxable"] += taxable
+            result["ytd"]["deductions"] += deductions
+            result["ytd"]["bpjs"] += bpjs
+            result["ytd"]["pph21"] += pph21
+            result["ytd"]["net"] += net
+            
+            # Add to YTM if month <= reference month
+            if slip_month <= month:
+                result["ytm"]["gross"] += gross
+                result["ytm"]["taxable"] += taxable
+                result["ytm"]["deductions"] += deductions
+                result["ytm"]["bpjs"] += bpjs
+                result["ytm"]["pph21"] += pph21
+                result["ytm"]["net"] += net
+        
+        return result
+    
+    except Exception as e:
+        logger.exception(f"Error calculating YTD/YTM for {employee}: {str(e)}")
+        return {"ytd": {}, "ytm": {}}
 
-    # Convert to date object if string
-    date_obj = getdate(ref_date)
 
-    # Get fiscal year (from slip or derive from date)
-    fiscal_year = getattr(slip, "fiscal_year", None)
-    if not fiscal_year:
-        fiscal_year = date_obj.year
-        logger.debug(f"Derived fiscal year {fiscal_year} from date {date_obj}")
-
-    # Calculate months remaining in the year
-    months_remaining = _months_remaining(date_obj)
-
-    # Get YTD totals
-    ytd_data = get_ytd_totals(slip)
-
-    # Extract values with defaults
-    ytd_gross = flt(ytd_data.get("gross", 0))
-    ytd_bpjs = flt(ytd_data.get("bpjs", 0))
-    ytd_pph21 = flt(ytd_data.get("pph21", 0))
-
-    # Current month values (not included in YTD)
-    current_gross = flt(getattr(slip, "gross_pay", 0))
-    current_bpjs = flt(getattr(slip, "total_bpjs", 0))
-    current_pph21 = flt(getattr(slip, "pph21", 0))
-
-    # Calculate annual targets (YTD + current + projected)
-    if months_remaining > 0:
-        monthly_gross = current_gross
-        monthly_bpjs = current_bpjs
-        monthly_pph21 = current_pph21
-
-        projected_gross = monthly_gross * months_remaining
-        projected_bpjs = monthly_bpjs * months_remaining
-        projected_pph21 = monthly_pph21 * months_remaining
-    else:
-        # December or special case
-        projected_gross = 0
-        projected_bpjs = 0
-        projected_pph21 = 0
-
-    # Calculate year to make values
-    ytm_gross = projected_gross
-    ytm_bpjs = projected_bpjs
-    ytm_pph21 = projected_pph21
-
-    # Calculate annual totals
-    annual_gross = ytd_gross + current_gross + ytm_gross
-    annual_bpjs = ytd_bpjs + current_bpjs + ytm_bpjs
-    annual_pph21 = ytd_pph21 + current_pph21 + ytm_pph21
-
-    # Prepare result
-    result = {
-        "ytd": {
-            "ytd_gross": ytd_gross,
-            "ytd_bpjs": ytd_bpjs,
-            "ytd_pph21": ytd_pph21,
-        },
-        "current": {
-            "gross": current_gross,
-            "bpjs": current_bpjs,
-            "pph21": current_pph21,
-        },
-        "ytm": {
-            "ytm_gross": ytm_gross,
-            "ytm_bpjs": ytm_bpjs,
-            "ytm_pph21": ytm_pph21,
-            "months_remaining": months_remaining,
-        },
-        "annual": {
-            "annual_gross": annual_gross,
-            "annual_bpjs": annual_bpjs,
-            "annual_pph21": annual_pph21,
-        },
-        "fiscal_year": fiscal_year,
-    }
-
-    logger.debug(f"YTD/YTM calculation for {getattr(slip, 'employee', 'unknown')}: {result}")
-    return result
-
-
-def _months_remaining(date_obj: date) -> int:
+def get_component_details(slip: Any, component_name: str) -> Dict[str, Any]:
     """
-    Calculate the number of months remaining in the year after the given date.
-
+    Get details for a specific component in a salary slip.
+    
     Args:
-        date_obj: The reference date
-
+        slip: Salary Slip document
+        component_name: Name of the salary component
+        
     Returns:
-        Number of months remaining in the year (0-11)
+        Dict: Dictionary with component details
     """
-    # Convert to date object if needed
-    if not isinstance(date_obj, date):
-        date_obj = getdate(date_obj)
+    try:
+        result = {
+            "found": False,
+            "type": None,
+            "amount": 0.0,
+            "tax_effect": None
+        }
+        
+        # Check earnings
+        if hasattr(slip, "earnings") and slip.earnings:
+            for earning in slip.earnings:
+                if earning.salary_component == component_name:
+                    result["found"] = True
+                    result["type"] = "Earning"
+                    result["amount"] = flt(earning.amount)
+                    result["tax_effect"] = get_component_tax_effect(component_name, "Earning")
+                    return result
+        
+        # Check deductions
+        if hasattr(slip, "deductions") and slip.deductions:
+            for deduction in slip.deductions:
+                if deduction.salary_component == component_name:
+                    result["found"] = True
+                    result["type"] = "Deduction"
+                    result["amount"] = flt(deduction.amount)
+                    result["tax_effect"] = get_component_tax_effect(component_name, "Deduction")
+                    return result
+        
+        return result
+    
+    except Exception as e:
+        logger.exception(f"Error getting component details for {component_name}: {str(e)}")
+        return {"found": False, "type": None, "amount": 0.0, "tax_effect": None}
 
-    # Calculate months remaining
-    months_passed = date_obj.month
-    months_remaining = MONTHS_PER_YEAR - months_passed
 
-    return months_remaining
+def get_component_amounts(slip: Any, component_names: List[str]) -> Dict[str, float]:
+    """
+    Get amounts for multiple components in a salary slip.
+    
+    Args:
+        slip: Salary Slip document
+        component_names: List of component names
+        
+    Returns:
+        Dict: Dictionary with component names as keys and amounts as values
+    """
+    try:
+        result = {}
+        
+        for component in component_names:
+            details = get_component_details(slip, component)
+            result[component] = details["amount"] if details["found"] else 0.0
+        
+        return result
+    
+    except Exception as e:
+        logger.exception(f"Error getting component amounts: {str(e)}")
+        return {}
+
+
+def categorize_components_by_tax_effect(slip: Any) -> Dict[str, Dict[str, float]]:
+    """
+    Categorize components in a salary slip by their tax effect.
+    
+    Args:
+        slip: Salary Slip document
+        
+    Returns:
+        Dict: Dictionary with components categorized by tax effect
+    """
+    try:
+        result = {
+            TAX_OBJEK_EFFECT: {},
+            TAX_DEDUCTION_EFFECT: {},
+            TAX_NON_OBJEK_EFFECT: {},
+            NATURA_OBJEK_EFFECT: {},
+            NATURA_NON_OBJEK_EFFECT: {},
+            "totals": {
+                TAX_OBJEK_EFFECT: 0.0,
+                TAX_DEDUCTION_EFFECT: 0.0,
+                TAX_NON_OBJEK_EFFECT: 0.0,
+                NATURA_OBJEK_EFFECT: 0.0,
+                NATURA_NON_OBJEK_EFFECT: 0.0
+            }
+        }
+        
+        # Process earnings
+        if hasattr(slip, "earnings") and slip.earnings:
+            for earning in slip.earnings:
+                component = earning.salary_component
+                amount = flt(earning.amount)
+                
+                # Skip zero amounts
+                if amount <= 0:
+                    continue
+                
+                tax_effect = get_component_tax_effect(component, "Earning")
+                
+                # Default to non-taxable if not defined
+                if not tax_effect:
+                    tax_effect = TAX_NON_OBJEK_EFFECT
+                
+                if tax_effect not in result:
+                    result[tax_effect] = {}
+                    result["totals"][tax_effect] = 0.0
+                
+                result[tax_effect][component] = amount
+                result["totals"][tax_effect] += amount
+        
+        # Process deductions
+        if hasattr(slip, "deductions") and slip.deductions:
+            for deduction in slip.deductions:
+                component = deduction.salary_component
+                amount = flt(deduction.amount)
+                
+                # Skip zero amounts
+                if amount <= 0:
+                    continue
+                
+                # Skip PPh 21 component
+                if component == "PPh 21":
+                    continue
+                
+                tax_effect = get_component_tax_effect(component, "Deduction")
+                
+                # Default to non-deductible if not defined
+                if not tax_effect:
+                    tax_effect = TAX_NON_OBJEK_EFFECT
+                
+                if tax_effect not in result:
+                    result[tax_effect] = {}
+                    result["totals"][tax_effect] = 0.0
+                
+                result[tax_effect][component] = amount
+                result["totals"][tax_effect] += amount
+        
+        return result
+    
+    except Exception as e:
+        logger.exception(f"Error categorizing components: {str(e)}")
+        return {
+            TAX_OBJEK_EFFECT: {},
+            TAX_DEDUCTION_EFFECT: {},
+            TAX_NON_OBJEK_EFFECT: {},
+            NATURA_OBJEK_EFFECT: {},
+            NATURA_NON_OBJEK_EFFECT: {},
+            "totals": {
+                TAX_OBJEK_EFFECT: 0.0,
+                TAX_DEDUCTION_EFFECT: 0.0,
+                TAX_NON_OBJEK_EFFECT: 0.0,
+                NATURA_OBJEK_EFFECT: 0.0,
+                NATURA_NON_OBJEK_EFFECT: 0.0
+            }
+        }

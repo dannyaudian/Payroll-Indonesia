@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-07-03 04:15:22 by dannyaudian
+# Last modified: 2025-07-05 by dannyaudian
 
 """
 General Payroll Indonesia helpers: account, utils, and decorator.
@@ -19,7 +19,14 @@ from typing import Any, Callable, Dict, Optional, TypeVar, cast, Union, List
 import frappe
 from frappe.utils import flt, now, get_site_path, cint
 
-from payroll_indonesia.config.config import get_live_config
+from payroll_indonesia.config.config import get_live_config, get_component_tax_effect
+from payroll_indonesia.constants import (
+    TAX_DEDUCTION_EFFECT,
+    TAX_OBJEK_EFFECT,
+    TAX_NON_OBJEK_EFFECT,
+    NATURA_OBJEK_EFFECT,
+    NATURA_NON_OBJEK_EFFECT,
+)
 
 # Define what's publicly accessible
 __all__ = [
@@ -38,6 +45,8 @@ __all__ = [
     "get_ter_rate",
     "get_ter_rate_for_template",
     "get_status_pajak",
+    "categorize_components_by_tax_effect",
+    "get_component_tax_effect_type",
 ]
 
 # Configure logger
@@ -554,6 +563,15 @@ def write_json_file_if_enabled(doc) -> bool:
     if ter_rates:
         export_data["ter_rates"] = ter_rates
 
+    # --- Component tax effect mappings (NEW) ---
+    tax_effect_mappings = {}
+    for row in getattr(doc, "component_tax_effects", []):
+        if row.salary_component and row.component_type and row.tax_effect:
+            key = f"{row.salary_component}:{row.component_type}"
+            tax_effect_mappings[key] = row.tax_effect
+    if tax_effect_mappings:
+        export_data["component_tax_effects"] = tax_effect_mappings
+
     # --- GL accounts ---
     gl_accounts: Dict[str, Any] = {}
     try:
@@ -632,21 +650,26 @@ def get_ptkp_to_ter_mapping() -> Dict[str, str]:
 @safe_execute(default_value=0.0)
 def get_ter_rate(category: str, annual_income: float) -> float:
     """Return TER rate percentage for a category and income."""
-    settings = cache_get_settings()
-    if not settings:
-        return 0.0
+    # Import from tax_calculator module to ensure we use the same calculation
     try:
-        return flt(settings.get_ter_rate(category, annual_income)) / 100.0
-    except Exception:
-        return flt(get_ter_rate_from_child(category, annual_income)) / 100.0
+        from payroll_indonesia.override.salary_slip.tax_calculator import get_ter_rate as calc_ter_rate
+        return calc_ter_rate(category, annual_income / 12.0)  # Convert annual to monthly
+    except ImportError:
+        # Fallback to old method if import fails
+        settings = cache_get_settings()
+        if not settings:
+            return 0.0
+        try:
+            return flt(settings.get_ter_rate(category, annual_income)) / 100.0
+        except Exception:
+            return flt(get_ter_rate_from_child(category, annual_income)) / 100.0
 
 
 def get_ter_rate_for_template(category: str, monthly_income: float) -> float:
     """Return TER rate for use in Jinja templates."""
     try:
-        from payroll_indonesia.override.salary_slip import tax_calculator
-
-        return flt(tax_calculator.get_ter_rate(category, monthly_income))
+        from payroll_indonesia.override.salary_slip.tax_calculator import get_ter_rate
+        return flt(get_ter_rate(category, monthly_income))
     except Exception as e:
         logger.exception(f"Error getting TER rate for template: {e}")
         return 0.0
@@ -749,6 +772,121 @@ def get_status_pajak(doc) -> str:
     # Default fallback
     logger.warning(f"Could not determine status_pajak for document: {doc}")
     return ""
+
+
+@safe_execute(default_value={})
+def categorize_components_by_tax_effect(doc) -> Dict[str, Dict[str, Any]]:
+    """
+    Categorize components in a document by their tax effect.
+    Wrapper for the tax_calculator function to avoid circular imports.
+    
+    Args:
+        doc: Document with earnings and deductions
+        
+    Returns:
+        Dict: Dictionary with components categorized by tax effect
+    """
+    try:
+        # Import lazily to avoid circular imports
+        from payroll_indonesia.override.salary_slip.tax_calculator import categorize_components_by_tax_effect as categorize
+        return categorize(doc)
+    except ImportError as e:
+        logger.warning(f"Could not import tax_calculator: {e}")
+        
+        # Fallback implementation if import fails
+        result = {
+            TAX_OBJEK_EFFECT: {},
+            TAX_DEDUCTION_EFFECT: {},
+            TAX_NON_OBJEK_EFFECT: {},
+            NATURA_OBJEK_EFFECT: {},
+            NATURA_NON_OBJEK_EFFECT: {},
+            "totals": {
+                TAX_OBJEK_EFFECT: 0.0,
+                TAX_DEDUCTION_EFFECT: 0.0,
+                TAX_NON_OBJEK_EFFECT: 0.0,
+                NATURA_OBJEK_EFFECT: 0.0,
+                NATURA_NON_OBJEK_EFFECT: 0.0
+            }
+        }
+        
+        # Process earnings
+        if hasattr(doc, "earnings") and doc.earnings:
+            for earning in doc.earnings:
+                component = earning.salary_component
+                amount = flt(earning.amount)
+                
+                # Skip zero amounts
+                if amount <= 0:
+                    continue
+                
+                tax_effect = get_component_tax_effect(component, "Earning")
+                
+                # Default to non-taxable if not defined
+                if not tax_effect:
+                    tax_effect = TAX_NON_OBJEK_EFFECT
+                
+                result[tax_effect][component] = amount
+                result["totals"][tax_effect] += amount
+        
+        # Process deductions
+        if hasattr(doc, "deductions") and doc.deductions:
+            for deduction in doc.deductions:
+                component = deduction.salary_component
+                amount = flt(deduction.amount)
+                
+                # Skip zero amounts
+                if amount <= 0:
+                    continue
+                
+                # Skip PPh 21 component
+                if component == "PPh 21":
+                    continue
+                
+                tax_effect = get_component_tax_effect(component, "Deduction")
+                
+                # Default to non-deductible if not defined
+                if not tax_effect:
+                    tax_effect = TAX_NON_OBJEK_EFFECT
+                
+                result[tax_effect][component] = amount
+                result["totals"][tax_effect] += amount
+        
+        return result
+    except Exception as e:
+        logger.exception(f"Error categorizing components: {e}")
+        return {
+            TAX_OBJEK_EFFECT: {},
+            TAX_DEDUCTION_EFFECT: {},
+            TAX_NON_OBJEK_EFFECT: {},
+            NATURA_OBJEK_EFFECT: {},
+            NATURA_NON_OBJEK_EFFECT: {},
+            "totals": {
+                TAX_OBJEK_EFFECT: 0.0,
+                TAX_DEDUCTION_EFFECT: 0.0,
+                TAX_NON_OBJEK_EFFECT: 0.0,
+                NATURA_OBJEK_EFFECT: 0.0,
+                NATURA_NON_OBJEK_EFFECT: 0.0
+            }
+        }
+
+
+@safe_execute(default_value="")
+def get_component_tax_effect_type(component_name: str, component_type: str) -> str:
+    """
+    Get tax effect type for a salary component. Wrapper for the config function.
+    
+    Args:
+        component_name: Salary component name
+        component_type: 'Earning' or 'Deduction'
+        
+    Returns:
+        str: Tax effect type constant or empty string if not found
+    """
+    try:
+        return get_component_tax_effect(component_name, component_type)
+    except Exception as e:
+        logger.exception(f"Error getting tax effect for {component_name}: {e}")
+        return ""
 
 
 # For backward compatibility

@@ -15,7 +15,7 @@ from datetime import datetime
 import frappe
 from frappe.utils import flt, cint, getdate
 
-from payroll_indonesia.config.config import get_live_config
+from payroll_indonesia.config.config import get_live_config, get_component_tax_effect
 from payroll_indonesia.frappe_helpers import logger
 from payroll_indonesia.constants import (
     MONTHS_PER_YEAR,
@@ -38,6 +38,7 @@ __all__ = [
     "calculate_monthly_pph_with_ter",
     "get_ter_rate",
     "get_ter_category",
+    "categorize_components_by_tax_effect",
 ]
 
 
@@ -521,6 +522,118 @@ def update_slip_fields(slip: Any, values: Dict[str, Any]) -> None:
         logger.exception(f"Error updating slip fields: {str(e)}")
 
 
+def categorize_components_by_tax_effect(slip: Any) -> Dict[str, Dict[str, float]]:
+    """
+    Categorize salary components by their tax effect type.
+    
+    Args:
+        slip: The Salary Slip document
+        
+    Returns:
+        Dict: Components categorized by tax effect type with amounts
+    """
+    try:
+        # Initialize result structure
+        result = {
+            "penambah_bruto": {},  # Objek Pajak components
+            "pengurang_netto": {}, # Tax deduction components
+            "tidak_berpengaruh": {},  # Non-taxable components
+            "natura_objek": {},  # Taxable benefits in kind
+            "natura_non_objek": {},  # Non-taxable benefits in kind
+            "total": {
+                "penambah_bruto": 0,
+                "pengurang_netto": 0,
+                "tidak_berpengaruh": 0,
+                "natura_objek": 0,
+                "natura_non_objek": 0
+            }
+        }
+        
+        # Process earnings
+        if hasattr(slip, "earnings"):
+            for earning in slip.earnings:
+                component_name = getattr(earning, "salary_component", "")
+                amount = flt(getattr(earning, "amount", 0))
+                
+                # Skip zero amounts
+                if amount <= 0:
+                    continue
+                    
+                # Get tax effect for this earning
+                tax_effect = get_component_tax_effect(component_name, "Earning")
+                
+                # Categorize based on tax effect
+                if tax_effect == "Penambah Bruto/Objek Pajak":
+                    result["penambah_bruto"][component_name] = amount
+                    result["total"]["penambah_bruto"] += amount
+                elif tax_effect == "Pengurang Netto/Tax Deduction":
+                    result["pengurang_netto"][component_name] = amount
+                    result["total"]["pengurang_netto"] += amount
+                elif tax_effect == "Natura/Fasilitas (Objek Pajak)":
+                    result["natura_objek"][component_name] = amount
+                    result["total"]["natura_objek"] += amount
+                elif tax_effect == "Natura/Fasilitas (Non-Objek Pajak)":
+                    result["natura_non_objek"][component_name] = amount
+                    result["total"]["natura_non_objek"] += amount
+                else:  # Tidak Berpengaruh ke Pajak
+                    result["tidak_berpengaruh"][component_name] = amount
+                    result["total"]["tidak_berpengaruh"] += amount
+        
+        # Process deductions
+        if hasattr(slip, "deductions"):
+            for deduction in slip.deductions:
+                component_name = getattr(deduction, "salary_component", "")
+                amount = flt(getattr(deduction, "amount", 0))
+                
+                # Skip zero amounts
+                if amount <= 0:
+                    continue
+                    
+                # Skip PPh 21 itself
+                if component_name == "PPh 21":
+                    continue
+                    
+                # Get tax effect for this deduction
+                tax_effect = get_component_tax_effect(component_name, "Deduction")
+                
+                # Categorize based on tax effect
+                if tax_effect == "Penambah Bruto/Objek Pajak":
+                    result["penambah_bruto"][component_name] = amount
+                    result["total"]["penambah_bruto"] += amount
+                elif tax_effect == "Pengurang Netto/Tax Deduction":
+                    result["pengurang_netto"][component_name] = amount
+                    result["total"]["pengurang_netto"] += amount
+                elif tax_effect == "Natura/Fasilitas (Objek Pajak)":
+                    result["natura_objek"][component_name] = amount
+                    result["total"]["natura_objek"] += amount
+                elif tax_effect == "Natura/Fasilitas (Non-Objek Pajak)":
+                    result["natura_non_objek"][component_name] = amount
+                    result["total"]["natura_non_objek"] += amount
+                else:  # Tidak Berpengaruh ke Pajak
+                    result["tidak_berpengaruh"][component_name] = amount
+                    result["total"]["tidak_berpengaruh"] += amount
+        
+        return result
+        
+    except Exception as e:
+        logger.exception(f"Error categorizing components: {str(e)}")
+        # Return empty result on error
+        return {
+            "penambah_bruto": {},
+            "pengurang_netto": {},
+            "tidak_berpengaruh": {},
+            "natura_objek": {},
+            "natura_non_objek": {},
+            "total": {
+                "penambah_bruto": 0,
+                "pengurang_netto": 0,
+                "tidak_berpengaruh": 0,
+                "natura_objek": 0,
+                "natura_non_objek": 0
+            }
+        }
+
+
 def get_ter_rate(ter_category: str, monthly_income: float) -> float:
     """
     Get TER rate based on TER category and monthly income from Payroll Indonesia Settings.
@@ -661,517 +774,292 @@ def get_ter_category(ptkp_code: str) -> str:
 
         # Try from config
         cfg = get_live_config()
-        ptkp_to_ter = cfg.get("ptkp_to_ter_mapping", {})
-
-        # Use configuration mapping if available
-        if ptkp_code in ptkp_to_ter:
-            category = ptkp_to_ter[ptkp_code]
+        ter_mapping = cfg.get("tax", {}).get("ter_mapping", {})
+        
+        if ptkp_code.upper() in ter_mapping:
+            category = ter_mapping[ptkp_code.upper()]
+            # Cache the result
             cache_utils.set_cache(cache_key, category, ttl=3600)
             return category
-
-        # Default mapping logic
-        prefix = ptkp_code[:2] if len(ptkp_code) >= 2 else ptkp_code
-        suffix = ptkp_code[2:] if len(ptkp_code) >= 3 else "0"
-
-        category = None
-        if ptkp_code == "TK0":
-            category = "TER A"
-        elif prefix == "TK" and suffix in ["1", "2", "3"]:
-            category = "TER B"
-        elif prefix == "K" and suffix == "0":
-            category = "TER B"
-        elif prefix == "K" and suffix in ["1", "2", "3"]:
-            category = "TER C"
-        elif prefix == "HB":  # Single parent
-            category = "TER C"
-        else:
-            # Default to highest category
-            logger.warning(f"Unknown PTKP code '{ptkp_code}', defaulting to TER C")
-            category = "TER C"
-
+            
+        # Default mapping based on PMK 168/2023
+        default_mapping = {
+            "TK0": "TER A",
+            "TK1": "TER A",
+            "TK2": "TER B", 
+            "TK3": "TER B",
+            "K0": "TER A",
+            "K1": "TER B",
+            "K2": "TER B",
+            "K3": "TER C",
+            "HB0": "TER C",
+            "HB1": "TER C",
+            "HB2": "TER C",
+            "HB3": "TER C"
+        }
+        
+        category = default_mapping.get(ptkp_code.upper(), "TER C")
+        logger.debug(f"Using default TER category {category} for PTKP status {ptkp_code}")
+        
         # Cache the result
         cache_utils.set_cache(cache_key, category, ttl=3600)
         return category
-
+        
     except Exception as e:
-        logger.exception(f"Error getting TER category for {ptkp_code}: {str(e)}")
+        logger.exception(f"Error getting TER category: {str(e)}")
+        # Default to highest category (TER C) to be safe
         return "TER C"
 
 
-def calculate_monthly_pph_with_ter(
-    *, ter_category: str, gross_pay: float, **kwargs
-) -> Dict[str, Any]:
+def calculate_monthly_pph_progressive(slip: Any) -> Tuple[float, Dict[str, Any]]:
     """
-    Calculate monthly PPh 21 using TER category.
-
+    Calculate monthly PPh 21 using standard progressive method.
+    
     Args:
-        ter_category: TER category (TER A, TER B, or TER C)
-        gross_pay: Monthly gross pay (not annualized)
-        **kwargs: Additional arguments (slip, etc.)
-
+        slip: The Salary Slip document
+        
     Returns:
-        Dict[str, Any]: Calculation results
+        Tuple[float, Dict[str, Any]]: PPh 21 amount and calculation details
     """
     try:
-        # Note: No annualization of gross_pay here - use monthly amount directly
-        ter_rate = get_ter_rate(ter_category, gross_pay)
-        monthly_tax = flt(gross_pay * ter_rate, 2)
-
-        result = {
-            "tax_method": "TER",
-            "ter_category": ter_category,
-            "gross_pay": gross_pay,
-            "annual_taxable_income": gross_pay * 12,  # Just for reference
-            "ter_rate": ter_rate,
+        # Get tax status (PTKP code)
+        tax_status = get_tax_status(slip)
+        
+        # Get gross salary from slip (monthly)
+        monthly_gross = flt(getattr(slip, "gross_pay", 0))
+        
+        # Get components by tax effect
+        tax_components = categorize_components_by_tax_effect(slip)
+        
+        # Calculate monthly objek pajak (taxable components)
+        monthly_taxable = tax_components["total"]["penambah_bruto"]
+        
+        # Add taxable benefits in kind if any
+        monthly_taxable += tax_components["total"]["natura_objek"]
+        
+        # If using custom formulas, override
+        if hasattr(slip, "calculate_taxable_income"):
+            try:
+                monthly_taxable = slip.calculate_taxable_income()
+                logger.debug(f"Using custom taxable income: {monthly_taxable}")
+            except Exception as e:
+                logger.warning(f"Error in custom taxable income calculation: {e}")
+        
+        # Annualize taxable income
+        annual_taxable = monthly_taxable * MONTHS_PER_YEAR
+        
+        # Deduct Biaya Jabatan (occupation allowance)
+        # 5% of gross income, maximum 6,000,000 per year
+        biaya_jabatan = min(annual_taxable * BIAYA_JABATAN_PERCENT, BIAYA_JABATAN_MAX)
+        
+        # Deduct tax deductible components (annualized)
+        tax_deductions = tax_components["total"]["pengurang_netto"] * MONTHS_PER_YEAR
+        
+        # Get annual PTKP amount
+        annual_ptkp = get_ptkp_value(tax_status)
+        
+        # Calculate PKP (taxable income after deductions)
+        annual_pkp = max(0, annual_taxable - biaya_jabatan - tax_deductions - annual_ptkp)
+        
+        # Round PKP down to nearest 1000
+        annual_pkp = flt(annual_pkp, 0)
+        annual_pkp = annual_pkp - (annual_pkp % 1000)
+        
+        # Calculate tax using progressive method
+        annual_tax, tax_details = calculate_progressive_tax(annual_pkp)
+        
+        # Calculate monthly tax (annual / 12)
+        monthly_tax = annual_tax / MONTHS_PER_YEAR
+        
+        # Prepare calculation details
+        details = {
+            "tax_status": tax_status,
+            "ptkp_value": annual_ptkp,
+            "monthly_gross": monthly_gross,
+            "monthly_taxable": monthly_taxable,
+            "annual_taxable": annual_taxable,
+            "biaya_jabatan": biaya_jabatan,
+            "tax_deductions": tax_deductions,
+            "annual_pkp": annual_pkp,
+            "annual_tax": annual_tax,
             "monthly_tax": monthly_tax,
+            "tax_brackets": tax_details,
+            "components": tax_components
         }
-
-        slip = kwargs.get("slip")
-        if slip:
-            update_slip_fields(
-                slip,
-                {
-                    "monthly_gross_for_ter": gross_pay,
-                    "annual_taxable_income": gross_pay * 12,  # Just for reference
-                    "ter_category": ter_category,
-                    "ter_rate": ter_rate * 100,  # Store as percentage
-                    "is_using_ter": 1,
-                    "pph21": monthly_tax,
-                },
-            )
-            # Also update any PPh 21 component
-            _update_pph21_component(slip, monthly_tax)
-
-        return result
-
+        
+        return flt(monthly_tax, 2), details
+        
     except Exception as e:
-        logger.exception(f"Error in TER calculation: {str(e)}")
-        return {
-            "tax_method": "TER",
+        logger.exception(f"Error calculating progressive tax: {str(e)}")
+        return 0.0, {}
+
+
+def calculate_december_pph(slip: Any) -> Tuple[float, Dict[str, Any]]:
+    """Calculate December PPh 21 (year-end adjustment)."""
+    try:
+        employee = getattr(slip, "employee", None)
+        if not employee:
+            return 0.0, {}
+
+        # Get year from slip
+        year, _ = get_slip_year_month(slip)
+
+        # Try to get YTD data from Employee Tax Summary first
+        tax_summary = frappe.get_all(
+            "Employee Tax Summary",
+            filters={"employee": employee, "year": year},
+            fields=["ytd_gross_pay", "ytd_tax", "ytd_bpjs", "ytd_taxable_components", "ytd_tax_deductions"],
+            limit=1
+        )
+
+        if tax_summary:
+            # Use data from Employee Tax Summary
+            ytd_gross = flt(tax_summary[0].ytd_gross_pay)
+            ytd_tax = flt(tax_summary[0].ytd_tax)
+            ytd_bpjs = flt(tax_summary[0].ytd_bpjs)
+            ytd_taxable = flt(tax_summary[0].ytd_taxable_components)
+            ytd_deductions = flt(tax_summary[0].ytd_tax_deductions)
+            logger.debug(f"Using YTD data from Employee Tax Summary: gross={ytd_gross}, tax={ytd_tax}, bpjs={ytd_bpjs}")
+        else:
+            # Fall back to calculating from salary slips
+            ytd = get_ytd_totals(slip)
+            ytd_gross = flt(ytd.get("gross", 0))
+            ytd_tax = flt(ytd.get("pph21", 0))
+            ytd_bpjs = flt(ytd.get("bpjs", 0))
+            ytd_taxable = ytd_gross  # Approximate
+            ytd_deductions = ytd_bpjs  # Approximate
+
+        # Get tax status (PTKP code)
+        tax_status = get_tax_status(slip)
+        
+        # Get gross salary from slip (monthly)
+        monthly_gross = flt(getattr(slip, "gross_pay", 0))
+        
+        # Get components by tax effect
+        tax_components = categorize_components_by_tax_effect(slip)
+        
+        # Calculate monthly objek pajak (taxable components)
+        monthly_taxable = tax_components["total"]["penambah_bruto"]
+        
+        # Add taxable benefits in kind if any
+        monthly_taxable += tax_components["total"]["natura_objek"]
+        
+        # If using custom formulas, override
+        if hasattr(slip, "calculate_taxable_income"):
+            try:
+                monthly_taxable = slip.calculate_taxable_income()
+                logger.debug(f"Using custom taxable income: {monthly_taxable}")
+            except Exception as e:
+                logger.warning(f"Error in custom taxable income calculation: {e}")
+        
+        # Calculate total annual taxable income
+        annual_taxable = ytd_taxable + monthly_taxable
+
+        # Deduct Biaya Jabatan (occupation allowance)
+        # 5% of gross income, maximum 6,000,000 per year
+        biaya_jabatan = min(annual_taxable * BIAYA_JABATAN_PERCENT, BIAYA_JABATAN_MAX)
+        
+        # Deduct annual tax deductions (YTD BPJS + current month tax deductions)
+        current_deductions = tax_components["total"]["pengurang_netto"]
+        tax_deductions = ytd_deductions + current_deductions
+
+        # Get annual PTKP amount
+        annual_ptkp = get_ptkp_value(tax_status)
+        
+        # Calculate PKP (taxable income after deductions)
+        annual_pkp = max(0, annual_taxable - biaya_jabatan - tax_deductions - annual_ptkp)
+        
+        # Round PKP down to nearest 1000
+        annual_pkp = flt(annual_pkp, 0)
+        annual_pkp = annual_pkp - (annual_pkp % 1000)
+        
+        # Calculate tax using progressive method
+        annual_tax, tax_details = calculate_progressive_tax(annual_pkp)
+        
+        # Calculate December tax (annual tax - YTD tax)
+        december_tax = annual_tax - ytd_tax
+
+        # Prepare calculation details
+        details = {
+            "tax_status": tax_status,
+            "ptkp_value": annual_ptkp,
+            "monthly_gross": monthly_gross,
+            "monthly_taxable": monthly_taxable,
+            "ytd_gross": ytd_gross,
+            "ytd_bpjs": ytd_bpjs,
+            "ytd_pph21": ytd_tax,
+            "annual_taxable": annual_taxable,
+            "biaya_jabatan": biaya_jabatan,
+            "tax_deductions": tax_deductions,
+            "annual_pkp": annual_pkp,
+            "annual_tax": annual_tax,
+            "december_tax": december_tax,
+            "tax_brackets": tax_details,
+            "components": tax_components
+        }
+        
+        return flt(december_tax, 2), details
+        
+    except Exception as e:
+        logger.exception(f"Error calculating December tax: {str(e)}")
+        return 0.0, {}
+
+def calculate_monthly_pph_with_ter(slip: Any) -> Tuple[float, Dict[str, Any]]:
+    """
+    Calculate monthly PPh 21 using TER (tarif pajak efektif rata-rata) method.
+    
+    Args:
+        slip: The Salary Slip document
+        
+    Returns:
+        Tuple[float, Dict[str, Any]]: PPh 21 amount and calculation details
+    """
+    try:
+        # Get tax status (PTKP code)
+        tax_status = get_tax_status(slip)
+        
+        # Get TER category based on tax status
+        ter_category = get_ter_category(tax_status)
+        
+        # Get gross salary from slip (monthly)
+        monthly_gross = flt(getattr(slip, "gross_pay", 0))
+        
+        # Get components by tax effect
+        tax_components = categorize_components_by_tax_effect(slip)
+        
+        # Calculate monthly objek pajak (taxable components)
+        monthly_taxable = tax_components["total"]["penambah_bruto"]
+        
+        # Add taxable benefits in kind if any
+        monthly_taxable += tax_components["total"]["natura_objek"]
+        
+        # If using custom formulas, override
+        if hasattr(slip, "calculate_taxable_income"):
+            try:
+                monthly_taxable = slip.calculate_taxable_income()
+                logger.debug(f"Using custom taxable income: {monthly_taxable}")
+            except Exception as e:
+                logger.warning(f"Error in custom taxable income calculation: {e}")
+        
+        # Get TER rate based on category and income
+        ter_rate = get_ter_rate(ter_category, monthly_taxable)
+        
+        # Calculate tax using TER method (simple multiplication)
+        monthly_tax = monthly_taxable * ter_rate
+        
+        # Prepare calculation details
+        details = {
+            "tax_status": tax_status,
             "ter_category": ter_category,
-            "gross_pay": gross_pay,
-            "ter_rate": 0.0,
-            "monthly_tax": 0.0,
-            "error": str(e),
+            "ter_rate": ter_rate * 100,  # as percentage
+            "monthly_gross": monthly_gross,
+            "monthly_taxable": monthly_taxable,
+            "monthly_tax": monthly_tax,
+            "components": tax_components
         }
-
-
-def calculate_monthly_pph_progressive(slip: Any, skip_ytd_check: bool = False) -> Dict[str, Any]:
-    """
-    Calculate PPh 21 using progressive rates for non-December months.
-    Checks tax calculation method from settings and uses TER if configured.
-
-    Args:
-        slip: The Salary Slip document
-        skip_ytd_check: If True, bypasses any YTD-based calculations
-                        (useful for fallback from December calculation)
-
-    Returns:
-        Dict[str, Any]: Calculation results
-    """
-    try:
-        # Log if we're skipping YTD checks
-        if skip_ytd_check:
-            logger.info(
-                f"Skipping YTD calculation due to skip_ytd_check=True for slip {getattr(slip, 'name', 'unknown')}"
-            )
-
-        # Check tax calculation method from settings
-        settings = frappe.get_cached_doc("Payroll Indonesia Settings")
-        tax_method = getattr(settings, "tax_calculation_method", "PROGRESSIVE")
-
-        # Use TER if configured and not skipping due to fallback
-        if (
-            tax_method == "TER"
-            and cint(getattr(settings, "use_ter", 0)) == 1
-            and not skip_ytd_check
-        ):
-            tax_status = get_tax_status(slip)
-            ter_category = get_ter_category(tax_status)
-            gross_pay = flt(getattr(slip, "gross_pay", 0))
-
-            # Calculate using TER method
-            return calculate_monthly_pph_with_ter(
-                ter_category=ter_category, gross_pay=gross_pay, slip=slip
-            )
-
-        # Continue with progressive method
-        # Initialize result with zeros
-        result = {
-            "tax_method": "PROGRESSIVE",
-            "tax_status": "TK0",
-            "gross_pay": 0.0,
-            "biaya_jabatan": 0.0,
-            "total_bpjs": 0.0,
-            "monthly_netto": 0.0,
-            "annual_netto": 0.0,
-            "ptkp": 0.0,
-            "pkp": 0.0,
-            "annual_tax": 0.0,
-            "monthly_tax": 0.0,
-            "tax_details": [],
-            "skip_ytd_check": skip_ytd_check,  # Include in result for logging
-        }
-
-        # Get tax status
-        tax_status = get_tax_status(slip)
-        result["tax_status"] = tax_status
-
-        # Get gross pay
-        gross_pay = flt(getattr(slip, "gross_pay", 0))
-        if gross_pay <= 0:
-            logger.warning(
-                f"Zero or negative gross pay for slip {getattr(slip, 'name', 'unknown')}"
-            )
-
-        result["gross_pay"] = gross_pay
-
-        # Calculate biaya jabatan
-        biaya_jabatan = min(gross_pay * (BIAYA_JABATAN_PERCENT / 100), BIAYA_JABATAN_MAX)
-        result["biaya_jabatan"] = biaya_jabatan
-
-        # Get total BPJS employee
-        total_bpjs = flt(getattr(slip, "total_bpjs", 0))
-        result["total_bpjs"] = total_bpjs
-
-        # Calculate netto
-        netto = gross_pay - biaya_jabatan - total_bpjs
-        result["monthly_netto"] = netto
-        result["netto_income"] = netto  # Also store as netto_income for reference
-
-        # Calculate annual values
-        annual_netto = netto * MONTHS_PER_YEAR
-        result["annual_netto"] = annual_netto
-
-        # Get PTKP
-        ptkp = get_ptkp_value(tax_status)
-        result["ptkp"] = ptkp
-
-        # Calculate PKP
-        pkp = max(0, annual_netto - ptkp)
-        result["pkp"] = pkp
-        result["taxable_income"] = pkp / MONTHS_PER_YEAR  # Monthly taxable income
-
-        # Calculate tax
-        annual_tax, tax_details = calculate_progressive_tax(pkp)
-        result["annual_tax"] = annual_tax
-        result["tax_details"] = tax_details
-
-        # Calculate monthly tax
-        monthly_tax = annual_tax / MONTHS_PER_YEAR
-        result["monthly_tax"] = flt(monthly_tax, 2)
-
-        # Update slip fields
-        update_slip_fields(
-            slip, {"biaya_jabatan": biaya_jabatan, "netto": netto, "pph21": monthly_tax}
-        )
-
-        # Also update any PPh 21 component
-        _update_pph21_component(slip, monthly_tax)
-
-        employee_id = getattr(slip, "employee", "unknown")
-        logger.debug(
-            f"Monthly PPh calculation for {employee_id}: {result}"
-            + (f" (skipping YTD)" if skip_ytd_check else "")
-        )
-        return result
-
+        
+        return flt(monthly_tax, 2), details
+        
     except Exception as e:
-        logger.exception(f"Error calculating monthly PPh: {str(e)}")
-        # Set fields to zero in case of error
-        update_slip_fields(slip, {"biaya_jabatan": 0, "netto": 0, "pph21": 0})
-        return {
-            "tax_method": "PROGRESSIVE",
-            "tax_status": get_tax_status(slip),
-            "gross_pay": flt(getattr(slip, "gross_pay", 0)),
-            "biaya_jabatan": 0,
-            "total_bpjs": 0,
-            "monthly_netto": 0,
-            "annual_netto": 0,
-            "ptkp": 0,
-            "pkp": 0,
-            "annual_tax": 0,
-            "monthly_tax": 0,
-            "tax_details": [],
-            "error": str(e),
-            "skip_ytd_check": skip_ytd_check,  # Include in result even on error
-        }
-
-
-def calculate_december_pph(slip: Any) -> Dict[str, Any]:
-    """
-    Calculate year-end tax correction for December or when override flag is set.
-
-    This function calculates the annual tax correction based on actual YTD income
-    and the current slip. It handles both the regular monthly tax amount and the
-    correction amount separately. No date validation is performed - it relies
-    solely on the document parameters.
-
-    Key features:
-    - Relies on is_december_override flag only, not on calendar month
-    - Calculates both monthly_tax (regular component) and correction (year-end adjustment)
-    - Handles missing or zero YTD values gracefully
-    - Works with progressive tax calculation method only (TER is handled elsewhere)
-    Args:
-        slip: The Salary Slip document
-
-    Returns:
-        Dict[str, Any]: Calculation results with monthly_tax and correction values
-    """
-    try:
-        # Verify December override flag is set (no date check)
-        # If flag is not set, delegate to regular monthly calculation
-        if not is_december_calculation(slip):
-            logger.info(
-                f"December override flag not set for slip {getattr(slip, 'name', 'unknown')}, "
-                f"using regular monthly calculation"
-            )
-            result = calculate_monthly_pph_progressive(slip)
-            # Add zero correction explicitly
-            result["correction"] = 0.0
-            return result
-
-        logger.info(
-            f"Calculating December annual tax correction for slip {getattr(slip, 'name', 'unknown')}"
-        )
-        # Initialize result with zeros
-        result = {
-            "tax_method": "PROGRESSIVE_DECEMBER",
-            "tax_status": "TK0",
-            "current_gross": 0.0,
-            "current_bpjs": 0.0,
-            "ytd_gross": 0.0,
-            "ytd_bpjs": 0.0,
-            "ytd_tax_paid": 0.0,
-            "annual_gross": 0.0,
-            "annual_bpjs": 0.0,
-            "annual_biaya_jabatan": 0.0,
-            "annual_netto": 0.0,
-            "ptkp": 0.0,
-            "pkp": 0.0,
-            "annual_tax": 0.0,
-            "monthly_tax": 0.0,  # Added regular monthly component
-            "correction": 0.0,
-            "tax_details": [],
-            "is_december_override": True,
-        }
-
-        # Get tax status
-        tax_status = get_tax_status(slip)
-        result["tax_status"] = tax_status
-        logger.debug(f"Tax status: {tax_status}")
-
-        # Get current values
-        current_gross = flt(getattr(slip, "gross_pay", 0))
-        current_bpjs = flt(getattr(slip, "total_bpjs", 0))
-        result["current_gross"] = current_gross
-        result["current_bpjs"] = current_bpjs
-        logger.debug(f"Current gross: {current_gross}, BPJS: {current_bpjs}")
-
-        # Get YTD values with fallback to zeros if missing
-        ytd = get_ytd_totals(slip)
-        ytd_gross = ytd.get("gross", 0)
-        ytd_bpjs = ytd.get("bpjs", 0)
-        ytd_tax_paid = ytd.get("pph21", 0)
-
-        # If YTD totals are zero this likely means previous months are not
-        # submitted yet.  In that case fall back to the regular monthly
-        # progressive calculation so December still shows tax values.
-        if not ytd_gross and not ytd_tax_paid:
-            logger.info(
-                f"No YTD totals found for slip {getattr(slip, 'name', 'unknown')} - "
-                "falling back to monthly progressive calculation"
-            )
-            result = calculate_monthly_pph_progressive(slip, skip_ytd_check=True)
-            result["correction"] = 0.0
-            update_slip_fields(slip, {"koreksi_pph21": 0.0})
-            return result
-
-        result["ytd_gross"] = ytd_gross
-        result["ytd_bpjs"] = ytd_bpjs
-        result["ytd_tax_paid"] = ytd_tax_paid
-
-        logger.debug(f"YTD gross: {ytd_gross}, BPJS: {ytd_bpjs}, tax paid: {ytd_tax_paid}")
-        # Calculate annual values
-        annual_gross = ytd_gross + current_gross
-        annual_bpjs = ytd_bpjs + current_bpjs
-        result["annual_gross"] = annual_gross
-        result["annual_bpjs"] = annual_bpjs
-        logger.debug(f"Annual gross: {annual_gross}, BPJS: {annual_bpjs}")
-
-        # Calculate annual biaya jabatan
-        annual_biaya_jabatan = min(
-            annual_gross * (BIAYA_JABATAN_PERCENT / 100), BIAYA_JABATAN_MAX * 12
-        )
-        result["annual_biaya_jabatan"] = annual_biaya_jabatan
-        logger.debug(f"Annual biaya jabatan: {annual_biaya_jabatan}")
-
-        # Calculate annual netto
-        annual_netto = annual_gross - annual_biaya_jabatan - annual_bpjs
-        result["annual_netto"] = annual_netto
-        logger.debug(f"Annual netto: {annual_netto}")
-
-        # Get PTKP
-        ptkp = get_ptkp_value(tax_status)
-        result["ptkp"] = ptkp
-        logger.debug(f"PTKP: {ptkp}")
-
-        # Calculate PKP (rounded down to nearest 1000)
-        pkp = max(0, annual_netto - ptkp)
-        pkp = int(pkp / 1000) * 1000  # Round down to nearest 1000
-        result["pkp"] = pkp
-        logger.debug(f"PKP: {pkp}")
-
-        # Calculate tax
-        annual_tax, tax_details = calculate_progressive_tax(pkp)
-        result["annual_tax"] = annual_tax
-        result["tax_details"] = tax_details
-        logger.debug(f"Annual tax: {annual_tax}")
-
-        # Calculate monthly tax (what would be paid in a regular month)
-        monthly_tax = annual_tax / MONTHS_PER_YEAR
-        result["monthly_tax"] = flt(monthly_tax, 2)
-        logger.debug(f"Monthly tax component: {monthly_tax}")
-
-        # Calculate correction (additional amount needed after considering already paid taxes)
-        correction = annual_tax - ytd_tax_paid
-        result["correction"] = flt(correction, 2)
-        logger.debug(f"Correction amount: {correction}")
-
-        # Calculate monthly values for display
-        monthly_biaya_jabatan = min(
-            current_gross * (BIAYA_JABATAN_PERCENT / 100), BIAYA_JABATAN_MAX
-        )
-        monthly_netto = current_gross - monthly_biaya_jabatan - current_bpjs
-
-        # Update slip fields
-        update_slip_fields(
-            slip,
-            {
-                "biaya_jabatan": monthly_biaya_jabatan,
-                "netto": monthly_netto,
-                "koreksi_pph21": correction,
-                "pph21": monthly_tax,  # Set regular monthly tax component
-            },
-        )
-
-        # Update PPh 21 component with monthly tax
-        _update_pph21_component(slip, monthly_tax)
-
-        employee_id = getattr(slip, "employee", "unknown")
-        logger.info(
-            f"December PPh calculation for {employee_id}: "
-            f"monthly tax={monthly_tax}, correction={correction}, total={monthly_tax + correction}"
-        )
-        return result
-
-    except Exception as e:
-        logger.exception(f"Error calculating December PPh: {str(e)}")
-        # Set fields to zero in case of error
-        update_slip_fields(
-            slip,
-            {
-                "biaya_jabatan": 0,
-                "netto": 0,
-                "koreksi_pph21": 0,
-                "pph21": 0,
-            },
-        )
-        return {
-            "tax_method": "PROGRESSIVE_DECEMBER",
-            "tax_status": get_tax_status(slip),
-            "current_gross": flt(getattr(slip, "gross_pay", 0)),
-            "current_bpjs": flt(getattr(slip, "total_bpjs", 0)),
-            "ytd_gross": 0,
-            "ytd_bpjs": 0,
-            "ytd_tax_paid": 0,
-            "annual_gross": 0,
-            "annual_bpjs": 0,
-            "annual_biaya_jabatan": 0,
-            "annual_netto": 0,
-            "ptkp": 0,
-            "pkp": 0,
-            "annual_tax": 0,
-            "monthly_tax": 0,  # Added regular monthly component
-            "correction": 0,
-            "tax_details": [],
-            "is_december_override": cint(getattr(slip, "is_december_override", 0)),
-            "error": str(e),
-        }
-
-
-def _update_pph21_component(slip: Any, tax_amount: float) -> None:
-    """
-    Update PPh 21 component in deductions.
-
-    Args:
-        slip: The Salary Slip document
-        tax_amount: The tax amount to set
-    """
-    try:
-        if not hasattr(slip, "deductions"):
-            return
-
-        for deduction in slip.deductions:
-            if getattr(deduction, "salary_component", "") == "PPh 21":
-                deduction.amount = tax_amount
-                logger.debug(
-                    f"Updated PPh 21 component to {tax_amount} in slip {getattr(slip, 'name', 'unknown')}"
-                )
-                break
-
-    except Exception as e:
-        logger.exception(f"Error updating PPh 21 component: {str(e)}")
-
-
-# Unit tests
-def _run_tests():
-    """Run unit tests for tax calculations"""
-    print("Running tax calculator unit tests...")
-
-    # TER rate test
-    ter_test_category = "TER B"
-    ter_test_income = 10000000  # 10 million monthly
-    ter_test_rate = get_ter_rate(ter_test_category, ter_test_income)
-    ter_test_expected_rate = 0.025  # 2.5%
-    print(f"TER rate test: get_ter_rate({ter_test_category}, {ter_test_income}) = {ter_test_rate}")
-    assert abs(ter_test_rate - ter_test_expected_rate) < 0.001, "TER rate calculation failed"
-
-    # TER tax test
-    ter_test_tax = ter_test_income * ter_test_rate
-    ter_test_tax_expected = 250000  # 250,000
-    print(f"TER tax test: {ter_test_income} * {ter_test_rate} = {ter_test_tax}")
-    assert abs(ter_test_tax - ter_test_tax_expected) < 100, "TER tax calculation failed"
-
-    # TER category test
-    ptkp_code = "TK1"
-    ter_category = get_ter_category(ptkp_code)
-    expected_category = "TER B"
-    print(f"TER category test: get_ter_category({ptkp_code}) = {ter_category}")
-    assert ter_category == expected_category, "TER category mapping failed"
-
-    # Progressive test
-    pkp_test = 60000000  # 60 million annual
-    tax_test, _ = calculate_progressive_tax(pkp_test)
-    tax_test_expected = 3000000  # 5% of 60 million = 3 million
-    print(f"Progressive test: tax on {pkp_test} = {tax_test}")
-    assert abs(tax_test - tax_test_expected) < 100, "Progressive tax calculation failed"
-
-    # Progressive brackets test
-    brackets = get_tax_brackets()
-    print(f"Tax brackets: {brackets}")
-    assert len(brackets) >= 4, "Failed to get proper tax brackets"
-
-    # Tax < 50% of income test
-    high_income = 100000000  # 100 million annual
-    high_tax, _ = calculate_progressive_tax(high_income)
-    print(f"High income test: tax on {high_income} = {high_tax}")
-    assert high_tax < high_income * 0.5, "Tax exceeds 50% of income"
-
-    print("All tests passed!")
-    return True
-
-
-# Only run tests in development mode
-if frappe.conf.get("developer_mode") and __name__ == "__main__":
-    _run_tests()
+        logger.exception(f"Error calculating TER tax: {str(e)}")
+        return 0.0, {}

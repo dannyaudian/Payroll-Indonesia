@@ -9,13 +9,25 @@
         "employee_name",
         "tax_information_section",
         "year",
+        "tax_method",
         "ytd_summary_section",
         "ytd_gross_pay",
         "ytd_tax",
         "ytd_bpjs",
+        "ytd_tax_correction",
+        "ytd_tax_with_correction",
+        "tax_components_section",
+        "ytd_taxable_components",
+        "ytd_tax_deductions",
+        "ytd_non_taxable_components",
+        "ytd_taxable_natura",
+        "ytd_non_taxable_natura",
         "ter_section",
         "is_using_ter",
         "ter_rate",
+        "december_section",
+        "has_december_correction",
+        "december_override_note",
         "monthly_data_section",
         "monthly_details",
         "column_break_hstnb",
@@ -57,6 +69,13 @@
             "reqd": 1
         },
         {
+            "fieldname": "tax_method",
+            "fieldtype": "Select",
+            "label": "Tax Method",
+            "options": "Progressive\nTER",
+            "default": "Progressive"
+        },
+        {
             "fieldname": "ytd_summary_section",
             "fieldtype": "Section Break",
             "label": "Year-to-Date Summary",
@@ -89,6 +108,74 @@
             "read_only": 1
         },
         {
+            "default": "0",
+            "fieldname": "ytd_tax_correction",
+            "fieldtype": "Currency",
+            "label": "YTD Tax Correction",
+            "options": "Company:company:default_currency",
+            "read_only": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "ytd_tax_with_correction",
+            "fieldtype": "Currency",
+            "label": "YTD Total Tax",
+            "options": "Company:company:default_currency",
+            "read_only": 1,
+            "description": "Total PPh 21 including corrections"
+        },
+        {
+            "fieldname": "tax_components_section",
+            "fieldtype": "Section Break",
+            "label": "Tax Components YTD",
+            "collapsible": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "ytd_taxable_components",
+            "fieldtype": "Currency",
+            "label": "YTD Taxable Components",
+            "options": "Company:company:default_currency",
+            "read_only": 1,
+            "description": "Components that increase taxable income (Penambah Bruto)"
+        },
+        {
+            "default": "0",
+            "fieldname": "ytd_tax_deductions",
+            "fieldtype": "Currency",
+            "label": "YTD Tax Deductions",
+            "options": "Company:company:default_currency",
+            "read_only": 1,
+            "description": "Components that reduce taxable income (Pengurang Netto)"
+        },
+        {
+            "default": "0",
+            "fieldname": "ytd_non_taxable_components",
+            "fieldtype": "Currency",
+            "label": "YTD Non-Taxable Components",
+            "options": "Company:company:default_currency",
+            "read_only": 1,
+            "description": "Components that do not affect tax calculations"
+        },
+        {
+            "default": "0",
+            "fieldname": "ytd_taxable_natura",
+            "fieldtype": "Currency",
+            "label": "YTD Taxable Natura",
+            "options": "Company:company:default_currency",
+            "read_only": 1,
+            "description": "Benefits in kind that are taxable"
+        },
+        {
+            "default": "0",
+            "fieldname": "ytd_non_taxable_natura",
+            "fieldtype": "Currency",
+            "label": "YTD Non-Taxable Natura",
+            "options": "Company:company:default_currency",
+            "read_only": 1,
+            "description": "Benefits in kind that are not taxable"
+        },
+        {
             "fieldname": "ter_section",
             "fieldtype": "Section Break",
             "label": "TER Information",
@@ -107,6 +194,26 @@
             "label": "TER Rate (%)",
             "precision": 2,
             "depends_on": "is_using_ter"
+        },
+        {
+            "fieldname": "december_section",
+            "fieldtype": "Section Break",
+            "label": "December Correction",
+            "collapsible": 1
+        },
+        {
+            "default": "0",
+            "fieldname": "has_december_correction",
+            "fieldtype": "Check",
+            "label": "Has December Correction",
+            "read_only": 1
+        },
+        {
+            "fieldname": "december_override_note",
+            "fieldtype": "Small Text",
+            "label": "December Override Note",
+            "read_only": 1,
+            "depends_on": "has_december_correction"
         },
         {
             "fieldname": "monthly_data_section",
@@ -140,7 +247,7 @@
             "link_fieldname": "employee"
         }
     ],
-    "modified": "2025-04-26 18:24:06.000000",
+    "modified": "2025-07-05 18:24:06.000000",
     "modified_by": "dannyaudian",
     "module": "Payroll Indonesia",
     "name": "Employee Tax Summary",

@@ -4,11 +4,11 @@
 
 import json
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, now_datetime
+from frappe.utils import getdate, now_datetime, flt
 from payroll_indonesia.frappe_helpers import logger
 from payroll_indonesia.utilities.tax_slab import get_default_tax_slab
 
@@ -34,13 +34,51 @@ def _load_defaults() -> Dict[str, Any]:
         return {}
 
 def _find_component_name(config: List[Dict[str, Any]], keywords: List[str], default: str) -> str:
+    """Find a component name by keywords in the configuration."""
     for comp in config or []:
         name = comp.get("name", "").lower()
         if all(k.lower() in name for k in keywords):
             return comp.get("name")
     return default
 
+def _get_component_tax_effects(component_name: str) -> Tuple[str, str]:
+    """Get the tax effect configuration for a component when used as earning and deduction.
+    
+    Args:
+        component_name: The name of the salary component
+        
+    Returns:
+        Tuple containing tax effect as earning and as deduction
+    """
+    try:
+        component = frappe.get_doc("Salary Component", component_name)
+        
+        # Default tax effects
+        tax_effect_earning = "Penambah Bruto/Objek Pajak"
+        tax_effect_deduction = "Pengurang Netto/Tax Deduction"
+        
+        # Check if the component has tax effect mappings
+        if hasattr(component, "tax_effect_by_type") and component.tax_effect_by_type:
+            for mapping in component.tax_effect_by_type:
+                if mapping.component_type == "Earning":
+                    tax_effect_earning = mapping.tax_effect_type
+                elif mapping.component_type == "Deduction":
+                    tax_effect_deduction = mapping.tax_effect_type
+        
+        # Fallback based on is_tax_applicable flag
+        elif hasattr(component, "is_tax_applicable"):
+            if not component.is_tax_applicable:
+                tax_effect_earning = "Tidak Berpengaruh ke Pajak"
+                tax_effect_deduction = "Tidak Berpengaruh ke Pajak"
+        
+        return tax_effect_earning, tax_effect_deduction
+        
+    except Exception as e:
+        logger.warning(f"Error getting tax effects for {component_name}: {str(e)}")
+        return "Penambah Bruto/Objek Pajak", "Pengurang Netto/Tax Deduction"
+
 def ensure_default_salary_structure() -> bool:
+    """Ensure a default salary structure exists, creating one if it doesn't."""
     structure_name = "Default Salary Structure"
     try:
         for name in ["Default Salary Structure", "Default Structure", "Indonesia Standard Structure"]:
@@ -69,7 +107,7 @@ def ensure_default_salary_structure() -> bool:
 
         default_tax_slab = get_default_tax_slab()
 
-        basic_percent = config.get("basic_salary_percent", 75)
+        basic_percent = config.get("basic_salary_percent", 100)
         meal_allowance = config.get("meal_allowance", 750000)
         transport_allowance = config.get("transport_allowance", 900000)
         frequency = defaults.get("defaults", {}).get("payroll_frequency", "Monthly")
@@ -94,6 +132,11 @@ def ensure_default_salary_structure() -> bool:
             "pph21": _find_component_name(deductions_conf, ["pph", "21"], "PPh 21"),
         }
 
+        # Get tax effect types for each component
+        tax_effects = {}
+        for key, component_name in component_names.items():
+            tax_effects[key] = _get_component_tax_effects(component_name)
+
         earnings = [
             {
                 "salary_component": component_names["basic"],
@@ -102,6 +145,7 @@ def ensure_default_salary_structure() -> bool:
                 "formula": "base",
                 "condition": "",
                 "depends_on_payment_days": 1,
+                "tax_effect_type": tax_effects["basic"][0],  # As earning
             },
             {
                 "salary_component": component_names["meal"],
@@ -109,6 +153,7 @@ def ensure_default_salary_structure() -> bool:
                 "amount": meal_allowance,
                 "condition": "",
                 "depends_on_payment_days": 1,
+                "tax_effect_type": tax_effects["meal"][0],  # As earning
             },
             {
                 "salary_component": component_names["transport"],
@@ -116,6 +161,7 @@ def ensure_default_salary_structure() -> bool:
                 "amount": transport_allowance,
                 "condition": "",
                 "depends_on_payment_days": 1,
+                "tax_effect_type": tax_effects["transport"][0],  # As earning
             },
         ]
 
@@ -126,6 +172,7 @@ def ensure_default_salary_structure() -> bool:
                 "amount": 0,
                 "condition": "ikut_bpjs_kesehatan",
                 "depends_on_payment_days": 1,
+                "tax_effect_type": tax_effects["bpjs_kesehatan"][1],  # As deduction
             },
             {
                 "salary_component": component_names["bpjs_jht"],
@@ -133,6 +180,7 @@ def ensure_default_salary_structure() -> bool:
                 "amount": 0,
                 "condition": "ikut_bpjs_ketenagakerjaan",
                 "depends_on_payment_days": 1,
+                "tax_effect_type": tax_effects["bpjs_jht"][1],  # As deduction
             },
             {
                 "salary_component": component_names["bpjs_jp"],
@@ -140,6 +188,7 @@ def ensure_default_salary_structure() -> bool:
                 "amount": 0,
                 "condition": "ikut_bpjs_ketenagakerjaan",
                 "depends_on_payment_days": 1,
+                "tax_effect_type": tax_effects["bpjs_jp"][1],  # As deduction
             },
             {
                 "salary_component": component_names["pph21"],
@@ -147,6 +196,7 @@ def ensure_default_salary_structure() -> bool:
                 "amount": 0,
                 "condition": "",
                 "depends_on_payment_days": 1,
+                "tax_effect_type": "Tidak Berpengaruh ke Pajak",  # PPh 21 doesn't affect its own calculation
             },
         ]
 
@@ -160,8 +210,15 @@ def ensure_default_salary_structure() -> bool:
         ss.note = "Default salary structure created automatically by Payroll Indonesia"
 
         for earning in earnings:
+            # Clean up the dict to remove extra fields if not supported
+            if not frappe.get_meta("Salary Detail").has_field("tax_effect_type"):
+                earning.pop("tax_effect_type", None)
             ss.append("earnings", earning)
+            
         for deduction in deductions:
+            # Clean up the dict to remove extra fields if not supported
+            if not frappe.get_meta("Salary Detail").has_field("tax_effect_type"):
+                deduction.pop("tax_effect_type", None)
             ss.append("deductions", deduction)
 
         if hasattr(ss, "tax_calculation_method"):
@@ -202,12 +259,14 @@ def ensure_default_salary_structure() -> bool:
 def _create_structure_assignment(
     structure_name: str, company: str, tax_slab: Optional[str] = None
 ) -> bool:
+    """Create a salary structure assignment for testing."""
     try:
         assignment = frappe.new_doc("Salary Structure Assignment")
         assignment.salary_structure = structure_name
         assignment.company = company
         assignment.from_date = getdate()
-        assignment.base = 0
+        assignment.base = flt(4000000)  # Set a reasonable base salary
+        
         if tax_slab and hasattr(assignment, "income_tax_slab"):
             assignment.income_tax_slab = tax_slab
 
@@ -222,6 +281,7 @@ def _create_structure_assignment(
         return False
 
 def setup_default_salary_structure():
+    """Set up default salary structure during app installation."""
     try:
         result = ensure_default_salary_structure()
         if not result:
@@ -236,6 +296,7 @@ def setup_default_salary_structure():
         logger.error(f"Error creating salary structure: {str(e)}", exc_info=True)
 
 def create_default_salary_structure() -> bool:
+    """Create a default salary structure using Payroll Indonesia components and tax configuration."""
     structure_name = "Payroll Indonesia Default"
 
     try:
@@ -284,6 +345,11 @@ def create_default_salary_structure() -> bool:
             "pph21": _find_component_name(deductions_conf, ["pph", "21"], "PPh 21"),
         }
 
+        # Get tax effect types for each component
+        tax_effects = {}
+        for key, component_name in component_names.items():
+            tax_effects[key] = _get_component_tax_effects(component_name)
+
         ss = frappe.new_doc("Salary Structure")
         ss.name = structure_name
         ss.salary_structure_name = structure_name
@@ -293,62 +359,82 @@ def create_default_salary_structure() -> bool:
         ss.currency = "IDR"
         ss.note = "Default salary structure created automatically by Payroll Indonesia"
 
-        ss.append("earnings", {
-            "salary_component": component_names["basic"],
-            "abbr": "GP",
-            "amount_based_on_formula": 1,
-            "formula": "base",
-            "condition": "",
-            "depends_on_payment_days": 1,
-        })
+        # Define all components with their tax effects
+        earnings_data = [
+            {
+                "salary_component": component_names["basic"],
+                "abbr": "GP",
+                "amount_based_on_formula": 1,
+                "formula": "base",
+                "condition": "",
+                "depends_on_payment_days": 1,
+                "tax_effect_type": tax_effects["basic"][0],  # As earning
+            },
+            {
+                "salary_component": component_names["meal"],
+                "abbr": "TM",
+                "amount": meal_allowance,
+                "condition": "",
+                "depends_on_payment_days": 1,
+                "tax_effect_type": tax_effects["meal"][0],  # As earning
+            },
+            {
+                "salary_component": component_names["transport"],
+                "abbr": "TT",
+                "amount": transport_allowance,
+                "condition": "",
+                "depends_on_payment_days": 1,
+                "tax_effect_type": tax_effects["transport"][0],  # As earning
+            }
+        ]
+        
+        deductions_data = [
+            {
+                "salary_component": component_names["bpjs_kesehatan"],
+                "abbr": "BPJSKES",
+                "amount": 0,
+                "condition": "ikut_bpjs_kesehatan",
+                "depends_on_payment_days": 1,
+                "tax_effect_type": tax_effects["bpjs_kesehatan"][1],  # As deduction
+            },
+            {
+                "salary_component": component_names["bpjs_jht"],
+                "abbr": "BPJSJHT",
+                "amount": 0,
+                "condition": "ikut_bpjs_ketenagakerjaan",
+                "depends_on_payment_days": 1,
+                "tax_effect_type": tax_effects["bpjs_jht"][1],  # As deduction
+            },
+            {
+                "salary_component": component_names["bpjs_jp"],
+                "abbr": "BPJSJP",
+                "amount": 0,
+                "condition": "ikut_bpjs_ketenagakerjaan",
+                "depends_on_payment_days": 1,
+                "tax_effect_type": tax_effects["bpjs_jp"][1],  # As deduction
+            },
+            {
+                "salary_component": component_names["pph21"],
+                "abbr": "PPH21",
+                "amount": 0,
+                "condition": "",
+                "depends_on_payment_days": 1,
+                "tax_effect_type": "Tidak Berpengaruh ke Pajak",  # PPh 21 doesn't affect its own calculation
+            }
+        ]
+        
+        # Check if Salary Detail has tax_effect_type field before adding
+        has_tax_effect_field = frappe.get_meta("Salary Detail").has_field("tax_effect_type")
+        
+        for earning in earnings_data:
+            if not has_tax_effect_field:
+                earning.pop("tax_effect_type", None)
+            ss.append("earnings", earning)
 
-        ss.append("earnings", {
-            "salary_component": component_names["meal"],
-            "abbr": "TM",
-            "amount": meal_allowance,
-            "condition": "",
-            "depends_on_payment_days": 1,
-        })
-
-        ss.append("earnings", {
-            "salary_component": component_names["transport"],
-            "abbr": "TT",
-            "amount": transport_allowance,
-            "condition": "",
-            "depends_on_payment_days": 1,
-        })
-
-        ss.append("deductions", {
-            "salary_component": component_names["bpjs_kesehatan"],
-            "abbr": "BPJSKES",
-            "amount": 0,
-            "condition": "ikut_bpjs_kesehatan",
-            "depends_on_payment_days": 1,
-        })
-
-        ss.append("deductions", {
-            "salary_component": component_names["bpjs_jht"],
-            "abbr": "BPJSJHT",
-            "amount": 0,
-            "condition": "ikut_bpjs_ketenagakerjaan",
-            "depends_on_payment_days": 1,
-        })
-
-        ss.append("deductions", {
-            "salary_component": component_names["bpjs_jp"],
-            "abbr": "BPJSJP",
-            "amount": 0,
-            "condition": "ikut_bpjs_ketenagakerjaan",
-            "depends_on_payment_days": 1,
-        })
-
-        ss.append("deductions", {
-            "salary_component": component_names["pph21"],
-            "abbr": "PPH21",
-            "amount": 0,
-            "condition": "",
-            "depends_on_payment_days": 1,
-        })
+        for deduction in deductions_data:
+            if not has_tax_effect_field:
+                deduction.pop("tax_effect_type", None)
+            ss.append("deductions", deduction)
 
         if hasattr(ss, "tax_calculation_method"):
             ss.tax_calculation_method = "Manual"

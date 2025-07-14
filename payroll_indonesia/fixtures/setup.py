@@ -19,7 +19,7 @@ from frappe.utils import getdate, flt, cint
 from payroll_indonesia.frappe_helpers import logger
 import payroll_indonesia.override.salary_structure as salary_structure
 from payroll_indonesia.config.config import get_config as get_default_config
-from payroll_indonesia.config.config import doctype_defined
+from payroll_indonesia.config.config import doctype_defined, get_tax_effect_types
 from payroll_indonesia.setup.settings_migration import migrate_all_settings, _load_defaults
 
 
@@ -719,6 +719,7 @@ def setup_salary_components(config):
 
         success_count = 0
         total_count = 0
+        tax_effect_types = get_tax_effect_types()
 
         for component_type in ["earnings", "deductions"]:
             if component_type not in components:
@@ -758,6 +759,35 @@ def setup_salary_components(config):
                     component.description = "PPh 21 (PMK 168/2023)"
 
                 component.round_to_the_nearest_integer = 1
+                
+                # Set tax effect type mapping if provided
+                if "tax_effect_by_type" in comp_data:
+                    # Clear existing tax effect mappings
+                    component.set("tax_effect_by_type", [])
+                    
+                    # Add new mappings from config
+                    for tax_effect_mapping in comp_data.get("tax_effect_by_type", []):
+                        component.append("tax_effect_by_type", {
+                            "component_type": tax_effect_mapping.get("component_type"),
+                            "tax_effect_type": tax_effect_mapping.get("tax_effect_type"),
+                            "description": tax_effect_mapping.get("description", "")
+                        })
+                # If no tax_effect_by_type provided, set default tax effect mappings
+                elif hasattr(component, "tax_effect_by_type") and not component.tax_effect_by_type:
+                    # Default for Earning
+                    component.append("tax_effect_by_type", {
+                        "component_type": "Earning",
+                        "tax_effect_type": tax_effect_types.get("default_earning_tax_effect", "Penambah Bruto/Objek Pajak"),
+                        "description": "Default tax effect for earnings"
+                    })
+                    
+                    # Default for Deduction
+                    component.append("tax_effect_by_type", {
+                        "component_type": "Deduction",
+                        "tax_effect_type": tax_effect_types.get("default_deduction_tax_effect", "Pengurang Netto/Tax Deduction"),
+                        "description": "Default tax effect for deductions"
+                    })
+
                 component.flags.ignore_permissions = True
 
                 if is_new:
@@ -805,13 +835,13 @@ def setup_default_salary_structure():
         # If no structure exists, try to create the standard one first
         if not existing_structure:
             logger.info("Creating default salary structure with standard method")
-        result = salary_structure.ensure_default_salary_structure()
+            result = salary_structure.ensure_default_salary_structure()
 
         if result:
             logger.info("Default salary structure created successfully")
             return True
         else:
-                logger.warning("Standard method failed, trying alternative method")
+            logger.warning("Standard method failed, trying alternative method")
 
         # If the standard method failed or we didn't try it, use the alternative method
         # which always attempts to create a structure with a different name
@@ -830,9 +860,9 @@ def setup_default_salary_structure():
         raise
 
 def setup_company_accounts(doc, method=None):
-	# Dummy function untuk menghindari error pada setup wizard
-	# Kamu bisa isi logic tambahan di sini kalau perlu, misalnya auto create account atau setting
-	frappe.logger().info(f"[PAYROLL] setup_company_accounts triggered for: {doc.name}")
+    # Dummy function untuk menghindari error pada setup wizard
+    # Kamu bisa isi logic tambahan di sini kalau perlu, misalnya auto create account atau setting
+    frappe.logger().info(f"[PAYROLL] setup_company_accounts triggered for: {doc.name}")
 
 def display_installation_summary(results, config):
     """

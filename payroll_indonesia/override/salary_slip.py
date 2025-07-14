@@ -1,375 +1,363 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-29 02:35:42 by dannyaudian
+# Last modified: 2025-07-05 by dannyaudian
 
 """
-Salary Slip override for Indonesian payroll.
-
-Re-exports IndonesiaPayrollSalarySlip from the override.salary_slip package.
-This class contains customizations for Indonesian payroll regulations.
+Salary Slip - Main override for Indonesia-specific salary processing
 """
+
+import logging
+from typing import Dict, List, Tuple, Any, Optional, Union
+from datetime import datetime
 
 import frappe
 from frappe import _
-from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
-from payroll_indonesia.override.salary_slip_functions import is_december
+from frappe.utils import flt, cint, getdate, date_diff, add_months
 
-from payroll_indonesia.frappe_helpers import get_logger
+from payroll_indonesia.frappe_helpers import logger
+from payroll_indonesia.config.config import get_component_tax_effect, get_live_config
+from payroll_indonesia.constants import (
+    TAX_DEDUCTION_EFFECT,
+    TAX_OBJEK_EFFECT,
+    TAX_NON_OBJEK_EFFECT,
+    NATURA_OBJEK_EFFECT,
+    NATURA_NON_OBJEK_EFFECT,
+    MONTHS_PER_YEAR,
+)
+from payroll_indonesia.override.salary_slip.controller import (
+    update_indonesia_tax_components,
+    calculate_taxable_earnings
+)
+from payroll_indonesia.override.salary_slip.tax_calculator import (
+    get_tax_status,
+    is_december_calculation,
+    get_ptkp_value,
+    calculate_progressive_tax,
+    get_ter_rate,
+    get_ter_category,
+    categorize_components_by_tax_effect
+)
 
-logger = get_logger("salary_slip")
 
-
-class IndonesiaPayrollSalarySlip(SalarySlip):
+class SalarySlipIndonesia:
     """
-    Custom Salary Slip class for Indonesian payroll requirements.
-    
-    Extends the standard SalarySlip class with additional functionality
-    for Indonesian tax calculations, BPJS, and other local requirements.
-    
-    Key features:
-    - Uses is_december_override flag instead of date-based December detection
-    - Supports TER tax calculation method
-    - Handles Indonesian payroll specifics like BPJS and PPh 21
+    Salary Slip Indonesia class for extending Salary Slip functionality.
     """
     
-    def before_insert(self):
+    def __init__(self, salary_slip=None):
         """
-        Prepare Salary Slip before insertion.
+        Initialize with optional salary slip document.
         
-        This method ensures all required flags are properly set
-        before the document is inserted into the database.
+        Args:
+            salary_slip: Salary Slip document
         """
-        # Call parent's before_insert if it exists
-        if hasattr(super(), "before_insert"):
-            super().before_insert()
-            
-        # IMPORTANT: Set December override flag from Payroll Entry
-        # This replaces any date-based December detection
-        self._populate_december_override_from_payroll_entry()
-        
-        # Ensure run_as_december and is_december_override are in sync
-        self._ensure_december_flags_consistency()
-        
-    def before_save(self):
-        """
-        Process before saving the document.
-        
-        Ensures flag consistency and handles other pre-save operations.
-        """
-        # Call parent's before_save if it exists
-        if hasattr(super(), "before_save"):
-            super().before_save()
-            
-        # Auto-detect December based on end_date
-        self._auto_detect_december_from_date()
-
-        # Auto-set override flag if checkbox is active
-        self.is_december_override = self.run_as_december or 0
-
-        # IMPORTANT: Ensure December flags are consistent before saving
-        self._ensure_december_flags_consistency()
-        
-    def validate(self):
-        """
-        Validate Salary Slip with Indonesian-specific requirements.
-        
-        Extends the standard validation with additional checks and
-        sets up fields required for Indonesian payroll processing.
-        """
-        # Auto-detect December based on end_date
-        self._auto_detect_december_from_date()
-
-        # IMPORTANT: Process December override first - before any other validations
-        # This ensures tax calculations use the correct mode regardless of actual date
-        self._populate_december_override_from_payroll_entry()
-        
-        # Ensure December flags are consistent
-        self._ensure_december_flags_consistency()
-        
-        # Apply December override effects (notes, UI indicators)
-        self._process_december_override()
-        
-        # Check TER method settings
-        self._populate_ter_method_from_payroll_entry()
-        
-        # Validate required Indonesian fields
-        self._validate_indonesian_fields()
-        
-        # Call the parent validation after our special overrides
-        # This ensures our logic has priority over standard behavior
-        super().validate()
+        self.doc = salary_slip
     
-    def _ensure_december_flags_consistency(self):
+    def validate_tax_settings(self):
         """
-        Ensure that run_as_december and is_december_override flags are consistent.
-        
-        This method synchronizes both flags so they always have the same value,
-        regardless of which one was set originally. This is critical for ensuring
-        December tax calculations are applied correctly.
+        Validate tax-related settings.
         """
-        # Initialize the flags if they don't exist
-        if not hasattr(self, "run_as_december"):
-            self.run_as_december = 0
-            
-        if not hasattr(self, "is_december_override"):
-            self.is_december_override = 0
-            
-        # IMPORTANT: Synchronize the flags in both directions
-        # This ensures consistency regardless of which flag was set
-        if self.run_as_december and not self.is_december_override:
-            self.is_december_override = 1
-            logger.debug(f"Set is_december_override=1 based on run_as_december for slip {getattr(self, 'name', 'new')}")
-            
-        elif self.is_december_override and not self.run_as_december:
-            self.run_as_december = 1
-            logger.debug(f"Set run_as_december=1 based on is_december_override for slip {getattr(self, 'name', 'new')}")
-            
-        # Log the final state for auditing
-        logger.debug(f"December flags for slip {getattr(self, 'name', 'new')}: "
-                     f"run_as_december={self.run_as_december}, "
-                     f"is_december_override={self.is_december_override}")
-        
-    def _populate_december_override_from_payroll_entry(self):
-        """
-        Auto-populate is_december_override flag from Payroll Entry.
-        
-        IMPORTANT: This method replaces date-based December detection.
-        The is_december_override flag is the sole determinant of whether
-        December tax calculation logic should be applied, regardless of
-        the actual calendar month of the slip.
-        """
-        # Skip if the flag is already set to avoid unnecessary processing
-        if getattr(self, "is_december_override", 0) == 1:
-            logger.debug(f"December override already active for slip {getattr(self, 'name', 'new')}")
-            return
-            
-        # Skip if no payroll entry - handle manually created slips
-        if not getattr(self, "payroll_entry", None):
-            logger.debug(f"No Payroll Entry for slip {getattr(self, 'name', 'new')}, skipping December override check")
-            return
-            
-        # Initialize is_december_override to 0 if not already set
-        if not hasattr(self, "is_december_override"):
-            self.is_december_override = 0
-            
         try:
-            # Load the Payroll Entry document if it's a string
-            payroll_entry_doc = None
-            if isinstance(self.payroll_entry, str):
-                payroll_entry_doc = frappe.get_doc("Payroll Entry", self.payroll_entry)
-                # Store the document for future reference
-                self.payroll_entry = payroll_entry_doc
-            else:
-                # It's already a document
-                payroll_entry_doc = self.payroll_entry
-                
-            # Safety check in case payroll_entry is empty string or None
-            if not payroll_entry_doc:
-                logger.debug(f"Empty Payroll Entry for slip {getattr(self, 'name', 'new')}")
+            if not self.doc:
                 return
-                
-            # IMPORTANT: Check for December override flags in Payroll Entry (try both field names)
-            # No date-based checks are performed - only flag-based
-            is_december = False
             
-            # Try is_december_override first
-            if hasattr(payroll_entry_doc, 'is_december_override') and payroll_entry_doc.is_december_override:
-                is_december = True
-                
-            # Also check run_as_december
-            elif hasattr(payroll_entry_doc, 'run_as_december') and payroll_entry_doc.run_as_december:
-                is_december = True
-                
-            # Set flag on salary slip if needed
-            if is_december:
-                # IMPORTANT: Set both flags for consistency
-                self.is_december_override = 1
-                
-                # Also set run_as_december for consistency
-                if hasattr(self, "run_as_december"):
-                    self.run_as_december = 1
-                
-                # Log the inheritance for audit
-                slip_name = getattr(self, 'name', 'new')
-                pe_name = getattr(payroll_entry_doc, 'name', 'unknown')
-                logger.info(f"December override flags inherited for slip {slip_name} from Payroll Entry {pe_name}")
-                
-        except Exception as e:
-            # Log but don't interrupt flow
-            logger.warning(
-                f"Error checking December override from Payroll Entry for slip {getattr(self, 'name', 'new')}: {str(e)}"
-            )
+            # Skip if Indonesia payroll not enabled
+            if cint(getattr(self.doc, "calculate_indonesia_tax", 0)) != 1:
+                return
             
-    def _populate_ter_method_from_payroll_entry(self):
-        """
-        Auto-populate use_ter_method flag from Payroll Entry.
+            # Validate tax status
+            tax_status = get_tax_status(self.doc)
+            if not tax_status:
+                frappe.throw(_("Tax status (PTKP) must be set for Indonesia tax calculation."))
+            
+            # Validate tax method
+            tax_method = getattr(self.doc, "tax_method", "Progressive")
+            if tax_method not in ["Progressive", "TER"]:
+                frappe.throw(_("Invalid tax method. Must be 'Progressive' or 'TER'."))
+            
+            # Validate components have tax effects defined
+            self._validate_component_tax_effects()
+            
+            logger.debug(f"Tax settings validated for slip {getattr(self.doc, 'name', 'unknown')}")
         
-        This method checks the associated Payroll Entry document and sets
-        the use_ter_method flag on the Salary Slip accordingly.
+        except Exception as e:
+            logger.exception(f"Error validating tax settings: {str(e)}")
+    
+    def _validate_component_tax_effects(self):
         """
-        # Skip if the flag is already set to avoid unnecessary processing
-        if getattr(self, "use_ter_method", 0) == 1:
-            logger.debug(f"TER method already active for slip {getattr(self, 'name', 'new')}")
-            return
-            
-        # Skip if no payroll entry - handle manually created slips
-        if not getattr(self, "payroll_entry", None):
-            logger.debug(f"No Payroll Entry for slip {getattr(self, 'name', 'new')}, skipping TER method check")
-            return
-            
-        # Initialize use_ter_method to 0 if not already set
-        if not hasattr(self, "use_ter_method"):
-            self.use_ter_method = 0
-            
+        Validate that components have valid tax effects.
+        """
         try:
-            # Get the Payroll Entry document
-            payroll_entry_doc = None
-            if isinstance(self.payroll_entry, str):
-                payroll_entry_doc = frappe.get_doc("Payroll Entry", self.payroll_entry)
-                # Store the document for future reference
-                self.payroll_entry = payroll_entry_doc
-            else:
-                # It's already a document
-                payroll_entry_doc = self.payroll_entry
-                
-            # Safety check in case payroll_entry is empty string or None
-            if not payroll_entry_doc:
-                return
-                
-            # Check for use_ter_method attribute safely
-            if hasattr(payroll_entry_doc, 'use_ter_method') and payroll_entry_doc.use_ter_method:
-                # Set flag on salary slip
-                self.use_ter_method = 1
-                
-                # Log the inheritance
-                slip_name = getattr(self, 'name', 'new')
-                pe_name = getattr(payroll_entry_doc, 'name', 'unknown')
-                logger.info(f"TER method flag inherited for slip {slip_name} from Payroll Entry {pe_name}")
-                
+            # Count components missing tax effects
+            missing_effects = []
+            
+            # Check earnings
+            if hasattr(self.doc, "earnings") and self.doc.earnings:
+                for earning in self.doc.earnings:
+                    component = earning.salary_component
+                    tax_effect = get_component_tax_effect(component, "Earning")
+                    
+                    if not tax_effect and flt(earning.amount) > 0:
+                        missing_effects.append(f"Earning: {component}")
+            
+            # Check deductions
+            if hasattr(self.doc, "deductions") and self.doc.deductions:
+                for deduction in self.doc.deductions:
+                    component = deduction.salary_component
+                    
+                    # Skip PPh 21 component
+                    if component == "PPh 21":
+                        continue
+                    
+                    tax_effect = get_component_tax_effect(component, "Deduction")
+                    
+                    if not tax_effect and flt(deduction.amount) > 0:
+                        missing_effects.append(f"Deduction: {component}")
+            
+            # Show warning if components are missing tax effects
+            if missing_effects:
+                warning_msg = _(
+                    "The following components are missing tax effect settings. "
+                    "They will be treated as non-taxable by default:\n{0}"
+                ).format("\n".join(missing_effects))
+                frappe.msgprint(warning_msg, title=_("Missing Tax Effect Settings"), indicator="orange")
+        
         except Exception as e:
-            # Log but don't interrupt flow
-            logger.warning(
-                f"Error checking TER method from Payroll Entry for slip {getattr(self, 'name', 'new')}: {str(e)}"
-            )
+            logger.exception(f"Error validating component tax effects: {str(e)}")
     
-    def _process_december_override(self):
+    def calculate_taxable_income(self):
         """
-        Process December override logic for annual tax correction.
-        
-        IMPORTANT: This method applies December-specific logic based solely on
-        the is_december_override flag, not on the calendar month or date.
-        
-        It uses the is_december() function which checks for flag-based override
-        from either the document itself or its linked Payroll Entry.
-        """
-        # IMPORTANT: Use is_december() function which checks flag-based override
-        # No date-based checks are performed
-        if is_december(self):
-            # Add or update payroll note with December correction information
-            december_note = _("Annual tax correction (December) is applied to this salary slip")
-            
-            if getattr(self, "payroll_note", ""):
-                if december_note not in self.payroll_note:
-                    self.payroll_note = f"{self.payroll_note}\n{december_note}"
-            else:
-                self.payroll_note = december_note
-                
-            # IMPORTANT: Log for auditing December calculations
-            logger.info(f"December tax correction mode is active for salary slip {getattr(self, 'name', 'new')} "
-                       f"(is_december_override={self.is_december_override}, run_as_december={getattr(self, 'run_as_december', 0)})")
-    
-    def _validate_indonesian_fields(self):
-        """
-        Validate fields required for Indonesian payroll processing.
-        
-        Ensures all required custom fields for Indonesian payroll
-        are properly populated with appropriate values.
-        """
-        # Initialize custom fields if they don't exist
-        required_fields = {
-            "biaya_jabatan": 0,
-            "netto": 0, 
-            "total_bpjs": 0,
-            "is_using_ter": 0,
-            "ter_rate": 0,
-            "koreksi_pph21": 0,
-            "ytd_gross_pay": 0,
-            "ytd_bpjs_deductions": 0,
-        }
-        
-        for field, default_value in required_fields.items():
-            if not hasattr(self, field) or getattr(self, field) is None:
-                setattr(self, field, default_value)
-                
-        # IMPORTANT: Ensure December flags are set
-        # These flags control December calculation logic
-        if not hasattr(self, "is_december_override"):
-            self.is_december_override = 0
-            
-        if not hasattr(self, "run_as_december"):
-            self.run_as_december = 0
-            
-        # Ensure TER method flag is set
-        if not hasattr(self, "use_ter_method"):
-            self.use_ter_method = 0
-    
-    def calculate_tax_by_tax_slab(self):
-        """
-        Override calculate_tax_by_tax_slab to handle Indonesian tax calculation.
-        
-        This is a stub that returns zero because Indonesian tax calculation
-        is handled by the salary_slip_functions hooks instead.
+        Calculate taxable income based on tax effect types.
         
         Returns:
-            float: Always returns 0 as tax is calculated separately
+            float: Taxable income amount
         """
-        # Return 0 because Indonesian tax calculation is handled by hooks
-        return 0
+        try:
+            if not self.doc:
+                return 0.0
+            
+            # Use categorize_components_by_tax_effect to get taxable components
+            tax_components = categorize_components_by_tax_effect(self.doc)
+            
+            # Sum objek pajak components and taxable natura
+            taxable_income = tax_components["totals"].get(TAX_OBJEK_EFFECT, 0)
+            taxable_income += tax_components["totals"].get(NATURA_OBJEK_EFFECT, 0)
+            
+            return flt(taxable_income, 2)
+        
+        except Exception as e:
+            logger.exception(f"Error calculating taxable income: {str(e)}")
+            return 0.0
     
-    def get_tax_paid_in_period(self):
+    def is_december_calculation(self):
         """
-        Get tax paid in the current period for Indonesian tax calculation.
+        Check if this is a December calculation.
         
         Returns:
-            float: Amount of tax paid in current period
+            bool: True if December calculation
         """
-        # This function can be extended for Indonesian tax requirements
-        # For now, use the parent implementation
-        return super().get_tax_paid_in_period()
-
-    def _auto_detect_december_from_date(self):
-        """
-        Automatically detect December month from end_date and set appropriate flags.
+        return is_december_calculation(self.doc) if self.doc else False
     
-        If the slip's end_date is in December, both is_december_override and 
-        run_as_december flags will be set to 1.
+    def calculate_pph21(self):
         """
-        # Skip if flags are already set
-        if getattr(self, "is_december_override", 0) == 1 or getattr(self, "run_as_december", 0) == 1:
-            return
+        Calculate PPh 21 tax.
         
-        # Check if end_date exists and is in December
-        if hasattr(self, "end_date") and self.end_date:
-            try:
-                from frappe.utils import getdate
-                end_date = getdate(self.end_date)
+        Returns:
+            float: Calculated PPh 21 amount
+        """
+        try:
+            if not self.doc:
+                return 0.0
             
-                # Check if month is December (12)
-                if end_date.month == 12:
-                    # Set both flags for consistency
-                    self.is_december_override = 1
-                    self.run_as_december = 1
-                
-                    logger.info(
-                        f"December month auto-detected from end_date {self.end_date} "
-                        f"for slip {getattr(self, 'name', 'new')}"
-                    )
-            except Exception as e:
-                # Log but don't interrupt flow
-                logger.warning(
-                    f"Error checking December from end_date for slip {getattr(self, 'name', 'new')}: {str(e)}"
-                )
-
-# Re-export the class for import by other modules
-__all__ = ["IndonesiaPayrollSalarySlip"]
+            # Skip if Indonesia payroll not enabled
+            if cint(getattr(self.doc, "calculate_indonesia_tax", 0)) != 1:
+                return 0.0
+            
+            # Get tax method
+            tax_method = getattr(self.doc, "tax_method", "Progressive")
+            
+            # Calculate tax based on method
+            if tax_method == "TER":
+                return self._calculate_pph21_ter()
+            elif self.is_december_calculation():
+                return self._calculate_pph21_december()
+            else:
+                return self._calculate_pph21_progressive()
+        
+        except Exception as e:
+            logger.exception(f"Error calculating PPh 21: {str(e)}")
+            return 0.0
+    
+    def _calculate_pph21_progressive(self):
+        """
+        Calculate PPh 21 using progressive method.
+        
+        Returns:
+            float: Calculated tax amount
+        """
+        try:
+            # Get tax status and PTKP value
+            tax_status = get_tax_status(self.doc)
+            annual_ptkp = get_ptkp_value(tax_status)
+            
+            # Get taxable income
+            monthly_taxable = self.calculate_taxable_income()
+            annual_taxable = monthly_taxable * MONTHS_PER_YEAR
+            
+            # Get tax components by effect
+            tax_components = categorize_components_by_tax_effect(self.doc)
+            
+            # Calculate biaya jabatan (5% of annual taxable, max 6,000,000 per year)
+            biaya_jabatan = min(annual_taxable * 0.05, 6000000)
+            
+            # Sum tax deductions (annualized)
+            tax_deductions = tax_components["totals"].get(TAX_DEDUCTION_EFFECT, 0) * MONTHS_PER_YEAR
+            
+            # Calculate PKP (taxable income after deductions)
+            annual_pkp = max(0, annual_taxable - biaya_jabatan - tax_deductions - annual_ptkp)
+            
+            # Round PKP down to nearest 1000
+            annual_pkp = flt(annual_pkp, 0)
+            annual_pkp = annual_pkp - (annual_pkp % 1000)
+            
+            # Calculate tax using progressive method
+            annual_tax, _ = calculate_progressive_tax(annual_pkp)
+            
+            # Convert to monthly tax
+            monthly_tax = annual_tax / MONTHS_PER_YEAR
+            
+            # Store calculation details
+            if hasattr(self.doc, "ptkp_value"):
+                self.doc.ptkp_value = annual_ptkp
+            if hasattr(self.doc, "monthly_taxable"):
+                self.doc.monthly_taxable = monthly_taxable
+            if hasattr(self.doc, "annual_taxable"):
+                self.doc.annual_taxable = annual_taxable
+            if hasattr(self.doc, "biaya_jabatan"):
+                self.doc.biaya_jabatan = biaya_jabatan
+            if hasattr(self.doc, "tax_deductions"):
+                self.doc.tax_deductions = tax_deductions
+            if hasattr(self.doc, "annual_pkp"):
+                self.doc.annual_pkp = annual_pkp
+            if hasattr(self.doc, "annual_tax"):
+                self.doc.annual_tax = annual_tax
+            
+            return flt(monthly_tax, 2)
+        
+        except Exception as e:
+            logger.exception(f"Error calculating progressive PPh 21: {str(e)}")
+            return 0.0
+    
+    def _calculate_pph21_december(self):
+        """
+        Calculate PPh 21 for December (year-end adjustment).
+        
+        Returns:
+            float: Calculated tax amount
+        """
+        try:
+            # Get YTD values
+            ytd_gross = flt(getattr(self.doc, "ytd_gross", 0))
+            ytd_bpjs = flt(getattr(self.doc, "ytd_bpjs", 0))
+            ytd_pph21 = flt(getattr(self.doc, "ytd_pph21", 0))
+            
+            # Get current month taxable income
+            monthly_taxable = self.calculate_taxable_income()
+            
+            # Get tax status and PTKP value
+            tax_status = get_tax_status(self.doc)
+            annual_ptkp = get_ptkp_value(tax_status)
+            
+            # Get tax components by effect
+            tax_components = categorize_components_by_tax_effect(self.doc)
+            
+            # Calculate total annual taxable income
+            annual_taxable = ytd_gross + monthly_taxable
+            
+            # Calculate biaya jabatan (5% of annual taxable, max 6,000,000 per year)
+            biaya_jabatan = min(annual_taxable * 0.05, 6000000)
+            
+            # Calculate tax deductions (YTD BPJS + current month tax deductions)
+            current_deductions = tax_components["totals"].get(TAX_DEDUCTION_EFFECT, 0)
+            tax_deductions = ytd_bpjs + current_deductions
+            
+            # Calculate PKP (taxable income after deductions)
+            annual_pkp = max(0, annual_taxable - biaya_jabatan - tax_deductions - annual_ptkp)
+            
+            # Round PKP down to nearest 1000
+            annual_pkp = flt(annual_pkp, 0)
+            annual_pkp = annual_pkp - (annual_pkp % 1000)
+            
+            # Calculate tax using progressive method
+            annual_tax, _ = calculate_progressive_tax(annual_pkp)
+            
+            # Calculate December tax (annual tax - YTD tax)
+            december_tax = annual_tax - ytd_pph21
+            
+            # Store calculation details
+            if hasattr(self.doc, "ptkp_value"):
+                self.doc.ptkp_value = annual_ptkp
+            if hasattr(self.doc, "monthly_taxable"):
+                self.doc.monthly_taxable = monthly_taxable
+            if hasattr(self.doc, "ytd_gross"):
+                self.doc.ytd_gross = ytd_gross
+            if hasattr(self.doc, "ytd_bpjs"):
+                self.doc.ytd_bpjs = ytd_bpjs
+            if hasattr(self.doc, "ytd_pph21"):
+                self.doc.ytd_pph21 = ytd_pph21
+            if hasattr(self.doc, "annual_taxable"):
+                self.doc.annual_taxable = annual_taxable
+            if hasattr(self.doc, "biaya_jabatan"):
+                self.doc.biaya_jabatan = biaya_jabatan
+            if hasattr(self.doc, "tax_deductions"):
+                self.doc.tax_deductions = tax_deductions
+            if hasattr(self.doc, "annual_pkp"):
+                self.doc.annual_pkp = annual_pkp
+            if hasattr(self.doc, "annual_tax"):
+                self.doc.annual_tax = annual_tax
+            if hasattr(self.doc, "december_tax"):
+                self.doc.december_tax = december_tax
+            
+            return flt(december_tax, 2)
+        
+        except Exception as e:
+            logger.exception(f"Error calculating December PPh 21: {str(e)}")
+            return 0.0
+    
+    def _calculate_pph21_ter(self):
+        """
+        Calculate PPh 21 using TER method.
+        
+        Returns:
+            float: Calculated tax amount
+        """
+        try:
+            # Get tax status
+            tax_status = get_tax_status(self.doc)
+            
+            # Get TER category based on tax status
+            ter_category = get_ter_category(tax_status)
+            
+            # Get taxable income
+            taxable_income = self.calculate_taxable_income()
+            
+            # Get TER rate based on category and income
+            ter_rate = get_ter_rate(ter_category, taxable_income)
+            
+            # Calculate tax using TER method (simple multiplication)
+            tax_amount = taxable_income * ter_rate
+            
+            # Store calculation details
+            if hasattr(self.doc, "ter_category"):
+                self.doc.ter_category = ter_category
+            if hasattr(self.doc, "ter_rate"):
+                self.doc.ter_rate = ter_rate * 100  # as percentage
+            if hasattr(self.doc, "monthly_taxable"):
+                self.doc.monthly_taxable = taxable_income
+            
+            return flt(tax_amount, 2)
+        
+        except Exception as e:
+            logger.exception(f"Error calculating TER PPh 21: {str(e)}")
+            return 0.0

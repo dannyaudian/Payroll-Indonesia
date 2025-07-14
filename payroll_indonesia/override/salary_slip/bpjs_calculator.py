@@ -9,13 +9,13 @@ BPJS calculator module - satu-satunya kalkulator BPJS.
 Provides standardized calculation functions for BPJS deductions in Indonesian payroll.
 """
 
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, List
 
 import frappe
 from frappe.utils import flt, cint
 
 from payroll_indonesia.frappe_helpers import logger
-from payroll_indonesia.config.config import get_live_config
+from payroll_indonesia.config.config import get_live_config, get_component_tax_effect
 from payroll_indonesia.constants import (
     DEFAULT_UMR,
     BPJS_KESEHATAN_EMPLOYEE_PERCENT,
@@ -144,6 +144,8 @@ def validate_bpjs_percentages(cfg: Dict[str, Any]) -> bool:
 def _get_base_salary(slip: Any) -> float:
     """
     Extract base salary from salary slip or return default UMR.
+    
+    Uses tax effect types to identify components that should be included in base salary.
 
     Args:
         slip: The Salary Slip document
@@ -156,12 +158,21 @@ def _get_base_salary(slip: Any) -> float:
         if hasattr(slip, "gross_pay") and slip.gross_pay:
             return float(slip.gross_pay)
 
-        # Try to get from earnings list (looking for "Gaji Pokok")
+        # Try to get from earnings list using tax effect types
         base_salary = 0.0
         if hasattr(slip, "earnings"):
             for earning in getattr(slip, "earnings", []):
-                if getattr(earning, "salary_component", "") == "Gaji Pokok":
+                component_name = getattr(earning, "salary_component", "")
+                # Get tax effect for this component
+                tax_effect = get_component_tax_effect(component_name, "Earning")
+                
+                # Include components that are part of taxable gross income
+                if tax_effect in [
+                    "Penambah Bruto/Objek Pajak", 
+                    "Natura/Fasilitas (Objek Pajak)"
+                ]:
                     base_salary += float(getattr(earning, "amount", 0))
+            
             if base_salary > 0:
                 return base_salary
 
@@ -180,9 +191,110 @@ def _get_base_salary(slip: Any) -> float:
         return float(DEFAULT_UMR)
 
 
+def _is_bpjs_kesehatan_component(component_name: str) -> bool:
+    """
+    Check if a component is related to BPJS Kesehatan based on name or tax effect.
+    
+    Args:
+        component_name: Name of the salary component
+        
+    Returns:
+        bool: True if it's a BPJS Kesehatan component
+    """
+    kesehatan_keywords = ["kesehatan", "health"]
+    return any(keyword in component_name.lower() for keyword in kesehatan_keywords)
+
+
+def _is_bpjs_jht_component(component_name: str) -> bool:
+    """
+    Check if a component is related to BPJS JHT based on name or tax effect.
+    
+    Args:
+        component_name: Name of the salary component
+        
+    Returns:
+        bool: True if it's a BPJS JHT component
+    """
+    jht_keywords = ["jht", "hari tua"]
+    return any(keyword in component_name.lower() for keyword in jht_keywords)
+
+
+def _is_bpjs_jp_component(component_name: str) -> bool:
+    """
+    Check if a component is related to BPJS JP based on name or tax effect.
+    
+    Args:
+        component_name: Name of the salary component
+        
+    Returns:
+        bool: True if it's a BPJS JP component
+    """
+    jp_keywords = ["jp", "pensiun"]
+    return any(keyword in component_name.lower() for keyword in jp_keywords)
+
+
+def _is_bpjs_jkk_component(component_name: str) -> bool:
+    """
+    Check if a component is related to BPJS JKK based on name or tax effect.
+    
+    Args:
+        component_name: Name of the salary component
+        
+    Returns:
+        bool: True if it's a BPJS JKK component
+    """
+    jkk_keywords = ["jkk", "kecelakaan"]
+    return any(keyword in component_name.lower() for keyword in jkk_keywords)
+
+
+def _is_bpjs_jkm_component(component_name: str) -> bool:
+    """
+    Check if a component is related to BPJS JKM based on name or tax effect.
+    
+    Args:
+        component_name: Name of the salary component
+        
+    Returns:
+        bool: True if it's a BPJS JKM component
+    """
+    jkm_keywords = ["jkm", "kematian"]
+    return any(keyword in component_name.lower() for keyword in jkm_keywords)
+
+
+def _find_component_amounts(slip: Any, component_type: str) -> Dict[str, float]:
+    """
+    Find BPJS component amounts in the salary slip based on tax effect and component names.
+    
+    Args:
+        slip: The Salary Slip document
+        component_type: Either 'earnings' or 'deductions'
+        
+    Returns:
+        Dict[str, float]: Dictionary of component names and amounts
+    """
+    component_amounts = {}
+    
+    if not hasattr(slip, component_type):
+        return component_amounts
+        
+    components_list = getattr(slip, component_type, [])
+    
+    for component in components_list:
+        component_name = getattr(component, "salary_component", "")
+        amount = flt(getattr(component, "amount", 0))
+        
+        # Store component amount by name
+        component_amounts[component_name] = amount
+        
+    return component_amounts
+
+
 def calculate_components(slip: Any) -> Dict[str, float]:
     """
     Calculate BPJS (employee & employer) components for salary slip.
+    
+    This function now uses tax effect types to determine which components are 
+    included in the base salary and which are BPJS components.
 
     Args:
         slip: The Salary Slip document
@@ -236,6 +348,30 @@ def calculate_components(slip: Any) -> Dict[str, float]:
             except Exception as e:
                 logger.exception(f"Error checking employee BPJS enrollment: {str(e)}")
                 # Continue with calculation as default
+
+        # Find existing BPJS components in slip
+        deduction_amounts = _find_component_amounts(slip, "deductions")
+        
+        # Check if BPJS components already exist and have amounts
+        kesehatan_employee_comp = next((comp for comp in deduction_amounts if _is_bpjs_kesehatan_component(comp) and "employee" in comp.lower()), None)
+        jht_employee_comp = next((comp for comp in deduction_amounts if _is_bpjs_jht_component(comp) and "employee" in comp.lower()), None)
+        jp_employee_comp = next((comp for comp in deduction_amounts if _is_bpjs_jp_component(comp) and "employee" in comp.lower()), None)
+        
+        # If components exist with amounts, use those values
+        if kesehatan_employee_comp:
+            result["kesehatan_employee"] = deduction_amounts[kesehatan_employee_comp]
+        if jht_employee_comp:
+            result["jht_employee"] = deduction_amounts[jht_employee_comp]
+        if jp_employee_comp:
+            result["jp_employee"] = deduction_amounts[jp_employee_comp]
+            
+        # If all employee components have values, skip calculation
+        if result["kesehatan_employee"] > 0 and result["jht_employee"] > 0 and result["jp_employee"] > 0:
+            # Just calculate totals
+            result["total_employee"] = (
+                result["kesehatan_employee"] + result["jht_employee"] + result["jp_employee"]
+            )
+            return result
 
         # Get base salary
         base_salary = _get_base_salary(slip)
@@ -330,21 +466,25 @@ def calculate_components(slip: Any) -> Dict[str, float]:
             logger.warning(f"BPJS JKM percent not found. Using default: {percentages['jkm']}%")
 
         # Calculate each component
-        result["kesehatan_employee"] = calculate_bpjs(
-            base_salary, percentages["kesehatan_emp"], max_salary=kesehatan_max
-        )
+        # Use existing value if available, otherwise calculate
+        if not kesehatan_employee_comp:
+            result["kesehatan_employee"] = calculate_bpjs(
+                base_salary, percentages["kesehatan_emp"], max_salary=kesehatan_max
+            )
 
         result["kesehatan_employer"] = calculate_bpjs(
             base_salary, percentages["kesehatan_com"], max_salary=kesehatan_max
         )
 
-        result["jht_employee"] = calculate_bpjs(base_salary, percentages["jht_emp"])
+        if not jht_employee_comp:
+            result["jht_employee"] = calculate_bpjs(base_salary, percentages["jht_emp"])
 
         result["jht_employer"] = calculate_bpjs(base_salary, percentages["jht_com"])
 
-        result["jp_employee"] = calculate_bpjs(
-            base_salary, percentages["jp_emp"], max_salary=jp_max
-        )
+        if not jp_employee_comp:
+            result["jp_employee"] = calculate_bpjs(
+                base_salary, percentages["jp_emp"], max_salary=jp_max
+            )
 
         result["jp_employer"] = calculate_bpjs(
             base_salary, percentages["jp_com"], max_salary=jp_max

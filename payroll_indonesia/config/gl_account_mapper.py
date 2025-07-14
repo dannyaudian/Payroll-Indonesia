@@ -7,7 +7,7 @@ import frappe
 import logging
 
 # FIXED: Use correct import path for get_default_config
-from payroll_indonesia.config.config import get_config as get_default_config
+from payroll_indonesia.config.config import get_config as get_default_config, get_component_tax_effect
 from payroll_indonesia.payroll_indonesia.utils import debug_log
 
 # Setup logger
@@ -158,19 +158,38 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
         "PPh 21": ("hutang_pph21", "payable_accounts"),
     }
 
-    # Check if the salary component exists in the mapping
+    # Get the component type (Earning or Deduction) to determine account category
+    component_doc = None
+    try:
+        component_doc = frappe.get_doc("Salary Component", salary_component)
+    except Exception as e:
+        logger.warning(f"Could not load salary component {salary_component}: {str(e)}")
+        
+    component_type = "Earning"  # Default
+    if component_doc and hasattr(component_doc, "type"):
+        component_type = component_doc.type
+    
+    # Get tax effect for the component
+    tax_effect = get_component_tax_effect(salary_component, component_type)
+    
+    # For components not in the explicit mapping, generate account name based on tax effect
     if salary_component not in component_mapping:
-        logger.warning(f"No GL account mapping found for salary component '{salary_component}'")
-        debug_log(
-            f"No GL account mapping found for salary component '{salary_component}'",
-            "Salary Component Mapping",
-        )
-
         # Get company abbreviation
         company_abbr = frappe.get_cached_value("Company", company, "abbr")
-        return f"{salary_component} Account - {company_abbr}"
-
-    # Get the account key and category
+        
+        # Map tax effect to account name
+        if tax_effect == "Penambah Bruto/Objek Pajak":
+            return f"Beban {salary_component} - {company_abbr}"
+        elif tax_effect == "Pengurang Netto/Tax Deduction":
+            return f"Beban {salary_component} - {company_abbr}"
+        elif tax_effect == "Natura/Fasilitas (Objek Pajak)":
+            return f"Beban Natura {salary_component} - {company_abbr}"
+        elif tax_effect == "Natura/Fasilitas (Non-Objek Pajak)":
+            return f"Beban Fasilitas {salary_component} - {company_abbr}"
+        else:  # Tidak Berpengaruh ke Pajak
+            return f"{salary_component} Account - {company_abbr}"
+    
+    # Get the account key and category from the mapping
     account_key, category = component_mapping[salary_component]
 
     # Return the mapped GL account

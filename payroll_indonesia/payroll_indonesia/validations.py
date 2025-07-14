@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-06-29 02:08:10 by dannyaudian
+# Last modified: 2025-07-05 by dannyaudian
 
 """
 Centralized validation functions for Payroll Indonesia.
@@ -11,14 +11,22 @@ ensuring consistent rule enforcement throughout the application.
 """
 
 import re
-from typing import Any, Dict, Union
+from typing import Any, Dict, Union, List, Optional
 
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import flt, cint
 
-from payroll_indonesia.config.config import get_live_config
+from payroll_indonesia.config.config import get_live_config, get_component_tax_effect
 from payroll_indonesia.frappe_helpers import logger
+from payroll_indonesia.constants import (
+    TAX_DEDUCTION_EFFECT,
+    TAX_OBJEK_EFFECT,
+    TAX_NON_OBJEK_EFFECT,
+    NATURA_OBJEK_EFFECT,
+    NATURA_NON_OBJEK_EFFECT,
+    VALID_TAX_EFFECTS,
+)
 
 __all__ = [
     # Employee validations
@@ -26,6 +34,8 @@ __all__ = [
     "validate_employee_golongan",
     # Tax validations
     "validate_tax_status",
+    "validate_component_tax_effects",
+    "validate_salary_structure_tax_effects",
     # BPJS validations
     "validate_bpjs_components",
     "validate_bpjs_account_mapping",
@@ -206,6 +216,110 @@ def validate_tax_status(status: str) -> None:
     validate_employee_tax_status(dummy)
 
 
+def validate_component_tax_effects(components: List[Dict[str, Any]], 
+                                  component_type: str, 
+                                  throw_error: bool = True) -> List[str]:
+    """
+    Validate that components have tax effects defined.
+    
+    Args:
+        components: List of component dictionaries with 'salary_component' key
+        component_type: Type of component ('Earning' or 'Deduction')
+        throw_error: Whether to throw error on validation failure
+        
+    Returns:
+        List[str]: List of components without tax effect
+    """
+    missing_effects = []
+    
+    for component_dict in components:
+        component_name = component_dict.get('salary_component')
+        if not component_name:
+            continue
+            
+        # Skip PPh 21 component for deductions
+        if component_type == "Deduction" and component_name == "PPh 21":
+            continue
+            
+        tax_effect = get_component_tax_effect(component_name, component_type)
+        
+        if not tax_effect:
+            missing_effects.append(component_name)
+    
+    if missing_effects and throw_error:
+        components_list = ", ".join(missing_effects[:10])
+        if len(missing_effects) > 10:
+            components_list += f" and {len(missing_effects) - 10} more"
+        
+        frappe.throw(
+            _("The following {0} components do not have tax effects defined: {1}").format(
+                component_type, components_list
+            ),
+            title=_("Missing Tax Effect Settings")
+        )
+    
+    return missing_effects
+
+
+def validate_salary_structure_tax_effects(doc: Any) -> None:
+    """
+    Validate that all components in a salary structure have tax effects defined.
+    
+    Args:
+        doc: Salary Structure document
+    """
+    try:
+        # Skip validation if not configured to require tax effects
+        cfg = get_live_config()
+        validation_cfg = cfg.get("validation", {})
+        require_tax_effects = cint(validation_cfg.get("require_tax_effects", 0))
+        
+        if not require_tax_effects:
+            return
+        
+        # Collect components
+        earnings = getattr(doc, "earnings", [])
+        deductions = getattr(doc, "deductions", [])
+        
+        # Convert to list of dicts if not already
+        earnings_list = [e.as_dict() if hasattr(e, "as_dict") else e for e in earnings]
+        deductions_list = [d.as_dict() if hasattr(d, "as_dict") else d for d in deductions]
+        
+        # Validate tax effects
+        missing_earnings = validate_component_tax_effects(earnings_list, "Earning", False)
+        missing_deductions = validate_component_tax_effects(deductions_list, "Deduction", False)
+        
+        # Report combined results
+        missing_all = missing_earnings + missing_deductions
+        if missing_all:
+            components_list = ", ".join(missing_all[:10])
+            if len(missing_all) > 10:
+                components_list += f" and {len(missing_all) - 10} more"
+            
+            frappe.msgprint(
+                _("The following components do not have tax effects defined: {0}").format(
+                    components_list
+                ),
+                title=_("Missing Tax Effect Settings"),
+                indicator="orange"
+            )
+    except Exception as e:
+        logger.error(f"Error validating salary structure tax effects: {e}")
+
+
+def validate_tax_effect_type(tax_effect: str) -> bool:
+    """
+    Validate that a tax effect type is valid.
+    
+    Args:
+        tax_effect: Tax effect type to validate
+        
+    Returns:
+        bool: True if valid, False if not
+    """
+    return tax_effect in VALID_TAX_EFFECTS
+
+
 # =====================
 # BPJS Validations
 # =====================
@@ -242,6 +356,33 @@ def validate_bpjs_components(company: str = None) -> None:
             _("Komponen BPJS berikut belum dibuat: {0}").format(", ".join(missing)),
             title="Validasi Komponen BPJS",
         )
+        
+    # Also validate that BPJS components have the correct tax effect (Tax Deduction)
+    for comp in required_components:
+        if frappe.db.exists("Salary Component", comp):
+            # Determine component type based on name
+            component_type = "Earning" if "Employer" in comp else "Deduction"
+            
+            # Get tax effect
+            tax_effect = get_component_tax_effect(comp, component_type)
+            
+            # Check if it's a tax deduction
+            if tax_effect != TAX_DEDUCTION_EFFECT:
+                # Log warning and update tax effect
+                logger.warning(
+                    f"BPJS component {comp} has incorrect tax effect: {tax_effect}. "
+                    f"Should be {TAX_DEDUCTION_EFFECT}."
+                )
+                
+                # Show warning message
+                frappe.msgprint(
+                    _("BPJS component {0} should have tax effect '{1}' but has '{2}'. "
+                      "Consider updating its tax effect setting.").format(
+                        comp, TAX_DEDUCTION_EFFECT, tax_effect or _("Not set")
+                    ),
+                    title=_("Incorrect Tax Effect"),
+                    indicator="orange"
+                )
 
 
 def validate_bpjs_account_mapping(company: str = None) -> None:
@@ -297,3 +438,97 @@ def validate_ter_rates(ter_category: str) -> None:
             _("No TER rates defined for category: {0}").format(ter_category),
             title="TER Rate Validation",
         )
+
+
+def validate_components_tax_effects_consistency(doc: Any) -> None:
+    """
+    Validate consistency of tax effects for components across multiple documents.
+    
+    Checks that components used in multiple salary structures have consistent
+    tax effect settings.
+    
+    Args:
+        doc: Salary Component document or Salary Structure document
+    """
+    try:
+        # If document is a Salary Component, check its usage across structures
+        if getattr(doc, "doctype", "") == "Salary Component":
+            component_name = doc.name
+            component_type = doc.type
+            
+            # Get all structures using this component
+            structures = frappe.get_all(
+                "Salary Detail",
+                filters={
+                    "salary_component": component_name,
+                    "parenttype": "Salary Structure"
+                },
+                fields=["parent"],
+                distinct=True
+            )
+            
+            if len(structures) <= 1:
+                # No consistency issues if used in 0 or 1 structure
+                return
+            
+            # Get tax effect for this component
+            tax_effect = get_component_tax_effect(component_name, component_type)
+            
+            # Log for awareness
+            logger.info(
+                f"Component {component_name} is used in {len(structures)} salary structures "
+                f"with tax effect '{tax_effect or 'Not set'}'"
+            )
+            
+            # Only show warning if no tax effect is set
+            if not tax_effect:
+                frappe.msgprint(
+                    _("Component {0} is used in {1} salary structures but has no tax effect defined. "
+                      "Consider setting a tax effect for consistent tax calculations.").format(
+                        component_name, len(structures)
+                    ),
+                    title=_("Missing Tax Effect"),
+                    indicator="orange"
+                )
+        
+        # If document is a Salary Structure, validate all its components
+        elif getattr(doc, "doctype", "") == "Salary Structure":
+            structure_name = doc.name
+            
+            # Get all components used in this structure
+            components = {}
+            
+            # Process earnings
+            for earning in getattr(doc, "earnings", []):
+                component_name = getattr(earning, "salary_component", "")
+                if component_name:
+                    components[component_name] = "Earning"
+            
+            # Process deductions
+            for deduction in getattr(doc, "deductions", []):
+                component_name = getattr(deduction, "salary_component", "")
+                if component_name:
+                    components[component_name] = "Deduction"
+            
+            # Check tax effects for all components
+            missing_effects = []
+            for component_name, component_type in components.items():
+                tax_effect = get_component_tax_effect(component_name, component_type)
+                if not tax_effect:
+                    missing_effects.append(f"{component_name} ({component_type})")
+            
+            # Show warning if components are missing tax effects
+            if missing_effects:
+                components_list = ", ".join(missing_effects[:10])
+                if len(missing_effects) > 10:
+                    components_list += f" and {len(missing_effects) - 10} more"
+                
+                frappe.msgprint(
+                    _("The following components in structure {0} have no tax effect defined: {1}").format(
+                        structure_name, components_list
+                    ),
+                    title=_("Missing Tax Effects"),
+                    indicator="orange"
+                )
+    except Exception as e:
+        logger.error(f"Error validating component tax effect consistency: {e}")

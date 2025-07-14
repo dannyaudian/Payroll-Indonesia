@@ -1,0 +1,27 @@
+{
+  "doctype": "DocType",
+  "name": "Tax Effect Type Mapping",
+  "istable": 1,
+  "module": "Payroll Indonesia",
+  "fields": [
+    {
+      "fieldname": "component_type",
+      "label": "Component Type",
+      "fieldtype": "Select",
+      "options": "Earning\nDeduction",
+      "reqd": 1
+    },
+    {
+      "fieldname": "tax_effect_type",
+      "label": "Tax Effect Type", 
+      "fieldtype": "Select",
+      "options": "Penambah Bruto/Objek Pajak\nPengurang Netto/Tax Deduction\nTidak Berpengaruh ke Pajak\nNatura/Fasilitas (Objek Pajak)\nNatura/Fasilitas (Non-Objek Pajak)",
+      "reqd": 1
+    },
+    {
+      "fieldname": "description",
+      "label": "Description",
+      "fieldtype": "Small Text"
+    }
+  ]
+}

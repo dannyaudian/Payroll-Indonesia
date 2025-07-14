@@ -1,323 +1,322 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
+# Last modified: 2025-07-05 by dannyaudian
 
 """
-Indonesia Payroll Salary Slip Controller
-
-This module overrides ERPNext's Salary Slip class to implement Indonesian tax calculations.
+Salary Slip Controller module - Indonesia-specific logic for salary processing
 """
+
+import logging
+from typing import Dict, List, Tuple, Any, Optional, Union
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate
+from frappe.utils import flt, cint, getdate, date_diff, add_months
 
-# Correct import paths based on ERPNext/HRMS structure
-try:
-    # For newer versions with HRMS app
-    from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
-except ImportError:
+from payroll_indonesia.frappe_helpers import logger
+from payroll_indonesia.config.config import get_component_tax_effect
+from payroll_indonesia.constants import (
+    TAX_DEDUCTION_EFFECT,
+    TAX_OBJEK_EFFECT,
+    TAX_NON_OBJEK_EFFECT,
+    NATURA_OBJEK_EFFECT,
+    NATURA_NON_OBJEK_EFFECT,
+)
+from payroll_indonesia.override.salary_slip.tax_calculator import (
+    calculate_monthly_pph_progressive,
+    calculate_december_pph,
+    calculate_monthly_pph_with_ter,
+    is_december_calculation,
+    update_slip_fields,
+)
+
+__all__ = [
+    "update_indonesia_tax_components",
+    "calculate_taxable_earnings",
+    "get_bpjs_deductions",
+    "update_slip_with_tax_details",
+    "process_indonesia_taxes",
+]
+
+
+def calculate_taxable_earnings(doc: Any) -> float:
+    """
+    Calculate taxable earnings based on component tax effect type.
+    
+    Args:
+        doc: Salary Slip document
+        
+    Returns:
+        float: Total taxable earnings
+    """
     try:
-        # For older ERPNext versions
-        from erpnext.hr.doctype.salary_slip.salary_slip import SalarySlip
-    except ImportError:
-        # Fallback
-        from frappe.model.document import Document
-        class SalarySlip(Document):
-            pass
-
-import logging
-from typing import Dict, List, Any, Optional
-
-import payroll_indonesia.override.salary_slip.tax_calculator as tax_calc
-from payroll_indonesia.payroll_indonesia.utils import get_status_pajak
-from payroll_indonesia.payroll_indonesia.utils import get_ptkp_to_ter_mapping, get_ter_rate
-
-logger = logging.getLogger(__name__)
-
-
-class IndonesiaPayrollSalarySlip(SalarySlip):
-    """
-    Custom Salary Slip class for Indonesian payroll with proper tax calculations.
-    Overrides the standard ERPNext tax calculations to use Indonesian PPh 21 calculations.
-    """
-    
-    def validate(self):
-        """Override validate to ensure our tax calculation is used."""
-        # Call parent validate but we'll handle tax calculation ourselves
-        super().validate()
+        taxable_earnings = 0.0
         
-        # Set a flag to indicate this is an Indonesian Payroll Salary Slip
-        self.is_indonesia_payroll = True
-    
-    def get_income_tax_slabs(self):
-        """
-        Override income tax slab retrieval to use Indonesian tax slabs.
-        This ensures ERPNext's standard tax calculation is bypassed.
-        
-        Returns:
-            Dict: A dummy tax slab object with required attributes
-        """
-        # Instead of an empty list, return a dummy object with required attributes
-        class DummyTaxSlab:
-            def __init__(self):
-                self.allow_tax_exemption = 0
-                self.slabs = []
-                self.other_taxes_and_charges = []
+        # Process earnings
+        if hasattr(doc, "earnings") and doc.earnings:
+            for earning in doc.earnings:
+                component = earning.salary_component
+                amount = flt(earning.amount)
                 
-        return DummyTaxSlab()
-    
-    def get_tax_paid_in_period(self):
-        """
-        Override to prevent standard tax calculation.
+                # Skip zero amounts
+                if amount <= 0:
+                    continue
+                
+                # Get tax effect for this component
+                tax_effect = get_component_tax_effect(component, "Earning")
+                
+                # Add to taxable earnings if it's an objek pajak or taxable natura
+                if tax_effect == TAX_OBJEK_EFFECT or tax_effect == NATURA_OBJEK_EFFECT:
+                    taxable_earnings += amount
+                    logger.debug(f"Added taxable earning: {component} = {amount}")
         
-        Returns:
-            float: 0.0 as we're handling this differently
-        """
-        # Return 0 as we're handling tax in our own way
+        logger.debug(f"Total taxable earnings: {taxable_earnings}")
+        return taxable_earnings
+    
+    except Exception as e:
+        logger.exception(f"Error calculating taxable earnings: {str(e)}")
         return 0.0
-    
-    def compute_taxable_earnings_for_year(self):
-        """
-        Override to use our own implementation that doesn't depend on payroll period.
-        """
-        # Set a value for annual taxable earnings to prevent errors
-        self.annual_taxable_earnings = self.gross_pay * 12
-        self.gross_taxable_earnings_to_date = self.gross_pay
-        
-        # We'll use our own implementation in calculate_income_tax
-        self.tax_slab = self.get_income_tax_slabs()
 
-    def calculate_income_tax(self, payroll_period=None, tax_component=None):
-        """
-        Override income tax calculation to use Indonesian PPh 21 calculation.
+
+def get_bpjs_deductions(doc: Any) -> Dict[str, float]:
+    """
+    Get BPJS deductions based on tax effect type.
+    
+    Args:
+        doc: Salary Slip document
         
-        Args:
-            payroll_period: Payroll period (unused)
-            tax_component: Tax component (unused)
-            
-        Returns:
-            Dict: Tax calculation result
-        """
-        # Calculate tax based on method from settings
-        settings = frappe.get_cached_doc("Payroll Indonesia Settings")
-        tax_method = settings.tax_calculation_method  # "TER" or "PROGRESSIVE"
+    Returns:
+        Dict[str, float]: Dictionary with BPJS deduction details
+    """
+    try:
+        result = {
+            "jht_employee": 0.0,
+            "jp_employee": 0.0,
+            "jkn_employee": 0.0,
+            "total_employee": 0.0,
+            "jht_employer": 0.0,
+            "jp_employer": 0.0,
+            "jkn_employer": 0.0,
+            "jkk_employer": 0.0,
+            "jkm_employer": 0.0,
+            "total_employer": 0.0,
+            "total_combined": 0.0,
+        }
         
-        logger.info(f"Calculating income tax for {self.employee} using method: {tax_method}")
+        # Process deductions
+        if hasattr(doc, "deductions") and doc.deductions:
+            for deduction in doc.deductions:
+                component = deduction.salary_component
+                amount = flt(deduction.amount)
+                
+                # Skip zero amounts
+                if amount <= 0:
+                    continue
+                
+                # Get tax effect for this component
+                tax_effect = get_component_tax_effect(component, "Deduction")
+                
+                # Check if this is a tax deduction (BPJS is typically a tax deduction)
+                if tax_effect == TAX_DEDUCTION_EFFECT:
+                    # Categorize based on component name
+                    # This still relies on component naming but with tax effect as first filter
+                    component_lower = component.lower()
+                    
+                    if "jht" in component_lower and "employee" in component_lower:
+                        result["jht_employee"] += amount
+                        result["total_employee"] += amount
+                    elif "jp" in component_lower and "employee" in component_lower:
+                        result["jp_employee"] += amount
+                        result["total_employee"] += amount
+                    elif "jkn" in component_lower and "employee" in component_lower:
+                        result["jkn_employee"] += amount
+                        result["total_employee"] += amount
+                    elif "jht" in component_lower and "employer" in component_lower:
+                        result["jht_employer"] += amount
+                        result["total_employer"] += amount
+                    elif "jp" in component_lower and "employer" in component_lower:
+                        result["jp_employer"] += amount
+                        result["total_employer"] += amount
+                    elif "jkn" in component_lower and "employer" in component_lower:
+                        result["jkn_employer"] += amount
+                        result["total_employer"] += amount
+                    elif "jkk" in component_lower:
+                        result["jkk_employer"] += amount
+                        result["total_employer"] += amount
+                    elif "jkm" in component_lower:
+                        result["jkm_employer"] += amount
+                        result["total_employer"] += amount
+                    elif "bpjs" in component_lower:
+                        # Generic BPJS component - add to employee portion
+                        result["total_employee"] += amount
         
-        if tax_method == "TER" and settings.use_ter:
-            # Check if employee is eligible for TER
-            status_pajak = get_status_pajak(self)
-            mapping = get_ptkp_to_ter_mapping()
-            ter_category = mapping.get(status_pajak, "")
-            
-            if ter_category:
-                # Use TER calculation
-                result = tax_calc.calculate_monthly_pph_with_ter(
-                    ter_category=ter_category,
-                    gross_pay=self.gross_pay,
-                    slip=self
-                )
-                tax_amount = result.get("monthly_tax", 0.0)
-                logger.info(f"TER method applied for {self.name} - tax: {tax_amount}")
-            else:
-                # Fallback to progressive if not TER eligible
-                logger.info(f"Employee {self.employee} not eligible for TER, using progressive")
-                result = tax_calc.calculate_monthly_pph_progressive(self)
-                tax_amount = result.get("monthly_tax", 0.0)
-        elif getattr(self, "is_december_override", 0):
-            # Use December calculation for year-end
-            result = tax_calc.calculate_december_pph(self)
-            tax_amount = result.get("correction", 0.0)
-            logger.info(f"December correction applied for {self.name} - tax: {tax_amount}")
-        else:
-            # Use standard progressive calculation
-            result = tax_calc.calculate_monthly_pph_progressive(self)
-            tax_amount = result.get("monthly_tax", 0.0)
-            logger.info(f"Progressive method applied for {self.name} - tax: {tax_amount}")
+        # Calculate total
+        result["total_combined"] = result["total_employee"] + result["total_employer"]
         
-        # Return the tax amount in the format expected by ERPNext
+        return result
+        
+    except Exception as e:
+        logger.exception(f"Error getting BPJS deductions: {str(e)}")
         return {
-            "tax_amount": flt(tax_amount, 2),
-            "tax_on_additional_salary": 0,
-            "tax_on_flexible_benefit": 0,
-            "tax_break_up": result
+            "jht_employee": 0.0,
+            "jp_employee": 0.0,
+            "jkn_employee": 0.0,
+            "total_employee": 0.0,
+            "jht_employer": 0.0,
+            "jp_employer": 0.0,
+            "jkn_employer": 0.0,
+            "jkk_employer": 0.0,
+            "jkm_employer": 0.0,
+            "total_employer": 0.0,
+            "total_combined": 0.0,
         }
 
-    def calculate_variable_tax(self, tax_component):
-        """
-        Override variable tax calculation to use our custom method.
-        This is a critical override to prevent ERPNext from using its standard tax calculation.
-        
-        Args:
-            tax_component: Tax component name
-            
-        Returns:
-            float: Tax amount
-        """
-        # If this is PPh 21, use our custom calculation
-        if tax_component == "PPh 21":
-            result = self.calculate_income_tax(tax_component=tax_component)
-            return result["tax_amount"]
-        
-        # For other tax components, fall back to standard calculation
-        return super().calculate_variable_tax(tax_component)
 
-    def calculate_variable_based_on_taxable_salary(self, tax_component):
-        """
-        Override to use our custom method for PPh 21.
-        
-        Args:
-            tax_component: Tax component name
-            
-        Returns:
-            float: Tax amount
-        """
-        # If this is PPh 21, use our custom calculation
-        if tax_component == "PPh 21":
-            return self.calculate_variable_tax(tax_component)
-        
-        # For other components, fall back to standard calculation
-        return super().calculate_variable_based_on_taxable_salary(tax_component)
-
-    def calculate_taxable_earnings(self, include_flexi=0):
-        """
-        Override taxable earnings calculation.
-        This ensures we use our own definition of taxable income.
-        
-        Args:
-            include_flexi: Include flexible benefits (unused)
-            
-        Returns:
-            float: Taxable earnings
-        """
-        # In Indonesia, taxable earnings are typically the gross pay
-        # minus deductions allowed by tax regulations
-        biaya_jabatan = min(self.gross_pay * (5 / 100), 500000)  # 5% up to 500k
-        self.biaya_jabatan = biaya_jabatan
-        
-        # Use total_bpjs field if it exists, otherwise calculate from components
-        bpjs_total = getattr(self, "total_bpjs", 0)
-        if not bpjs_total:
-            bpjs_total = self.get_bpjs_deductions()
-        
-        # Calculate netto
-        netto = self.gross_pay - biaya_jabatan - bpjs_total
-        self.netto = netto
-        
-        return netto
-
-    def get_bpjs_deductions(self):
-        """
-        Calculate total BPJS deductions from components.
-        
-        Returns:
-            float: Total BPJS deductions
-        """
-        bpjs_components = [
-            "BPJS Kesehatan Employee",
-            "BPJS JHT Employee",
-            "BPJS JP Employee"
-        ]
-        
-        total = 0
-        if hasattr(self, "deductions"):
-            for deduction in self.deductions:
-                if deduction.salary_component in bpjs_components:
-                    total += flt(deduction.amount)
-        
-        return total
-
-    def calculate_component_amounts(self, component_type):
-        """
-        Override to ensure our tax calculation is used.
-        
-        Args:
-            component_type: Type of component (earnings or deductions)
-        """
-        # Call parent method to handle standard components
-        super().calculate_component_amounts(component_type)
-        
-        # If this is deductions, handle our tax components specially
-        if component_type == "deductions":
-            self.update_indonesia_tax_components()
-
-    def update_indonesia_tax_components(self):
-        """Update tax components with our custom calculation."""
-        if not hasattr(self, "deductions") or not self.deductions:
-            return
-            
-        # Find PPh 21 component
-        for deduction in self.deductions:
-            if deduction.salary_component == "PPh 21":
-                # Calculate tax based on settings
-                settings = frappe.get_cached_doc("Payroll Indonesia Settings")
-                tax_method = settings.tax_calculation_method
-                
-                if tax_method == "TER" and settings.use_ter:
-                    status_pajak = get_status_pajak(self)
-                    mapping = get_ptkp_to_ter_mapping()
-                    ter_category = mapping.get(status_pajak, "")
-                    
-                    if ter_category:
-                        result = tax_calc.calculate_monthly_pph_with_ter(
-                            ter_category=ter_category,
-                            gross_pay=self.gross_pay,
-                            slip=self
-                        )
-                        deduction.amount = result.get("monthly_tax", 0.0)
-                        self.pph21 = deduction.amount
-                    else:
-                        result = tax_calc.calculate_monthly_pph_progressive(self)
-                        deduction.amount = result.get("monthly_tax", 0.0)
-                        self.pph21 = deduction.amount
-                elif getattr(self, "is_december_override", 0):
-                    result = tax_calc.calculate_december_pph(self)
-                    deduction.amount = result.get("correction", 0.0)
-                    self.pph21 = deduction.amount
-                else:
-                    result = tax_calc.calculate_monthly_pph_progressive(self)
-                    deduction.amount = result.get("monthly_tax", 0.0)
-                    self.pph21 = deduction.amount
-                break
+def update_slip_with_tax_details(doc: Any, details: Dict[str, Any]) -> None:
+    """
+    Update salary slip with tax calculation details.
     
-    def add_tax_components(self):
-        """
-        Override to use our own tax calculation.
-        """
-        # Only add the components if needed
-        tax_components = ["PPh 21"]
+    Args:
+        doc: Salary Slip document
+        details: Tax calculation details
+    """
+    try:
+        # Update standard fields
+        updates = {
+            "tax_status": details.get("tax_status", ""),
+            "ptkp_value": flt(details.get("ptkp_value", 0)),
+            "monthly_taxable": flt(details.get("monthly_taxable", 0)),
+            "annual_taxable": flt(details.get("annual_taxable", 0)),
+        }
         
-        # Only process if we have deductions
-        if not hasattr(self, "deductions") or not self.deductions:
+        # Add TER specific fields
+        if "ter_category" in details:
+            updates["ter_category"] = details.get("ter_category", "")
+            updates["ter_rate"] = flt(details.get("ter_rate", 0))
+        
+        # Add progressive tax specific fields
+        if "biaya_jabatan" in details:
+            updates["biaya_jabatan"] = flt(details.get("biaya_jabatan", 0))
+            updates["tax_deductions"] = flt(details.get("tax_deductions", 0))
+            updates["annual_pkp"] = flt(details.get("annual_pkp", 0))
+            updates["annual_tax"] = flt(details.get("annual_tax", 0))
+        
+        # Add December specific fields
+        if "ytd_gross" in details:
+            updates["ytd_gross"] = flt(details.get("ytd_gross", 0))
+            updates["ytd_bpjs"] = flt(details.get("ytd_bpjs", 0))
+            updates["ytd_pph21"] = flt(details.get("ytd_pph21", 0))
+            updates["december_tax"] = flt(details.get("december_tax", 0))
+        
+        # Store tax bracket details as JSON
+        if "tax_brackets" in details and details["tax_brackets"]:
+            updates["tax_brackets_json"] = frappe.as_json(details["tax_brackets"])
+        
+        # Store component details as JSON
+        if "components" in details and details["components"]:
+            updates["tax_components_json"] = frappe.as_json(details["components"])
+        
+        # Update the document
+        update_slip_fields(doc, updates)
+        
+    except Exception as e:
+        logger.exception(f"Error updating slip with tax details: {str(e)}")
+
+
+def process_indonesia_taxes(doc: Any) -> float:
+    """
+    Process Indonesia-specific tax calculations.
+    
+    Args:
+        doc: Salary Slip document
+        
+    Returns:
+        float: Calculated PPh 21 amount
+    """
+    try:
+        # Skip if not enabled
+        if not cint(getattr(doc, "calculate_indonesia_tax", 0)):
+            logger.debug(f"Indonesia tax calculation not enabled for slip {getattr(doc, 'name', 'unknown')}")
+            return 0.0
+        
+        # Get tax method
+        tax_method = getattr(doc, "tax_method", "Progressive")
+        logger.debug(f"Using tax method: {tax_method}")
+        
+        # Calculate based on method
+        if tax_method == "TER":
+            tax_amount, details = calculate_monthly_pph_with_ter(doc)
+        elif is_december_calculation(doc):
+            tax_amount, details = calculate_december_pph(doc)
+        else:
+            tax_amount, details = calculate_monthly_pph_progressive(doc)
+        
+        # Update slip with calculation details
+        update_slip_with_tax_details(doc, details)
+        
+        logger.debug(f"Tax calculation result: {tax_amount}")
+        return flt(tax_amount, 2)
+        
+    except Exception as e:
+        logger.exception(f"Error processing Indonesia taxes: {str(e)}")
+        return 0.0
+
+
+def update_indonesia_tax_components(doc: Any) -> None:
+    """
+    Update tax components in the salary slip based on calculation.
+    
+    Args:
+        doc: Salary Slip document
+    """
+    try:
+        # Skip if not enabled
+        if not cint(getattr(doc, "calculate_indonesia_tax", 0)):
+            logger.debug(f"Indonesia tax calculation not enabled for slip {getattr(doc, 'name', 'unknown')}")
             return
+        
+        # Calculate tax
+        tax_amount = process_indonesia_taxes(doc)
+        
+        # Check if PPh 21 component exists
+        pph21_component = None
+        
+        # Look for component in deductions
+        if hasattr(doc, "deductions") and doc.deductions:
+            for deduction in doc.deductions:
+                if deduction.salary_component == "PPh 21":
+                    pph21_component = deduction
+                    break
+        
+        # If not found, add it
+        if not pph21_component:
+            if not hasattr(doc, "deductions"):
+                doc.deductions = []
             
-        # Check if PPh 21 component already exists
-        pph21_exists = False
-        for d in self.deductions:
-            if d.salary_component == "PPh 21":
-                pph21_exists = True
-                break
-                
-        # If not, add it
-        if not pph21_exists:
-            # Get PPh 21 component details
-            component = frappe.db.get_value(
-                "Salary Component", 
-                "PPh 21", 
-                ["name", "salary_component_abbr", "do_not_include_in_total"],
-                as_dict=1
-            )
-            
-            if component:
-                # Add to deductions
-                self.append("deductions", {
-                    "salary_component": component.name,
-                    "abbr": component.salary_component_abbr,
-                    "amount": 0,
-                    "do_not_include_in_total": component.do_not_include_in_total,
-                    "depends_on_payment_days": 0
-                })
-                
-        # Now calculate tax for existing components
-        self.update_indonesia_tax_components()
+            pph21_component = frappe.get_doc({
+                "doctype": "Salary Detail",
+                "parentfield": "deductions",
+                "parenttype": "Salary Slip",
+                "salary_component": "PPh 21",
+                "abbr": "PPh21",
+                "amount": 0
+            })
+            doc.append("deductions", pph21_component)
+            logger.debug("Added PPh 21 component to deductions")
+        
+        # Update amount
+        pph21_component.amount = tax_amount
+        
+        # Update total deductions
+        if hasattr(doc, "compute_total_deductions"):
+            doc.compute_total_deductions()
+        
+        # Update net pay
+        if hasattr(doc, "compute_net_pay"):
+            doc.compute_net_pay()
+        
+        logger.debug(f"Updated PPh 21 component with amount: {tax_amount}")
+        
+    except Exception as e:
+        logger.exception(f"Error updating Indonesia tax components: {str(e)}")

@@ -260,6 +260,17 @@
   },
   {
     "doctype": "Custom Field",
+    "dt": "Payroll Entry",
+    "fieldname": "calculate_indonesia_tax",
+    "fieldtype": "Check",
+    "insert_after": "is_december_override",
+    "label": "Calculate Indonesia Tax",
+    "module": "Payroll Indonesia",
+    "name": "Payroll Entry-calculate_indonesia_tax",
+    "default": "1"
+  },
+  {
+    "doctype": "Custom Field",
     "dt": "Salary Slip",
     "fieldname": "payroll_indo_section",
     "fieldtype": "Section Break",
@@ -465,9 +476,127 @@
   {
     "doctype": "Custom Field",
     "dt": "Salary Slip",
-    "fieldname": "kesehatan_employee",
+    "fieldname": "ytd_taxable_components",
     "fieldtype": "Currency",
     "insert_after": "ytd_bpjs_deductions",
+    "label": "YTD Taxable Components",
+    "module": "Payroll Indonesia",
+    "name": "Salary Slip-ytd_taxable_components",
+    "read_only": 1,
+    "default": "0",
+    "description": "Total components that increase taxable income (Penambah Bruto)"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Slip",
+    "fieldname": "ytd_tax_deductions",
+    "fieldtype": "Currency",
+    "insert_after": "ytd_taxable_components",
+    "label": "YTD Tax Deductions",
+    "module": "Payroll Indonesia",
+    "name": "Salary Slip-ytd_tax_deductions",
+    "read_only": 1,
+    "default": "0",
+    "description": "Total components that reduce taxable income (Pengurang Netto)"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Slip",
+    "fieldname": "bpjs_employer_section",
+    "fieldtype": "Section Break",
+    "insert_after": "ytd_tax_deductions",
+    "label": "BPJS Employer Information",
+    "module": "Payroll Indonesia",
+    "name": "Salary Slip-bpjs_employer_section",
+    "collapsible": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Slip",
+    "fieldname": "kesehatan_employer",
+    "fieldtype": "Currency",
+    "insert_after": "bpjs_employer_section",
+    "label": "BPJS Kesehatan Employer",
+    "module": "Payroll Indonesia",
+    "name": "Salary Slip-kesehatan_employer",
+    "read_only": 1,
+    "default": "0"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Slip",
+    "fieldname": "jht_employer",
+    "fieldtype": "Currency",
+    "insert_after": "kesehatan_employer",
+    "label": "BPJS JHT Employer",
+    "module": "Payroll Indonesia",
+    "name": "Salary Slip-jht_employer",
+    "read_only": 1,
+    "default": "0"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Slip",
+    "fieldname": "jp_employer",
+    "fieldtype": "Currency",
+    "insert_after": "jht_employer",
+    "label": "BPJS JP Employer",
+    "module": "Payroll Indonesia",
+    "name": "Salary Slip-jp_employer",
+    "read_only": 1,
+    "default": "0"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Slip",
+    "fieldname": "jkk_employer",
+    "fieldtype": "Currency",
+    "insert_after": "jp_employer",
+    "label": "BPJS JKK Employer",
+    "module": "Payroll Indonesia",
+    "name": "Salary Slip-jkk_employer",
+    "read_only": 1,
+    "default": "0"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Slip",
+    "fieldname": "jkm_employer",
+    "fieldtype": "Currency",
+    "insert_after": "jkk_employer",
+    "label": "BPJS JKM Employer",
+    "module": "Payroll Indonesia",
+    "name": "Salary Slip-jkm_employer",
+    "read_only": 1,
+    "default": "0"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Slip",
+    "fieldname": "bpjs_employer_col_break",
+    "fieldtype": "Column Break",
+    "insert_after": "jkm_employer",
+    "module": "Payroll Indonesia",
+    "name": "Salary Slip-bpjs_employer_col_break"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Slip",
+    "fieldname": "total_bpjs_employer",
+    "fieldtype": "Currency",
+    "insert_after": "bpjs_employer_col_break",
+    "label": "Total BPJS Employer",
+    "module": "Payroll Indonesia",
+    "name": "Salary Slip-total_bpjs_employer",
+    "read_only": 1,
+    "default": "0"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Slip",
+    "fieldname": "kesehatan_employee",
+    "fieldtype": "Currency",
+    "insert_after": "total_bpjs_employer",
     "label": "BPJS Kesehatan Employee",
     "module": "Payroll Indonesia",
     "name": "Salary Slip-kesehatan_employee",
@@ -501,9 +630,32 @@
   {
     "doctype": "Custom Field",
     "dt": "Salary Slip",
-    "fieldname": "payroll_note_section",
+    "fieldname": "tax_components_section",
     "fieldtype": "Section Break",
     "insert_after": "jp_employee",
+    "label": "Tax Components Data",
+    "module": "Payroll Indonesia",
+    "name": "Salary Slip-tax_components_section",
+    "collapsible": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Slip",
+    "fieldname": "tax_components_json",
+    "fieldtype": "Long Text",
+    "insert_after": "tax_components_section",
+    "label": "Tax Components JSON",
+    "module": "Payroll Indonesia",
+    "name": "Salary Slip-tax_components_json",
+    "hidden": 0,
+    "read_only": 1
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Slip",
+    "fieldname": "payroll_note_section",
+    "fieldtype": "Section Break",
+    "insert_after": "tax_components_json",
     "label": "Payroll Notes",
     "module": "Payroll Indonesia",
     "name": "Salary Slip-payroll_note_section"
@@ -530,5 +682,26 @@
     "name": "Salary Slip-is_december_override",
     "read_only": 1,
     "default": "0"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Component",
+    "fieldname": "tax_effect_by_type",
+    "label": "Tax Effect by Component Type",
+    "fieldtype": "Table",
+    "options": "Tax Effect Type Mapping",
+    "insert_after": "is_tax_applicable",
+    "description": "Define tax effect based on how this component is used (as Earning or Deduction)"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Detail",
+    "fieldname": "tax_effect_type",
+    "label": "Tax Effect Type",
+    "fieldtype": "Select",
+    "options": "Penambah Bruto/Objek Pajak\nPengurang Netto/Tax Deduction\nTidak Berpengaruh ke Pajak\nNatura/Fasilitas (Objek Pajak)\nNatura/Fasilitas (Non-Objek Pajak)",
+    "insert_after": "is_recurring_additional_salary",
+    "default": "",
+    "description": "How this component affects tax calculation"
   }
 ]

@@ -1,4 +1,3 @@
-# payroll_indonesia/payroll_indonesia/doctype/employee_monthly_tax_detail/employee_monthly_tax_detail.py
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
@@ -10,16 +9,16 @@ This module manages the monthly details of employee tax records, functioning as
 a child table of Employee Tax Summary.
 """
 
+import json
 import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, cint
 
-def log_info(message):
-    frappe.log(message)
+from payroll_indonesia.frappe_helpers import get_logger
 
-def log_error(message):
-    frappe.log_error(message, "Employee Monthly Tax Detail Error")
+logger = get_logger("employee_monthly_tax_detail")
+
 class EmployeeMonthlyTaxDetail(Document):
     """
     Employee Monthly Tax Detail document representing a single month's tax data.
@@ -30,6 +29,7 @@ class EmployeeMonthlyTaxDetail(Document):
         self.validate_month()
         self.validate_amounts()
         self.validate_ter_data()
+        self.validate_tax_method()
     
     def validate_month(self):
         """Ensure month value is between 1 and 12."""
@@ -42,7 +42,17 @@ class EmployeeMonthlyTaxDetail(Document):
             "gross_pay", 
             "tax_amount", 
             "bpjs_deductions_employee",
-            "other_deductions"
+            "other_deductions",
+            "tax_correction",
+            "taxable_components",
+            "tax_deductions",
+            "non_taxable_components",
+            "taxable_natura",
+            "non_taxable_natura",
+            "biaya_jabatan",
+            "netto",
+            "annual_taxable_income",
+            "annual_pkp"
         ]:
             if hasattr(self, field) and flt(getattr(self, field)) < 0:
                 setattr(self, field, 0)
@@ -56,6 +66,7 @@ class EmployeeMonthlyTaxDetail(Document):
         """Ensure TER data is consistent."""
         if hasattr(self, "is_using_ter") and not cint(self.is_using_ter):
             self.ter_rate = 0
+            self.ter_category = ""
         
         if (
             hasattr(self, "is_using_ter") 
@@ -68,14 +79,39 @@ class EmployeeMonthlyTaxDetail(Document):
                 )
             )
     
-    def on_update(self):
-        """Trigger parent document update when this document changes."""
+    def validate_tax_method(self):
+        """Ensure tax method is valid and consistent with TER settings."""
+        if hasattr(self, "tax_method") and hasattr(self, "is_using_ter"):
+            if self.tax_method == "TER" and not cint(self.is_using_ter):
+                self.is_using_ter = 1
+            elif self.tax_method == "Progressive" and cint(self.is_using_ter):
+                self.is_using_ter = 0
+                self.ter_rate = 0
+                self.ter_category = ""
+    
+    def update_parent(self):
+        """Update parent document after changes to this detail."""
         try:
             if self.parent:
                 parent_doc = frappe.get_doc("Employee Tax Summary", self.parent)
                 if parent_doc:
                     parent_doc.flags.ignore_validate_update_after_submit = True
-                    parent_doc.calculate_ytd_totals()
+                    parent_doc.update_totals()
                     parent_doc.save()
         except Exception as e:
-            log_error(f"Error updating parent from monthly detail {self.name}: {str(e)}")
+            logger.error(f"Error updating parent from monthly detail: {str(e)}")
+    
+    def on_update(self):
+        """Trigger parent document update when this document changes."""
+        self.update_parent()
+
+    def get_tax_components_from_json(self):
+        """Extract tax components from JSON field."""
+        if not hasattr(self, "tax_components_json") or not self.tax_components_json:
+            return {}
+            
+        try:
+            return json.loads(self.tax_components_json)
+        except Exception as e:
+            logger.error(f"Error parsing tax_components_json: {str(e)}")
+            return {}

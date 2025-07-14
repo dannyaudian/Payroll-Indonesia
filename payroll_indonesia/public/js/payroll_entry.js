@@ -1,6 +1,6 @@
 // Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 // For license information, please see license.txt
-// Last modified: 2025-04-26 05:19:23 by dannyaudian
+// Last modified: 2025-07-05 by dannyaudian
 
 frappe.ui.form.on('Payroll Entry', {
     refresh: function(frm) {
@@ -14,37 +14,88 @@ frappe.ui.form.on('Payroll Entry', {
             }
         }
         
-        // Tambahkan field untuk penggunaan metode TER jika belum ada
-        frappe.model.with_doctype('Payroll Entry', function() {
-            let fields = frappe.get_meta('Payroll Entry').fields;
-            let has_ter_field = fields.some(field => field.fieldname === 'use_ter_method');
-            
-            if (!has_ter_field && !frm.custom_buttons["Tambah Field TER"]) {
-                frm.add_custom_button(__("Tambah Field TER"), function() {
-                    frappe.call({
-                        method: "frappe.client.insert",
-                        args: {
-                            doc: {
-                                "doctype": "Custom Field",
-                                "dt": "Payroll Entry",
-                                "label": "Use TER Method",
-                                "fieldname": "use_ter_method",
-                                "fieldtype": "Check",
-                                "insert_after": "deduct_tax_for_unsubmitted_tax_exemption_proof",
-                                "description": "Use Tarif Efektif Rata-rata (TER) method for PPh 21 calculation"
+        // Show December override indicator if enabled, regardless of actual month
+        if (frm.doc.is_december_override) {
+            frm.dashboard.add_indicator(__("December Override Active - Akan dilakukan perhitungan koreksi pajak tahunan"), "blue");
+        }
+        
+        // Add toggle button for December Override
+        if (frm.doc.calculate_indonesia_tax) {
+            frm.add_custom_button(__('Toggle December Override'), function() {
+                frm.set_value('is_december_override', frm.doc.is_december_override ? 0 : 1);
+                
+                const status = frm.doc.is_december_override ? 'Enabled' : 'Disabled';
+                const indicator = frm.doc.is_december_override ? 'green' : 'blue';
+                
+                frappe.show_alert({
+                    message: __('December Override {0}', [status]),
+                    indicator: indicator
+                }, 5);
+                
+                frm.refresh();
+            }, __('Actions'));
+        }
+        
+        // Add button to validate tax effects
+        if (frm.doc.docstatus === 0) {
+            frm.add_custom_button(__('Validate Tax Effects'), function() {
+                frappe.call({
+                    method: 'payroll_indonesia.api.validate_payroll_tax_effects',
+                    args: {
+                        payroll_entry: frm.doc.name
+                    },
+                    freeze: true,
+                    freeze_message: __('Validating Tax Effects...'),
+                    callback: function(r) {
+                        if (r.message) {
+                            const result = r.message;
+                            
+                            if (result.status === 'success' && !result.missing_effects.length) {
+                                frappe.msgprint({
+                                    title: __('Tax Effects Validation'),
+                                    indicator: 'green',
+                                    message: __('All components have proper tax effect settings.')
+                                });
+                            } else {
+                                let message = __('The following components are missing tax effect settings:') + '<ul>';
+                                
+                                if (result.missing_effects && result.missing_effects.length) {
+                                    result.missing_effects.forEach(component => {
+                                        message += `<li>${component.name} (${component.type})</li>`;
+                                    });
+                                }
+                                
+                                message += '</ul>';
+                                
+                                if (result.suggestion) {
+                                    message += `<p>${result.suggestion}</p>`;
+                                }
+                                
+                                frappe.msgprint({
+                                    title: __('Missing Tax Effect Settings'),
+                                    indicator: 'orange',
+                                    message: message
+                                });
                             }
-                        },
-                        callback: function(r) {
-                            frappe.msgprint(__("Field untuk metode perhitungan TER telah ditambahkan. Mohon refresh halaman."));
-                            frappe.set_route('Form', 'Payroll Entry', frm.doc.name);
                         }
-                    });
+                    }
                 });
-            }
-        });
+            }, __('Actions'));
+        }
+        
+        // Add indicator for tax method
+        if (frm.doc.calculate_indonesia_tax) {
+            const tax_method = frm.doc.tax_method || 'Progressive';
+            frm.dashboard.add_indicator(__(`Tax Method: ${tax_method}`), "blue");
+        }
+        
+        // Add indicator for December Override
+        if (frm.doc.is_december_override) {
+            frm.dashboard.add_indicator(__("December Override Active"), "green");
+        }
     },
     
-    // Validasi tanggal
+    // Validasi tanggal - keep this to ensure payroll period is within the same month
     validate: function(frm) {
         if (frm.doc.start_date && frm.doc.end_date) {
             let start_month = moment(frm.doc.start_date).month();
@@ -58,16 +109,53 @@ frappe.ui.form.on('Payroll Entry', {
                 });
             }
         }
+        
+        // Validate tax settings if Indonesia tax is enabled
+        if (frm.doc.calculate_indonesia_tax) {
+            // Ensure tax method is set
+            if (!frm.doc.tax_method) {
+                frm.set_value('tax_method', 'Progressive');
+                frappe.show_alert({
+                    message: __('Tax method set to Progressive (default)'),
+                    indicator: 'blue'
+                }, 5);
+            }
+        }
     },
     
-    // Add method to check December special handling
+    // Modified end_date handler to suggest December Override without strict validation
     end_date: function(frm) {
         if (frm.doc.end_date) {
             let end_month = moment(frm.doc.end_date).month(); // 0-indexed (December is 11)
             
+            // Only show informational indicator if it's December, but don't enforce
             if (end_month === 11) { // December
-                frm.dashboard.add_indicator(__("Bulan Desember - Akan dilakukan perhitungan koreksi pajak tahunan"), "blue");
+                frm.dashboard.add_indicator(__("Bulan Desember - Pertimbangkan mengaktifkan December Override"), "blue");
+                
+                // If calculate_indonesia_tax is enabled, suggest enabling December Override but don't enforce
+                if (frm.doc.calculate_indonesia_tax && !frm.doc.is_december_override) {
+                    frappe.show_alert({
+                        message: __('This appears to be a December payroll. Consider enabling December Override for annual tax correction.'),
+                        indicator: 'blue'
+                    }, 10);
+                }
             }
         }
+    },
+    
+    // When tax method changes, show appropriate message
+    tax_method: function(frm) {
+        if (frm.doc.tax_method === 'TER') {
+            frappe.msgprint({
+                title: __('TER Method Selected'),
+                indicator: 'blue',
+                message: __('TER method will use preset rates based on employee tax status. Make sure TER rates are properly configured in Payroll Indonesia Settings.')
+            });
+        }
+    },
+    
+    // When calculate_indonesia_tax is toggled, update UI
+    calculate_indonesia_tax: function(frm) {
+        frm.refresh();
     }
 });

@@ -12,7 +12,19 @@
     "variable_based_on_taxable_salary": 0,
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
-    "owner": "Administrator"
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Gaji pokok adalah objek pajak dan menambah penghasilan bruto"
+      },
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Tidak relevan sebagai deduction"
+      }
+    ]
   },
   {
     "doctype": "Salary Component",
@@ -27,7 +39,19 @@
     "variable_based_on_taxable_salary": 0,
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
-    "owner": "Administrator"
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Tunjangan makan diberikan dalam bentuk uang dan merupakan objek pajak"
+      },
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Tidak relevan sebagai deduction"
+      }
+    ]
   },
   {
     "doctype": "Salary Component",
@@ -42,7 +66,19 @@
     "variable_based_on_taxable_salary": 0,
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
-    "owner": "Administrator"
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Tunjangan transport diberikan dalam bentuk uang dan merupakan objek pajak"
+      },
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Tidak relevan sebagai deduction"
+      }
+    ]
   },
   {
     "doctype": "Salary Component",
@@ -57,7 +93,19 @@
     "variable_based_on_taxable_salary": 0,
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
-    "owner": "Administrator"
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Insentif merupakan objek pajak dan menambah penghasilan bruto"
+      },
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Tidak relevan sebagai deduction"
+      }
+    ]
   },
   {
     "doctype": "Salary Component",
@@ -72,7 +120,19 @@
     "variable_based_on_taxable_salary": 0,
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
-    "owner": "Administrator"
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Bonus merupakan objek pajak dan menambah penghasilan bruto"
+      },
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Tidak relevan sebagai deduction"
+      }
+    ]
   },
   {
     "doctype": "Salary Component",
@@ -88,7 +148,19 @@
     "owner": "Administrator",
     "custom_attributes": {
       "supports_ter": 1
-    }
+    },
+    "tax_effect_by_type": [
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "PPh 21 adalah pajak itu sendiri, tidak mempengaruhi perhitungan pajak"
+      },
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Tidak relevan sebagai earning"
+      }
+    ]
   },
   {
     "doctype": "Salary Component",
@@ -100,7 +172,19 @@
     "statistical_component": 0,
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
-    "owner": "Administrator"
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Pengurang Netto/Tax Deduction",
+        "description": "Iuran JHT yang dibayar sendiri oleh karyawan dapat dikurangkan dari penghasilan bruto"
+      },
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Tidak relevan sebagai earning"
+      }
+    ]
   },
   {
     "doctype": "Salary Component",
@@ -112,7 +196,19 @@
     "statistical_component": 0,
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
-    "owner": "Administrator"
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Pengurang Netto/Tax Deduction",
+        "description": "Iuran JP yang dibayar sendiri oleh karyawan dapat dikurangkan dari penghasilan bruto"
+      },
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Tidak relevan sebagai earning"
+      }
+    ]
   },
   {
     "doctype": "Salary Component",
@@ -124,7 +220,19 @@
     "statistical_component": 0,
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
-    "owner": "Administrator"
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Pengurang Netto/Tax Deduction",
+        "description": "Iuran Kesehatan yang dibayar sendiri oleh karyawan dapat dikurangkan dari penghasilan bruto"
+      },
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Tidak relevan sebagai earning"
+      }
+    ]
   },
   {
     "doctype": "Salary Component",
@@ -136,7 +244,19 @@
     "statistical_component": 1,
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
-    "owner": "Administrator"
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Iuran JHT yang dibayar oleh pemberi kerja merupakan penghasilan bagi karyawan"
+      },
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Jika ditampilkan sebagai earning, tetap merupakan objek pajak"
+      }
+    ]
   },
   {
     "doctype": "Salary Component",
@@ -148,7 +268,19 @@
     "statistical_component": 1,
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
-    "owner": "Administrator"
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Iuran JP yang dibayar oleh pemberi kerja merupakan penghasilan bagi karyawan"
+      },
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Jika ditampilkan sebagai earning, tetap merupakan objek pajak"
+      }
+    ]
   },
   {
     "doctype": "Salary Component",
@@ -160,7 +292,19 @@
     "statistical_component": 1,
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
-    "owner": "Administrator"
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Iuran JKK yang dibayar oleh pemberi kerja merupakan penghasilan bagi karyawan"
+      },
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Jika ditampilkan sebagai earning, tetap merupakan objek pajak"
+      }
+    ]
   },
   {
     "doctype": "Salary Component",
@@ -172,7 +316,19 @@
     "statistical_component": 1,
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
-    "owner": "Administrator"
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Iuran JKM yang dibayar oleh pemberi kerja merupakan penghasilan bagi karyawan"
+      },
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Jika ditampilkan sebagai earning, tetap merupakan objek pajak"
+      }
+    ]
   },
   {
     "doctype": "Salary Component",
@@ -184,6 +340,151 @@
     "statistical_component": 1,
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
-    "owner": "Administrator"
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Iuran Kesehatan yang dibayar oleh pemberi kerja merupakan penghasilan bagi karyawan"
+      },
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Jika ditampilkan sebagai earning, tetap merupakan objek pajak"
+      }
+    ]
+  },
+  {
+    "doctype": "Salary Component",
+    "name": "Uang Makan",
+    "salary_component": "Uang Makan",
+    "salary_component_abbr": "UM",
+    "type": "Earning",
+    "description": "Uang Makan Karyawan (Natura)",
+    "statistical_component": 0,
+    "is_tax_applicable": 1,
+    "is_flexible_benefit": 0,
+    "variable_based_on_taxable_salary": 0,
+    "modified": "2025-05-24 04:57:55",
+    "modified_by": "dannyaudian",
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Natura/Fasilitas (Objek Pajak)",
+        "description": "Uang makan yang diberikan sebagai natura merupakan objek pajak"
+      },
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Tidak relevan sebagai deduction"
+      }
+    ]
+  },
+  {
+    "doctype": "Salary Component",
+    "name": "Tunjangan Jabatan",
+    "salary_component": "Tunjangan Jabatan",
+    "salary_component_abbr": "TJ",
+    "type": "Earning",
+    "description": "Tunjangan Jabatan",
+    "statistical_component": 0,
+    "is_tax_applicable": 1,
+    "is_flexible_benefit": 0,
+    "variable_based_on_taxable_salary": 0,
+    "modified": "2025-05-24 04:57:55",
+    "modified_by": "dannyaudian",
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Tunjangan jabatan merupakan objek pajak dan menambah penghasilan bruto"
+      },
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Tidak relevan sebagai deduction"
+      }
+    ]
+  },
+  {
+    "doctype": "Salary Component",
+    "name": "Tunjangan Lembur",
+    "salary_component": "Tunjangan Lembur",
+    "salary_component_abbr": "TL",
+    "type": "Earning",
+    "description": "Tunjangan Lembur",
+    "statistical_component": 0,
+    "is_tax_applicable": 1,
+    "is_flexible_benefit": 0,
+    "variable_based_on_taxable_salary": 0,
+    "modified": "2025-05-24 04:57:55",
+    "modified_by": "dannyaudian",
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Penambah Bruto/Objek Pajak",
+        "description": "Tunjangan lembur merupakan objek pajak dan menambah penghasilan bruto"
+      },
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Tidak relevan sebagai deduction"
+      }
+    ]
+  },
+  {
+    "doctype": "Salary Component",
+    "name": "Fasilitas Kendaraan",
+    "salary_component": "Fasilitas Kendaraan",
+    "salary_component_abbr": "FK",
+    "type": "Earning",
+    "description": "Fasilitas Kendaraan Perusahaan",
+    "statistical_component": 0,
+    "is_tax_applicable": 0,
+    "is_flexible_benefit": 0,
+    "variable_based_on_taxable_salary": 0,
+    "modified": "2025-05-24 04:57:55",
+    "modified_by": "dannyaudian",
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Natura/Fasilitas (Non-Objek Pajak)",
+        "description": "Fasilitas kendaraan sebagai natura non-objek pajak (khusus untuk perusahaan tertentu)"
+      },
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Tidak relevan sebagai deduction"
+      }
+    ]
+  },
+  {
+    "doctype": "Salary Component",
+    "name": "Potongan Kasbon",
+    "salary_component": "Potongan Kasbon",
+    "salary_component_abbr": "PK",
+    "type": "Deduction",
+    "description": "Potongan Kasbon/Pinjaman Karyawan",
+    "statistical_component": 0,
+    "is_tax_applicable": 0,
+    "modified": "2025-05-24 04:57:55",
+    "modified_by": "dannyaudian",
+    "owner": "Administrator",
+    "tax_effect_by_type": [
+      {
+        "component_type": "Deduction",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Potongan kasbon tidak mempengaruhi perhitungan pajak"
+      },
+      {
+        "component_type": "Earning",
+        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+        "description": "Tidak relevan sebagai earning"
+      }
+    ]
   }
 ]
