@@ -781,7 +781,11 @@ def calculate_monthly_pph_progressive(slip: Any, skip_ytd_check: bool = False) -
         tax_method = getattr(settings, "tax_calculation_method", "PROGRESSIVE")
 
         # Use TER if configured and not skipping due to fallback
-        if tax_method == "TER" and cint(getattr(settings, "use_ter", 0)) == 1 and not skip_ytd_check:
+        if (
+            tax_method == "TER"
+            and cint(getattr(settings, "use_ter", 0)) == 1
+            and not skip_ytd_check
+        ):
             tax_status = get_tax_status(slip)
             ter_category = get_ter_category(tax_status)
             gross_pay = flt(getattr(slip, "gross_pay", 0))
@@ -867,8 +871,8 @@ def calculate_monthly_pph_progressive(slip: Any, skip_ytd_check: bool = False) -
 
         employee_id = getattr(slip, "employee", "unknown")
         logger.debug(
-            f"Monthly PPh calculation for {employee_id}: {result}" +
-            (f" (skipping YTD)" if skip_ytd_check else "")
+            f"Monthly PPh calculation for {employee_id}: {result}"
+            + (f" (skipping YTD)" if skip_ytd_check else "")
         )
         return result
 
@@ -892,6 +896,7 @@ def calculate_monthly_pph_progressive(slip: Any, skip_ytd_check: bool = False) -
             "error": str(e),
             "skip_ytd_check": skip_ytd_check,  # Include in result even on error
         }
+
 
 def calculate_december_pph(slip: Any) -> Dict[str, Any]:
     """
@@ -926,7 +931,9 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
             result["correction"] = 0.0
             return result
 
-        logger.info(f"Calculating December annual tax correction for slip {getattr(slip, 'name', 'unknown')}")
+        logger.info(
+            f"Calculating December annual tax correction for slip {getattr(slip, 'name', 'unknown')}"
+        )
         # Initialize result with zeros
         result = {
             "tax_method": "PROGRESSIVE_DECEMBER",
@@ -966,6 +973,19 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
         ytd_gross = ytd.get("gross", 0)
         ytd_bpjs = ytd.get("bpjs", 0)
         ytd_tax_paid = ytd.get("pph21", 0)
+
+        # If YTD totals are zero this likely means previous months are not
+        # submitted yet.  In that case fall back to the regular monthly
+        # progressive calculation so December still shows tax values.
+        if not ytd_gross and not ytd_tax_paid:
+            logger.info(
+                f"No YTD totals found for slip {getattr(slip, 'name', 'unknown')} - "
+                "falling back to monthly progressive calculation"
+            )
+            result = calculate_monthly_pph_progressive(slip, skip_ytd_check=True)
+            result["correction"] = 0.0
+            update_slip_fields(slip, {"koreksi_pph21": 0.0})
+            return result
 
         result["ytd_gross"] = ytd_gross
         result["ytd_bpjs"] = ytd_bpjs
@@ -1078,6 +1098,7 @@ def calculate_december_pph(slip: Any) -> Dict[str, Any]:
             "is_december_override": cint(getattr(slip, "is_december_override", 0)),
             "error": str(e),
         }
+
 
 def _update_pph21_component(slip: Any, tax_amount: float) -> None:
     """
