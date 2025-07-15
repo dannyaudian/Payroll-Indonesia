@@ -532,7 +532,10 @@ def categorize_components_by_tax_effect(slip: Any) -> Dict[str, Dict[str, float]
                     continue
 
                 # Get tax effect for this earning
-                tax_effect = get_component_tax_effect(component_name, "Earning")
+                tax_effect = (
+                    getattr(earning, "tax_effect_type", None)
+                    or get_component_tax_effect(component_name, "Earning")
+                )
 
                 # Categorize based on tax effect
                 if tax_effect == "Penambah Bruto/Objek Pajak":
@@ -566,7 +569,10 @@ def categorize_components_by_tax_effect(slip: Any) -> Dict[str, Dict[str, float]
                     continue
 
                 # Get tax effect for this deduction
-                tax_effect = get_component_tax_effect(component_name, "Deduction")
+                tax_effect = (
+                    getattr(deduction, "tax_effect_type", None)
+                    or get_component_tax_effect(component_name, "Deduction")
+                )
 
                 # Categorize based on tax effect
                 if tax_effect == "Penambah Bruto/Objek Pajak":
