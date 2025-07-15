@@ -684,6 +684,9 @@ def get_ter_rate(ter_category: str, monthly_income: float) -> float:
                             rate = flt(bracket.get("rate", 0))
                             rate = rate / 100 if rate > 1 else rate
 
+                            logger.debug(
+                                f"Found TER rate {rate * 100}% for category {ter_category} from ter_rates_json, income {monthly_income}"
+                            )
                             # Cache the result
                             cache_utils.set_cache(cache_key, rate, ttl=3600)
                             return rate
@@ -713,12 +716,36 @@ def get_ter_rate(ter_category: str, monthly_income: float) -> float:
                         # Convert percentage to decimal (e.g., 5% to 0.05)
                         rate = flt(row.rate) / 100.0
                         logger.debug(
-                            f"Found TER rate {rate * 100}% for category {ter_category}, "
+                            f"Found TER rate {rate * 100}% for category {ter_category} from ter_rate_table, "
                             f"income {monthly_income}"
                         )
                         # Cache the result
                         cache_utils.set_cache(cache_key, rate, ttl=3600)
                         return rate
+
+        # Try to get rates from live config if still not found
+        cfg = get_live_config()
+        cfg_rates = cfg.get("tax", {}).get("ter_rates", {})
+
+        if ter_category in cfg_rates:
+            category_rates = cfg_rates[ter_category]
+
+            for bracket in category_rates:
+                income_from = flt(bracket.get("income_from", 0))
+                income_to = flt(bracket.get("income_to", 0))
+                is_highest = cint(bracket.get("is_highest_bracket", 0))
+
+                if monthly_income >= income_from and (
+                    is_highest or income_to == 0 or monthly_income < income_to
+                ):
+                    rate = flt(bracket.get("rate", 0))
+                    rate = rate / 100 if rate > 1 else rate
+
+                    logger.debug(
+                        f"Found TER rate {rate * 100}% for category {ter_category} from config, income {monthly_income}"
+                    )
+                    cache_utils.set_cache(cache_key, rate, ttl=3600)
+                    return rate
 
         # If no match in settings, use default rates
         default_rates = {
@@ -729,8 +756,8 @@ def get_ter_rate(ter_category: str, monthly_income: float) -> float:
 
         rate = default_rates.get(ter_category, 0.15)
         logger.warning(
-            f"No matching TER rate found for category {ter_category}, "
-            f"income {monthly_income}. Using default: {rate * 100}%"
+            f"No matching TER rate found for category {ter_category} "
+            f"and income {monthly_income}. Using default rate source: defaults ({rate * 100}%)"
         )
 
         # Cache the result
