@@ -686,9 +686,6 @@
   {
     "doctype": "Custom Field",
     "dt": "Salary Component",
-    "fieldname": "tax_effect_by_type",
-    "label": "Tax Effect by Component Type",
-    "fieldtype": "Table",
     "options": "Tax Effect Type Mapping",
     "insert_after": "is_tax_applicable",
     "description": "Define tax effect based on how this component is used (as Earning or Deduction)"

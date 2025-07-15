@@ -5,13 +5,6 @@
   "module": "Payroll Indonesia",
   "fields": [
     {
-      "fieldname": "component_type",
-      "label": "Component Type",
-      "fieldtype": "Select",
-      "options": "Earning\nDeduction",
-      "reqd": 1
-    },
-    {
       "fieldname": "tax_effect_type",
       "label": "Tax Effect Type", 
       "fieldtype": "Select",
@@ -22,6 +15,13 @@
       "fieldname": "description",
       "label": "Description",
       "fieldtype": "Small Text"
+    },
+    {
+      "fieldname": "is_default",
+      "label": "Is Default",
+      "fieldtype": "Check",
+      "default": 0,
+      "description": "If checked, this tax effect will be used by default for this component type"
     }
   ]
 }
