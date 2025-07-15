@@ -760,33 +760,18 @@ def setup_salary_components(config):
 
                 component.round_to_the_nearest_integer = 1
                 
-                # Set tax effect type mapping if provided
+                # Set tax effect type if mapping provided
                 if "tax_effect_by_type" in comp_data:
-                    # Clear existing tax effect mappings
-                    component.set("tax_effect_by_type", [])
-                    
-                    # Add new mappings from config
-                    for tax_effect_mapping in comp_data.get("tax_effect_by_type", []):
-                        component.append("tax_effect_by_type", {
-                            "component_type": tax_effect_mapping.get("component_type"),
-                            "tax_effect_type": tax_effect_mapping.get("tax_effect_type"),
-                            "description": tax_effect_mapping.get("description", "")
-                        })
-                # If no tax_effect_by_type provided, set default tax effect mappings
-                elif hasattr(component, "tax_effect_by_type") and not component.tax_effect_by_type:
-                    # Default for Earning
-                    component.append("tax_effect_by_type", {
-                        "component_type": "Earning",
-                        "tax_effect_type": tax_effect_types.get("default_earning_tax_effect", "Penambah Bruto/Objek Pajak"),
-                        "description": "Default tax effect for earnings"
-                    })
-                    
-                    # Default for Deduction
-                    component.append("tax_effect_by_type", {
-                        "component_type": "Deduction",
-                        "tax_effect_type": tax_effect_types.get("default_deduction_tax_effect", "Pengurang Netto/Tax Deduction"),
-                        "description": "Default tax effect for deductions"
-                    })
+                    mapping = next(
+                        (
+                            m
+                            for m in comp_data.get("tax_effect_by_type", [])
+                            if m.get("component_type") == component.type
+                        ),
+                        None,
+                    )
+                    if mapping:
+                        component.tax_effect_type = mapping.get("tax_effect_type")
 
                 component.flags.ignore_permissions = True
 
