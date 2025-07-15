@@ -13,6 +13,7 @@ from datetime import datetime
 
 import frappe
 from frappe import _
+from frappe.model.document import Document
 from frappe.utils import flt, cint, getdate, add_days, add_months
 
 from payroll_indonesia.frappe_helpers import logger
@@ -26,34 +27,28 @@ from payroll_indonesia.constants import (
 )
 
 
-class CustomPayrollEntry:
+class CustomPayrollEntry(Document):
     """
     Custom Payroll Entry class for Indonesia-specific payroll functionality.
     """
     
-    def __init__(self, payroll_entry=None):
+    def validate(self):
         """
-        Initialize with optional payroll entry document.
-        
-        Args:
-            payroll_entry: Payroll Entry document
+        Validate the document before saving.
         """
-        self.doc = payroll_entry
+        self.validate_tax_settings()
     
     def validate_tax_settings(self):
         """
         Validate tax-related settings.
         """
         try:
-            if not self.doc:
-                return
-            
             # Skip if Indonesia payroll not enabled
-            if cint(getattr(self.doc, "calculate_indonesia_tax", 0)) != 1:
+            if cint(getattr(self, "calculate_indonesia_tax", 0)) != 1:
                 return
             
             # Validate tax method
-            tax_method = getattr(self.doc, "tax_method", "Progressive")
+            tax_method = getattr(self, "tax_method", "Progressive")
             if tax_method not in ["Progressive", "TER"]:
                 frappe.throw(_("Invalid tax method. Must be 'Progressive' or 'TER'."))
             
@@ -61,7 +56,7 @@ class CustomPayrollEntry:
             if tax_method == "TER":
                 self._validate_ter_settings()
             
-            logger.debug(f"Tax settings validated for payroll entry {getattr(self.doc, 'name', 'unknown')}")
+            logger.debug(f"Tax settings validated for payroll entry {getattr(self, 'name', 'unknown')}")
         
         except Exception as e:
             logger.exception(f"Error validating tax settings: {str(e)}")
@@ -109,18 +104,18 @@ class CustomPayrollEntry:
             slips: List of salary slip documents
         """
         try:
-            if not self.doc or not slips:
+            if not slips:
                 return
             
             # Skip if Indonesia payroll not enabled
-            if cint(getattr(self.doc, "calculate_indonesia_tax", 0)) != 1:
+            if cint(getattr(self, "calculate_indonesia_tax", 0)) != 1:
                 return
             
             # Get settings to propagate
             settings = {
                 "calculate_indonesia_tax": 1,
-                "tax_method": getattr(self.doc, "tax_method", "Progressive"),
-                "is_december_override": cint(getattr(self.doc, "is_december_override", 0))
+                "tax_method": getattr(self, "tax_method", "Progressive"),
+                "is_december_override": cint(getattr(self, "is_december_override", 0))
             }
             
             # Propagate to each slip
@@ -142,16 +137,13 @@ class CustomPayrollEntry:
             bool: True if December payroll
         """
         try:
-            if not self.doc:
-                return False
-            
             # Check if December override flag is set
-            if cint(getattr(self.doc, "is_december_override", 0)) == 1:
+            if cint(getattr(self, "is_december_override", 0)) == 1:
                 return True
             
             # Check if payroll period includes December
-            start_date = getattr(self.doc, "start_date", None)
-            end_date = getattr(self.doc, "end_date", None)
+            start_date = getattr(self, "start_date", None)
+            end_date = getattr(self, "end_date", None)
             
             if not start_date or not end_date:
                 return False
@@ -175,17 +167,14 @@ class CustomPayrollEntry:
             value: Value to set (default True)
         """
         try:
-            if not self.doc:
-                return
-            
-            self.doc.is_december_override = 1 if value else 0
+            self.is_december_override = 1 if value else 0
             
             # If document is already saved, update in database
-            if self.doc.name and not self.doc.is_new():
-                frappe.db.set_value("Payroll Entry", self.doc.name, "is_december_override", self.doc.is_december_override)
+            if self.name and not self.is_new():
+                frappe.db.set_value("Payroll Entry", self.name, "is_december_override", self.is_december_override)
                 frappe.db.commit()
             
-            logger.debug(f"Set is_december_override={self.doc.is_december_override} for payroll entry {getattr(self.doc, 'name', 'unknown')}")
+            logger.debug(f"Set is_december_override={self.is_december_override} for payroll entry {getattr(self, 'name', 'unknown')}")
         
         except Exception as e:
             logger.exception(f"Error setting December override: {str(e)}")
@@ -198,17 +187,14 @@ class CustomPayrollEntry:
             value: Value to set (default True)
         """
         try:
-            if not self.doc:
-                return
-            
-            self.doc.use_ter_method = 1 if value else 0
+            self.use_ter_method = 1 if value else 0
             
             # If document is already saved, update in database
-            if self.doc.name and not self.doc.is_new():
-                frappe.db.set_value("Payroll Entry", self.doc.name, "use_ter_method", self.doc.use_ter_method)
+            if self.name and not self.is_new():
+                frappe.db.set_value("Payroll Entry", self.name, "use_ter_method", self.use_ter_method)
                 frappe.db.commit()
             
-            logger.debug(f"Set use_ter_method={self.doc.use_ter_method} for payroll entry {getattr(self.doc, 'name', 'unknown')}")
+            logger.debug(f"Set use_ter_method={self.use_ter_method} for payroll entry {getattr(self, 'name', 'unknown')}")
         
         except Exception as e:
             logger.exception(f"Error setting TER method: {str(e)}")
@@ -221,26 +207,23 @@ class CustomPayrollEntry:
             settings: Dictionary of settings to update
         """
         try:
-            if not self.doc:
-                return
-            
             # Update fields if they exist
             for field, value in settings.items():
-                if hasattr(self.doc, field):
-                    setattr(self.doc, field, value)
+                if hasattr(self, field):
+                    setattr(self, field, value)
             
             # If document is already saved, update in database
-            if self.doc.name and not self.doc.is_new():
+            if self.name and not self.is_new():
                 update_fields = {}
                 for field, value in settings.items():
-                    if hasattr(self.doc, field):
+                    if hasattr(self, field):
                         update_fields[field] = value
                 
                 if update_fields:
-                    frappe.db.set_value("Payroll Entry", self.doc.name, update_fields)
+                    frappe.db.set_value("Payroll Entry", self.name, update_fields)
                     frappe.db.commit()
             
-            logger.debug(f"Updated tax settings for payroll entry {getattr(self.doc, 'name', 'unknown')}")
+            logger.debug(f"Updated tax settings for payroll entry {getattr(self, 'name', 'unknown')}")
         
         except Exception as e:
             logger.exception(f"Error updating tax settings: {str(e)}")
