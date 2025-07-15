@@ -100,3 +100,19 @@ DEFAULT_BPJS_RATES = {
     "jkk_percent": BPJS_JKK_PERCENT,
     "jkm_percent": BPJS_JKM_PERCENT,
 }
+
+# Tax effect type constants
+TAX_OBJEK_EFFECT = "Penambah Bruto/Objek Pajak"
+TAX_DEDUCTION_EFFECT = "Pengurang Netto/Tax Deduction"
+TAX_NON_OBJEK_EFFECT = "Tidak Berpengaruh ke Pajak"
+NATURA_OBJEK_EFFECT = "Natura/Fasilitas (Objek Pajak)"
+NATURA_NON_OBJEK_EFFECT = "Natura/Fasilitas (Non-Objek Pajak)"
+
+# List of valid tax effect types
+VALID_TAX_EFFECTS = [
+    TAX_OBJEK_EFFECT,
+    TAX_DEDUCTION_EFFECT,
+    TAX_NON_OBJEK_EFFECT,
+    NATURA_OBJEK_EFFECT,
+    NATURA_NON_OBJEK_EFFECT
+]
