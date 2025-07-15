@@ -613,12 +613,14 @@ def categorize_components_by_tax_effect(slip: Any) -> Dict[str, Dict[str, float]
                     result["tidak_berpengaruh"][component_name] = amount
                     result["total"]["tidak_berpengaruh"] += amount
 
+        # Expose totals using both `total` and `totals` keys for backward compatibility
+        result["totals"] = result["total"]
         return result
 
     except Exception as e:
         logger.exception(f"Error categorizing components: {str(e)}")
         # Return empty result on error
-        return {
+        empty = {
             "penambah_bruto": {},
             "pengurang_netto": {},
             "tidak_berpengaruh": {},
@@ -632,6 +634,9 @@ def categorize_components_by_tax_effect(slip: Any) -> Dict[str, Dict[str, float]
                 "natura_non_objek": 0,
             },
         }
+        # Provide the same totals under both keys
+        empty["totals"] = empty["total"]
+        return empty
 
 
 def get_ter_rate(ter_category: str, monthly_income: float) -> float:
