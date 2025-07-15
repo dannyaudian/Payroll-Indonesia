@@ -25,7 +25,8 @@ from payroll_indonesia.constants import (
 )
 from payroll_indonesia.override.salary_slip.controller import (
     update_indonesia_tax_components,
-    calculate_taxable_earnings
+    calculate_taxable_earnings,
+    ensure_employee_tax_summary_integration,
 )
 
 __all__ = [
@@ -172,10 +173,12 @@ def process_indonesia_payroll(doc: Any) -> None:
         
         # Calculate tax components
         calculate_tax(doc)
-        
+
         # Set taxable earnings for reporting
         doc.taxable_earnings = calculate_taxable_earnings(doc)
-        
+
+        ensure_employee_tax_summary_integration(doc)
+
         logger.debug(f"Processed Indonesia payroll for slip {getattr(doc, 'name', 'unknown')}")
     
     except Exception as e:

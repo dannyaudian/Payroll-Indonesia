@@ -28,6 +28,7 @@ from payroll_indonesia.override.salary_slip.tax_calculator import (
     calculate_december_pph,
     calculate_monthly_pph_with_ter,
     is_december_calculation,
+    get_slip_year_month,
     update_slip_fields,
 )
 
@@ -38,6 +39,7 @@ __all__ = [
     "get_bpjs_deductions",
     "update_slip_with_tax_details",
     "process_indonesia_taxes",
+    "ensure_employee_tax_summary_integration",
 ]
 
 
@@ -525,6 +527,65 @@ def update_indonesia_tax_components(doc: Any) -> None:
             doc.compute_net_pay()
         
         logger.debug(f"Updated PPh 21 component with amount: {tax_amount}")
-        
+
     except Exception as e:
         logger.exception(f"Error updating Indonesia tax components: {str(e)}")
+
+
+def ensure_employee_tax_summary_integration(doc: Any) -> None:
+    """Ensure Employee Tax Summary exists and sync it with the slip."""
+    try:
+        if not cint(getattr(doc, "calculate_indonesia_tax", 0)):
+            return
+
+        employee = getattr(doc, "employee", None)
+        if not employee:
+            return
+
+        year, _ = get_slip_year_month(doc)
+
+        summary_name = frappe.db.get_value(
+            "Employee Tax Summary", {"employee": employee, "year": year}
+        )
+
+        created = False
+        if not summary_name:
+            logger.info(
+                f"Employee Tax Summary missing for {employee}, year {year}; creating"
+            )
+            summary = frappe.new_doc("Employee Tax Summary")
+            summary.employee = employee
+            summary.year = year
+            summary.tax_method = getattr(doc, "tax_method", "Progressive")
+            created = True
+        else:
+            summary = frappe.get_doc("Employee Tax Summary", summary_name)
+
+        slip_tax_method = getattr(doc, "tax_method", "Progressive")
+        if hasattr(summary, "tax_method") and summary.tax_method != slip_tax_method:
+            logger.warning(
+                f"Tax method mismatch for {employee}, year {year}: summary={summary.tax_method}, slip={slip_tax_method}"
+            )
+            summary.tax_method = slip_tax_method
+
+        for field in (
+            "ytd_gross_pay",
+            "ytd_tax",
+            "ytd_bpjs",
+            "ytd_taxable_components",
+            "ytd_tax_deductions",
+        ):
+            if hasattr(summary, field) and hasattr(doc, field):
+                setattr(summary, field, flt(getattr(doc, field)))
+
+        summary.flags.ignore_permissions = True
+        summary.flags.ignore_validate_update_after_submit = True
+        if created:
+            summary.insert()
+        else:
+            summary.save()
+
+    except Exception as e:
+        logger.exception(
+            f"Error ensuring Employee Tax Summary integration: {str(e)}"
+        )
