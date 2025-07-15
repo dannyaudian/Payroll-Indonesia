@@ -119,143 +119,666 @@
         "HB3": "TER C"
     },
     "tax_brackets": [
-        {"income_from": 0, "income_to": 60000000, "tax_rate": 5},
-        {"income_from": 60000000, "income_to": 250000000, "tax_rate": 15},
-        {"income_from": 250000000, "income_to": 500000000, "tax_rate": 25},
-        {"income_from": 500000000, "income_to": 5000000000, "tax_rate": 30},
-        {"income_from": 5000000000, "income_to": 0, "tax_rate": 35}
+        {
+            "income_from": 0,
+            "income_to": 60000000,
+            "tax_rate": 5
+        },
+        {
+            "income_from": 60000000,
+            "income_to": 250000000,
+            "tax_rate": 15
+        },
+        {
+            "income_from": 250000000,
+            "income_to": 500000000,
+            "tax_rate": 25
+        },
+        {
+            "income_from": 500000000,
+            "income_to": 5000000000,
+            "tax_rate": 30
+        },
+        {
+            "income_from": 5000000000,
+            "income_to": 0,
+            "tax_rate": 35
+        }
     ],
     "ter_rates": {
         "TER A": [
-            {"income_from": 0, "income_to": 5400000, "rate": 0},
-            {"income_from": 5400000, "income_to": 5650000, "rate": 0.25},
-            {"income_from": 5650000, "income_to": 5950000, "rate": 0.5},
-            {"income_from": 5950000, "income_to": 6300000, "rate": 0.75},
-            {"income_from": 6300000, "income_to": 6750000, "rate": 1},
-            {"income_from": 6750000, "income_to": 7500000, "rate": 1.25},
-            {"income_from": 7500000, "income_to": 8550000, "rate": 1.5},
-            {"income_from": 8550000, "income_to": 9650000, "rate": 1.75},
-            {"income_from": 9650000, "income_to": 10050000, "rate": 2},
-            {"income_from": 10050000, "income_to": 10350000, "rate": 2.25},
-            {"income_from": 10350000, "income_to": 10700000, "rate": 2.5},
-            {"income_from": 10700000, "income_to": 11050000, "rate": 3},
-            {"income_from": 11050000, "income_to": 11600000, "rate": 3.5},
-            {"income_from": 11600000, "income_to": 12500000, "rate": 4},
-            {"income_from": 12500000, "income_to": 13750000, "rate": 5},
-            {"income_from": 13750000, "income_to": 15100000, "rate": 6},
-            {"income_from": 15100000, "income_to": 16950000, "rate": 7},
-            {"income_from": 16950000, "income_to": 19750000, "rate": 8},
-            {"income_from": 19750000, "income_to": 24150000, "rate": 9},
-            {"income_from": 24150000, "income_to": 26450000, "rate": 10},
-            {"income_from": 26450000, "income_to": 28000000, "rate": 11},
-            {"income_from": 28000000, "income_to": 30050000, "rate": 12},
-            {"income_from": 30050000, "income_to": 32400000, "rate": 13},
-            {"income_from": 32400000, "income_to": 35400000, "rate": 14},
-            {"income_from": 35400000, "income_to": 39100000, "rate": 15},
-            {"income_from": 39100000, "income_to": 43850000, "rate": 16},
-            {"income_from": 43850000, "income_to": 47800000, "rate": 17},
-            {"income_from": 47800000, "income_to": 51400000, "rate": 18},
-            {"income_from": 51400000, "income_to": 56300000, "rate": 19},
-            {"income_from": 56300000, "income_to": 62200000, "rate": 20},
-            {"income_from": 62200000, "income_to": 68600000, "rate": 21},
-            {"income_from": 68600000, "income_to": 77500000, "rate": 22},
-            {"income_from": 77500000, "income_to": 89000000, "rate": 23},
-            {"income_from": 89000000, "income_to": 103000000, "rate": 24},
-            {"income_from": 103000000, "income_to": 125000000, "rate": 25},
-            {"income_from": 125000000, "income_to": 157000000, "rate": 26},
-            {"income_from": 157000000, "income_to": 206000000, "rate": 27},
-            {"income_from": 206000000, "income_to": 337000000, "rate": 28},
-            {"income_from": 337000000, "income_to": 454000000, "rate": 29},
-            {"income_from": 454000000, "income_to": 550000000, "rate": 30},
-            {"income_from": 550000000, "income_to": 695000000, "rate": 31},
-            {"income_from": 695000000, "income_to": 910000000, "rate": 32},
-            {"income_from": 910000000, "income_to": 1400000000, "rate": 33},
-            {"income_from": 1400000000, "income_to": 0, "rate": 34, "is_highest_bracket": 1}
+            {
+                "income_from": 0,
+                "income_to": 5400000,
+                "rate": 0
+            },
+            {
+                "income_from": 5400000,
+                "income_to": 5650000,
+                "rate": 0.25
+            },
+            {
+                "income_from": 5650000,
+                "income_to": 5950000,
+                "rate": 0.5
+            },
+            {
+                "income_from": 5950000,
+                "income_to": 6300000,
+                "rate": 0.75
+            },
+            {
+                "income_from": 6300000,
+                "income_to": 6750000,
+                "rate": 1
+            },
+            {
+                "income_from": 6750000,
+                "income_to": 7500000,
+                "rate": 1.25
+            },
+            {
+                "income_from": 7500000,
+                "income_to": 8550000,
+                "rate": 1.5
+            },
+            {
+                "income_from": 8550000,
+                "income_to": 9650000,
+                "rate": 1.75
+            },
+            {
+                "income_from": 9650000,
+                "income_to": 10050000,
+                "rate": 2
+            },
+            {
+                "income_from": 10050000,
+                "income_to": 10350000,
+                "rate": 2.25
+            },
+            {
+                "income_from": 10350000,
+                "income_to": 10700000,
+                "rate": 2.5
+            },
+            {
+                "income_from": 10700000,
+                "income_to": 11050000,
+                "rate": 3
+            },
+            {
+                "income_from": 11050000,
+                "income_to": 11600000,
+                "rate": 3.5
+            },
+            {
+                "income_from": 11600000,
+                "income_to": 12500000,
+                "rate": 4
+            },
+            {
+                "income_from": 12500000,
+                "income_to": 13750000,
+                "rate": 5
+            },
+            {
+                "income_from": 13750000,
+                "income_to": 15100000,
+                "rate": 6
+            },
+            {
+                "income_from": 15100000,
+                "income_to": 16950000,
+                "rate": 7
+            },
+            {
+                "income_from": 16950000,
+                "income_to": 19750000,
+                "rate": 8
+            },
+            {
+                "income_from": 19750000,
+                "income_to": 24150000,
+                "rate": 9
+            },
+            {
+                "income_from": 24150000,
+                "income_to": 26450000,
+                "rate": 10
+            },
+            {
+                "income_from": 26450000,
+                "income_to": 28000000,
+                "rate": 11
+            },
+            {
+                "income_from": 28000000,
+                "income_to": 30050000,
+                "rate": 12
+            },
+            {
+                "income_from": 30050000,
+                "income_to": 32400000,
+                "rate": 13
+            },
+            {
+                "income_from": 32400000,
+                "income_to": 35400000,
+                "rate": 14
+            },
+            {
+                "income_from": 35400000,
+                "income_to": 39100000,
+                "rate": 15
+            },
+            {
+                "income_from": 39100000,
+                "income_to": 43850000,
+                "rate": 16
+            },
+            {
+                "income_from": 43850000,
+                "income_to": 47800000,
+                "rate": 17
+            },
+            {
+                "income_from": 47800000,
+                "income_to": 51400000,
+                "rate": 18
+            },
+            {
+                "income_from": 51400000,
+                "income_to": 56300000,
+                "rate": 19
+            },
+            {
+                "income_from": 56300000,
+                "income_to": 62200000,
+                "rate": 20
+            },
+            {
+                "income_from": 62200000,
+                "income_to": 68600000,
+                "rate": 21
+            },
+            {
+                "income_from": 68600000,
+                "income_to": 77500000,
+                "rate": 22
+            },
+            {
+                "income_from": 77500000,
+                "income_to": 89000000,
+                "rate": 23
+            },
+            {
+                "income_from": 89000000,
+                "income_to": 103000000,
+                "rate": 24
+            },
+            {
+                "income_from": 103000000,
+                "income_to": 125000000,
+                "rate": 25
+            },
+            {
+                "income_from": 125000000,
+                "income_to": 157000000,
+                "rate": 26
+            },
+            {
+                "income_from": 157000000,
+                "income_to": 206000000,
+                "rate": 27
+            },
+            {
+                "income_from": 206000000,
+                "income_to": 337000000,
+                "rate": 28
+            },
+            {
+                "income_from": 337000000,
+                "income_to": 454000000,
+                "rate": 29
+            },
+            {
+                "income_from": 454000000,
+                "income_to": 550000000,
+                "rate": 30
+            },
+            {
+                "income_from": 550000000,
+                "income_to": 695000000,
+                "rate": 31
+            },
+            {
+                "income_from": 695000000,
+                "income_to": 910000000,
+                "rate": 32
+            },
+            {
+                "income_from": 910000000,
+                "income_to": 1400000000,
+                "rate": 33
+            },
+            {
+                "income_from": 1400000000,
+                "income_to": 0,
+                "rate": 34,
+                "is_highest_bracket": 1
+            }
         ],
         "TER B": [
-            {"income_from": 0, "income_to": 6200000, "rate": 0},
-            {"income_from": 6200000, "income_to": 6500000, "rate": 0.25},
-            {"income_from": 6500000, "income_to": 6850000, "rate": 0.5},
-            {"income_from": 6850000, "income_to": 7300000, "rate": 0.75},
-            {"income_from": 7300000, "income_to": 9200000, "rate": 1},
-            {"income_from": 9200000, "income_to": 10750000, "rate": 1.5},
-            {"income_from": 10750000, "income_to": 11250000, "rate": 2},
-            {"income_from": 11250000, "income_to": 11600000, "rate": 2.5},
-            {"income_from": 11600000, "income_to": 12600000, "rate": 3},
-            {"income_from": 12600000, "income_to": 13600000, "rate": 4},
-            {"income_from": 13600000, "income_to": 14950000, "rate": 5},
-            {"income_from": 14950000, "income_to": 16400000, "rate": 6},
-            {"income_from": 16400000, "income_to": 18450000, "rate": 7},
-            {"income_from": 18450000, "income_to": 21850000, "rate": 8},
-            {"income_from": 21850000, "income_to": 26000000, "rate": 9},
-            {"income_from": 26000000, "income_to": 27700000, "rate": 10},
-            {"income_from": 27700000, "income_to": 29350000, "rate": 11},
-            {"income_from": 29350000, "income_to": 31450000, "rate": 12},
-            {"income_from": 31450000, "income_to": 33950000, "rate": 13},
-            {"income_from": 33950000, "income_to": 37100000, "rate": 14},
-            {"income_from": 37100000, "income_to": 41100000, "rate": 15},
-            {"income_from": 41100000, "income_to": 45800000, "rate": 16},
-            {"income_from": 45800000, "income_to": 49500000, "rate": 17},
-            {"income_from": 49500000, "income_to": 53800000, "rate": 18},
-            {"income_from": 53800000, "income_to": 58500000, "rate": 19},
-            {"income_from": 58500000, "income_to": 64000000, "rate": 20},
-            {"income_from": 64000000, "income_to": 71000000, "rate": 21},
-            {"income_from": 71000000, "income_to": 80000000, "rate": 22},
-            {"income_from": 80000000, "income_to": 93000000, "rate": 23},
-            {"income_from": 93000000, "income_to": 109000000, "rate": 24},
-            {"income_from": 109000000, "income_to": 129000000, "rate": 25},
-            {"income_from": 129000000, "income_to": 163000000, "rate": 26},
-            {"income_from": 163000000, "income_to": 211000000, "rate": 27},
-            {"income_from": 211000000, "income_to": 374000000, "rate": 28},
-            {"income_from": 374000000, "income_to": 459000000, "rate": 29},
-            {"income_from": 459000000, "income_to": 555000000, "rate": 30},
-            {"income_from": 555000000, "income_to": 704000000, "rate": 31},
-            {"income_from": 704000000, "income_to": 957000000, "rate": 32},
-            {"income_from": 957000000, "income_to": 1405000000, "rate": 33},
-            {"income_from": 1405000000, "income_to": 0, "rate": 34, "is_highest_bracket": 1}
+            {
+                "income_from": 0,
+                "income_to": 6200000,
+                "rate": 0
+            },
+            {
+                "income_from": 6200000,
+                "income_to": 6500000,
+                "rate": 0.25
+            },
+            {
+                "income_from": 6500000,
+                "income_to": 6850000,
+                "rate": 0.5
+            },
+            {
+                "income_from": 6850000,
+                "income_to": 7300000,
+                "rate": 0.75
+            },
+            {
+                "income_from": 7300000,
+                "income_to": 9200000,
+                "rate": 1
+            },
+            {
+                "income_from": 9200000,
+                "income_to": 10750000,
+                "rate": 1.5
+            },
+            {
+                "income_from": 10750000,
+                "income_to": 11250000,
+                "rate": 2
+            },
+            {
+                "income_from": 11250000,
+                "income_to": 11600000,
+                "rate": 2.5
+            },
+            {
+                "income_from": 11600000,
+                "income_to": 12600000,
+                "rate": 3
+            },
+            {
+                "income_from": 12600000,
+                "income_to": 13600000,
+                "rate": 4
+            },
+            {
+                "income_from": 13600000,
+                "income_to": 14950000,
+                "rate": 5
+            },
+            {
+                "income_from": 14950000,
+                "income_to": 16400000,
+                "rate": 6
+            },
+            {
+                "income_from": 16400000,
+                "income_to": 18450000,
+                "rate": 7
+            },
+            {
+                "income_from": 18450000,
+                "income_to": 21850000,
+                "rate": 8
+            },
+            {
+                "income_from": 21850000,
+                "income_to": 26000000,
+                "rate": 9
+            },
+            {
+                "income_from": 26000000,
+                "income_to": 27700000,
+                "rate": 10
+            },
+            {
+                "income_from": 27700000,
+                "income_to": 29350000,
+                "rate": 11
+            },
+            {
+                "income_from": 29350000,
+                "income_to": 31450000,
+                "rate": 12
+            },
+            {
+                "income_from": 31450000,
+                "income_to": 33950000,
+                "rate": 13
+            },
+            {
+                "income_from": 33950000,
+                "income_to": 37100000,
+                "rate": 14
+            },
+            {
+                "income_from": 37100000,
+                "income_to": 41100000,
+                "rate": 15
+            },
+            {
+                "income_from": 41100000,
+                "income_to": 45800000,
+                "rate": 16
+            },
+            {
+                "income_from": 45800000,
+                "income_to": 49500000,
+                "rate": 17
+            },
+            {
+                "income_from": 49500000,
+                "income_to": 53800000,
+                "rate": 18
+            },
+            {
+                "income_from": 53800000,
+                "income_to": 58500000,
+                "rate": 19
+            },
+            {
+                "income_from": 58500000,
+                "income_to": 64000000,
+                "rate": 20
+            },
+            {
+                "income_from": 64000000,
+                "income_to": 71000000,
+                "rate": 21
+            },
+            {
+                "income_from": 71000000,
+                "income_to": 80000000,
+                "rate": 22
+            },
+            {
+                "income_from": 80000000,
+                "income_to": 93000000,
+                "rate": 23
+            },
+            {
+                "income_from": 93000000,
+                "income_to": 109000000,
+                "rate": 24
+            },
+            {
+                "income_from": 109000000,
+                "income_to": 129000000,
+                "rate": 25
+            },
+            {
+                "income_from": 129000000,
+                "income_to": 163000000,
+                "rate": 26
+            },
+            {
+                "income_from": 163000000,
+                "income_to": 211000000,
+                "rate": 27
+            },
+            {
+                "income_from": 211000000,
+                "income_to": 374000000,
+                "rate": 28
+            },
+            {
+                "income_from": 374000000,
+                "income_to": 459000000,
+                "rate": 29
+            },
+            {
+                "income_from": 459000000,
+                "income_to": 555000000,
+                "rate": 30
+            },
+            {
+                "income_from": 555000000,
+                "income_to": 704000000,
+                "rate": 31
+            },
+            {
+                "income_from": 704000000,
+                "income_to": 957000000,
+                "rate": 32
+            },
+            {
+                "income_from": 957000000,
+                "income_to": 1405000000,
+                "rate": 33
+            },
+            {
+                "income_from": 1405000000,
+                "income_to": 0,
+                "rate": 34,
+                "is_highest_bracket": 1
+            }
         ],
         "TER C": [
-            {"income_from": 0, "income_to": 6600000, "rate": 0},
-            {"income_from": 6600000, "income_to": 6950000, "rate": 0.25},
-            {"income_from": 6950000, "income_to": 7350000, "rate": 0.5},
-            {"income_from": 7350000, "income_to": 7800000, "rate": 0.75},
-            {"income_from": 7800000, "income_to": 8850000, "rate": 1},
-            {"income_from": 8850000, "income_to": 9800000, "rate": 1.25},
-            {"income_from": 9800000, "income_to": 10950000, "rate": 1.5},
-            {"income_from": 10950000, "income_to": 11200000, "rate": 1.75},
-            {"income_from": 11200000, "income_to": 12050000, "rate": 2},
-            {"income_from": 12050000, "income_to": 12950000, "rate": 3},
-            {"income_from": 12950000, "income_to": 14150000, "rate": 4},
-            {"income_from": 14150000, "income_to": 15550000, "rate": 5},
-            {"income_from": 15550000, "income_to": 17050000, "rate": 6},
-            {"income_from": 17050000, "income_to": 19500000, "rate": 7},
-            {"income_from": 19500000, "income_to": 22700000, "rate": 8},
-            {"income_from": 22700000, "income_to": 26600000, "rate": 9},
-            {"income_from": 26600000, "income_to": 28100000, "rate": 10},
-            {"income_from": 28100000, "income_to": 30100000, "rate": 11},
-            {"income_from": 30100000, "income_to": 32600000, "rate": 12},
-            {"income_from": 32600000, "income_to": 35400000, "rate": 13},
-            {"income_from": 35400000, "income_to": 38900000, "rate": 14},
-            {"income_from": 38900000, "income_to": 43000000, "rate": 15},
-            {"income_from": 43000000, "income_to": 47400000, "rate": 16},
-            {"income_from": 47400000, "income_to": 51200000, "rate": 17},
-            {"income_from": 51200000, "income_to": 55800000, "rate": 18},
-            {"income_from": 55800000, "income_to": 60400000, "rate": 19},
-            {"income_from": 60400000, "income_to": 66700000, "rate": 20},
-            {"income_from": 66700000, "income_to": 74500000, "rate": 21},
-            {"income_from": 74500000, "income_to": 83200000, "rate": 22},
-            {"income_from": 83200000, "income_to": 95000000, "rate": 23},
-            {"income_from": 95000000, "income_to": 110000000, "rate": 24},
-            {"income_from": 110000000, "income_to": 134000000, "rate": 25},
-            {"income_from": 134000000, "income_to": 169000000, "rate": 26},
-            {"income_from": 169000000, "income_to": 221000000, "rate": 27},
-            {"income_from": 221000000, "income_to": 390000000, "rate": 28},
-            {"income_from": 390000000, "income_to": 463000000, "rate": 29},
-            {"income_from": 463000000, "income_to": 561000000, "rate": 30},
-            {"income_from": 561000000, "income_to": 709000000, "rate": 31},
-            {"income_from": 709000000, "income_to": 965000000, "rate": 32},
-            {"income_from": 965000000, "income_to": 1419000000, "rate": 33},
-            {"income_from": 1419000000, "income_to": 0, "rate": 34, "is_highest_bracket": 1}
+            {
+                "income_from": 0,
+                "income_to": 6600000,
+                "rate": 0
+            },
+            {
+                "income_from": 6600000,
+                "income_to": 6950000,
+                "rate": 0.25
+            },
+            {
+                "income_from": 6950000,
+                "income_to": 7350000,
+                "rate": 0.5
+            },
+            {
+                "income_from": 7350000,
+                "income_to": 7800000,
+                "rate": 0.75
+            },
+            {
+                "income_from": 7800000,
+                "income_to": 8850000,
+                "rate": 1
+            },
+            {
+                "income_from": 8850000,
+                "income_to": 9800000,
+                "rate": 1.25
+            },
+            {
+                "income_from": 9800000,
+                "income_to": 10950000,
+                "rate": 1.5
+            },
+            {
+                "income_from": 10950000,
+                "income_to": 11200000,
+                "rate": 1.75
+            },
+            {
+                "income_from": 11200000,
+                "income_to": 12050000,
+                "rate": 2
+            },
+            {
+                "income_from": 12050000,
+                "income_to": 12950000,
+                "rate": 3
+            },
+            {
+                "income_from": 12950000,
+                "income_to": 14150000,
+                "rate": 4
+            },
+            {
+                "income_from": 14150000,
+                "income_to": 15550000,
+                "rate": 5
+            },
+            {
+                "income_from": 15550000,
+                "income_to": 17050000,
+                "rate": 6
+            },
+            {
+                "income_from": 17050000,
+                "income_to": 19500000,
+                "rate": 7
+            },
+            {
+                "income_from": 19500000,
+                "income_to": 22700000,
+                "rate": 8
+            },
+            {
+                "income_from": 22700000,
+                "income_to": 26600000,
+                "rate": 9
+            },
+            {
+                "income_from": 26600000,
+                "income_to": 28100000,
+                "rate": 10
+            },
+            {
+                "income_from": 28100000,
+                "income_to": 30100000,
+                "rate": 11
+            },
+            {
+                "income_from": 30100000,
+                "income_to": 32600000,
+                "rate": 12
+            },
+            {
+                "income_from": 32600000,
+                "income_to": 35400000,
+                "rate": 13
+            },
+            {
+                "income_from": 35400000,
+                "income_to": 38900000,
+                "rate": 14
+            },
+            {
+                "income_from": 38900000,
+                "income_to": 43000000,
+                "rate": 15
+            },
+            {
+                "income_from": 43000000,
+                "income_to": 47400000,
+                "rate": 16
+            },
+            {
+                "income_from": 47400000,
+                "income_to": 51200000,
+                "rate": 17
+            },
+            {
+                "income_from": 51200000,
+                "income_to": 55800000,
+                "rate": 18
+            },
+            {
+                "income_from": 55800000,
+                "income_to": 60400000,
+                "rate": 19
+            },
+            {
+                "income_from": 60400000,
+                "income_to": 66700000,
+                "rate": 20
+            },
+            {
+                "income_from": 66700000,
+                "income_to": 74500000,
+                "rate": 21
+            },
+            {
+                "income_from": 74500000,
+                "income_to": 83200000,
+                "rate": 22
+            },
+            {
+                "income_from": 83200000,
+                "income_to": 95000000,
+                "rate": 23
+            },
+            {
+                "income_from": 95000000,
+                "income_to": 110000000,
+                "rate": 24
+            },
+            {
+                "income_from": 110000000,
+                "income_to": 134000000,
+                "rate": 25
+            },
+            {
+                "income_from": 134000000,
+                "income_to": 169000000,
+                "rate": 26
+            },
+            {
+                "income_from": 169000000,
+                "income_to": 221000000,
+                "rate": 27
+            },
+            {
+                "income_from": 221000000,
+                "income_to": 390000000,
+                "rate": 28
+            },
+            {
+                "income_from": 390000000,
+                "income_to": 463000000,
+                "rate": 29
+            },
+            {
+                "income_from": 463000000,
+                "income_to": 561000000,
+                "rate": 30
+            },
+            {
+                "income_from": 561000000,
+                "income_to": 709000000,
+                "rate": 31
+            },
+            {
+                "income_from": 709000000,
+                "income_to": 965000000,
+                "rate": 32
+            },
+            {
+                "income_from": 965000000,
+                "income_to": 1419000000,
+                "rate": 33
+            },
+            {
+                "income_from": 1419000000,
+                "income_to": 0,
+                "rate": 34,
+                "is_highest_bracket": 1
+            }
         ],
         "metadata": {
             "effective_date": "2023-01-01",
@@ -386,18 +909,66 @@
     "bpjs_settings": {
         "validation_rules": {
             "percentage_ranges": [
-                {"field": "kesehatan_employee_percent", "min": 0, "max": 5, "error_msg": "BPJS Kesehatan employee percentage must be between 0 and 5%"},
-                {"field": "kesehatan_employer_percent", "min": 0, "max": 10, "error_msg": "BPJS Kesehatan employer percentage must be between 0 and 10%"},
-                {"field": "jht_employee_percent", "min": 0, "max": 5, "error_msg": "JHT employee percentage must be between 0 and 5%"},
-                {"field": "jht_employer_percent", "min": 0, "max": 10, "error_msg": "JHT employer percentage must be between 0 and 10%"},
-                {"field": "jp_employee_percent", "min": 0, "max": 5, "error_msg": "JP employee percentage must be between 0 and 5%"},
-                {"field": "jp_employer_percent", "min": 0, "max": 5, "error_msg": "JP employer percentage must be between 0 and 5%"},
-                {"field": "jkk_percent", "min": 0, "max": 5, "error_msg": "JKK percentage must be between 0 and 5%"},
-                {"field": "jkm_percent", "min": 0, "max": 5, "error_msg": "JKM percentage must be between 0 and 5%"}
+                {
+                    "field": "kesehatan_employee_percent",
+                    "min": 0,
+                    "max": 5,
+                    "error_msg": "BPJS Kesehatan employee percentage must be between 0 and 5%"
+                },
+                {
+                    "field": "kesehatan_employer_percent",
+                    "min": 0,
+                    "max": 10,
+                    "error_msg": "BPJS Kesehatan employer percentage must be between 0 and 10%"
+                },
+                {
+                    "field": "jht_employee_percent",
+                    "min": 0,
+                    "max": 5,
+                    "error_msg": "JHT employee percentage must be between 0 and 5%"
+                },
+                {
+                    "field": "jht_employer_percent",
+                    "min": 0,
+                    "max": 10,
+                    "error_msg": "JHT employer percentage must be between 0 and 10%"
+                },
+                {
+                    "field": "jp_employee_percent",
+                    "min": 0,
+                    "max": 5,
+                    "error_msg": "JP employee percentage must be between 0 and 5%"
+                },
+                {
+                    "field": "jp_employer_percent",
+                    "min": 0,
+                    "max": 5,
+                    "error_msg": "JP employer percentage must be between 0 and 5%"
+                },
+                {
+                    "field": "jkk_percent",
+                    "min": 0,
+                    "max": 5,
+                    "error_msg": "JKK percentage must be between 0 and 5%"
+                },
+                {
+                    "field": "jkm_percent",
+                    "min": 0,
+                    "max": 5,
+                    "error_msg": "JKM percentage must be between 0 and 5%"
+                }
             ],
             "salary_thresholds": [
-                {"field": "kesehatan_max_salary", "min": 0, "error_msg": "BPJS Kesehatan maximum salary must be greater than 0"},
-                {"field": "jp_max_salary", "min": 0, "error_msg": "JP maximum salary must be greater than 0"}
+                {
+                    "field": "kesehatan_max_salary",
+                    "min": 0,
+                    "error_msg": "BPJS Kesehatan maximum salary must be greater than 0"
+                },
+                {
+                    "field": "jp_max_salary",
+                    "min": 0,
+                    "error_msg": "JP maximum salary must be greater than 0"
+                }
             ]
         },
         "account_fields": [
@@ -453,327 +1024,118 @@
     "salary_components": {
         "earnings": [
             {
-                "name": "Gaji Pokok", 
-                "abbr": "GP", 
+                "name": "Gaji Pokok",
+                "abbr": "GP",
                 "is_tax_applicable": true,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Gaji pokok adalah objek pajak dan menambah penghasilan bruto"
-                    },
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Tidak relevan sebagai deduction"
-                    }
-                ]
+                "tax_effect_type": "Penambah Bruto/Objek Pajak"
             },
             {
-                "name": "Tunjangan Makan", 
-                "abbr": "TM", 
+                "name": "Tunjangan Makan",
+                "abbr": "TM",
                 "is_tax_applicable": true,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Tunjangan makan diberikan dalam bentuk uang dan merupakan objek pajak"
-                    },
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Tidak relevan sebagai deduction"
-                    }
-                ]
+                "tax_effect_type": "Penambah Bruto/Objek Pajak"
             },
             {
-                "name": "Tunjangan Transport", 
-                "abbr": "TT", 
+                "name": "Tunjangan Transport",
+                "abbr": "TT",
                 "is_tax_applicable": true,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Tunjangan transport diberikan dalam bentuk uang dan merupakan objek pajak"
-                    },
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Tidak relevan sebagai deduction"
-                    }
-                ]
+                "tax_effect_type": "Penambah Bruto/Objek Pajak"
             },
             {
-                "name": "Insentif", 
-                "abbr": "INS", 
+                "name": "Insentif",
+                "abbr": "INS",
                 "is_tax_applicable": true,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Insentif merupakan objek pajak dan menambah penghasilan bruto"
-                    },
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Tidak relevan sebagai deduction"
-                    }
-                ]
+                "tax_effect_type": "Penambah Bruto/Objek Pajak"
             },
             {
-                "name": "Bonus", 
-                "abbr": "BON", 
+                "name": "Bonus",
+                "abbr": "BON",
                 "is_tax_applicable": true,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Bonus merupakan objek pajak dan menambah penghasilan bruto"
-                    },
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Tidak relevan sebagai deduction"
-                    }
-                ]
+                "tax_effect_type": "Penambah Bruto/Objek Pajak"
             },
             {
                 "name": "Tunjangan Jabatan",
                 "abbr": "TJ",
                 "is_tax_applicable": true,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Tunjangan jabatan merupakan objek pajak dan menambah penghasilan bruto"
-                    },
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Tidak relevan sebagai deduction"
-                    }
-                ]
+                "tax_effect_type": "Penambah Bruto/Objek Pajak"
             },
             {
                 "name": "Tunjangan Lembur",
                 "abbr": "TL",
                 "is_tax_applicable": true,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Tunjangan lembur merupakan objek pajak dan menambah penghasilan bruto"
-                    },
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Tidak relevan sebagai deduction"
-                    }
-                ]
+                "tax_effect_type": "Penambah Bruto/Objek Pajak"
             },
             {
                 "name": "Uang Makan",
                 "abbr": "UM",
                 "is_tax_applicable": true,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Natura/Fasilitas (Objek Pajak)",
-                        "description": "Uang makan yang diberikan sebagai natura merupakan objek pajak"
-                    },
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Tidak relevan sebagai deduction"
-                    }
-                ]
+                "tax_effect_type": "Natura/Fasilitas (Objek Pajak)"
             },
             {
                 "name": "Fasilitas Kendaraan",
                 "abbr": "FK",
                 "is_tax_applicable": false,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Natura/Fasilitas (Non-Objek Pajak)",
-                        "description": "Fasilitas kendaraan sebagai natura non-objek pajak (khusus untuk perusahaan tertentu)"
-                    },
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Tidak relevan sebagai deduction"
-                    }
-                ]
+                "tax_effect_type": "Natura/Fasilitas (Non-Objek Pajak)"
             }
         ],
         "deductions": [
             {
-                "name": "PPh 21", 
-                "abbr": "PPH21", 
-                "variable_based_on_taxable_salary": true, 
+                "name": "PPh 21",
+                "abbr": "PPH21",
+                "variable_based_on_taxable_salary": true,
                 "supports_ter": true,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "PPh 21 adalah pajak itu sendiri, tidak mempengaruhi perhitungan pajak"
-                    },
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Tidak relevan sebagai earning"
-                    }
-                ]
+                "tax_effect_type": "Tidak Berpengaruh ke Pajak"
             },
             {
-                "name": "BPJS JHT Employee", 
+                "name": "BPJS JHT Employee",
                 "abbr": "BPJSJHT",
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Pengurang Netto/Tax Deduction",
-                        "description": "Iuran JHT yang dibayar sendiri oleh karyawan dapat dikurangkan dari penghasilan bruto"
-                    },
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Tidak relevan sebagai earning"
-                    }
-                ]
+                "tax_effect_type": "Pengurang Netto/Tax Deduction"
             },
             {
-                "name": "BPJS JP Employee", 
+                "name": "BPJS JP Employee",
                 "abbr": "BPJSJP",
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Pengurang Netto/Tax Deduction",
-                        "description": "Iuran JP yang dibayar sendiri oleh karyawan dapat dikurangkan dari penghasilan bruto"
-                    },
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Tidak relevan sebagai earning"
-                    }
-                ]
+                "tax_effect_type": "Pengurang Netto/Tax Deduction"
             },
             {
-                "name": "BPJS Kesehatan Employee", 
+                "name": "BPJS Kesehatan Employee",
                 "abbr": "BPJSKES",
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Pengurang Netto/Tax Deduction",
-                        "description": "Iuran Kesehatan yang dibayar sendiri oleh karyawan dapat dikurangkan dari penghasilan bruto"
-                    },
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Tidak relevan sebagai earning"
-                    }
-                ]
+                "tax_effect_type": "Pengurang Netto/Tax Deduction"
             },
             {
-                "name": "BPJS JHT Employer", 
-                "abbr": "BPJSJHTE", 
+                "name": "BPJS JHT Employer",
+                "abbr": "BPJSJHTE",
                 "statistical_component": true,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Iuran JHT yang dibayar oleh pemberi kerja merupakan penghasilan bagi karyawan"
-                    },
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Jika ditampilkan sebagai earning, tetap merupakan objek pajak"
-                    }
-                ]
+                "tax_effect_type": "Penambah Bruto/Objek Pajak"
             },
             {
-                "name": "BPJS JP Employer", 
-                "abbr": "BPJSJPE", 
+                "name": "BPJS JP Employer",
+                "abbr": "BPJSJPE",
                 "statistical_component": true,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Iuran JP yang dibayar oleh pemberi kerja merupakan penghasilan bagi karyawan"
-                    },
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Jika ditampilkan sebagai earning, tetap merupakan objek pajak"
-                    }
-                ]
+                "tax_effect_type": "Penambah Bruto/Objek Pajak"
             },
             {
-                "name": "BPJS JKK", 
-                "abbr": "BPJSJKK", 
+                "name": "BPJS JKK",
+                "abbr": "BPJSJKK",
                 "statistical_component": true,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Iuran JKK yang dibayar oleh pemberi kerja merupakan penghasilan bagi karyawan"
-                    },
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Jika ditampilkan sebagai earning, tetap merupakan objek pajak"
-                    }
-                ]
+                "tax_effect_type": "Penambah Bruto/Objek Pajak"
             },
             {
-                "name": "BPJS JKM", 
-                "abbr": "BPJSJKM", 
+                "name": "BPJS JKM",
+                "abbr": "BPJSJKM",
                 "statistical_component": true,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Iuran JKM yang dibayar oleh pemberi kerja merupakan penghasilan bagi karyawan"
-                    },
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Jika ditampilkan sebagai earning, tetap merupakan objek pajak"
-                    }
-                ]
+                "tax_effect_type": "Penambah Bruto/Objek Pajak"
             },
             {
-                "name": "BPJS Kesehatan Employer", 
-                "abbr": "BPJSKESE", 
+                "name": "BPJS Kesehatan Employer",
+                "abbr": "BPJSKESE",
                 "statistical_component": true,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Iuran Kesehatan yang dibayar oleh pemberi kerja merupakan penghasilan bagi karyawan"
-                    },
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Penambah Bruto/Objek Pajak",
-                        "description": "Jika ditampilkan sebagai earning, tetap merupakan objek pajak"
-                    }
-                ]
+                "tax_effect_type": "Penambah Bruto/Objek Pajak"
             },
             {
                 "name": "Potongan Kasbon",
                 "abbr": "PK",
                 "is_tax_applicable": false,
-                "tax_effect_by_type": [
-                    {
-                        "component_type": "Deduction",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Potongan kasbon tidak mempengaruhi perhitungan pajak"
-                    },
-                    {
-                        "component_type": "Earning",
-                        "tax_effect_type": "Tidak Berpengaruh ke Pajak",
-                        "description": "Tidak relevan sebagai earning"
-                    }
-                ]
+                "tax_effect_type": "Tidak Berpengaruh ke Pajak"
             }
         ]
     },
