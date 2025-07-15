@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 # Copyright (c) 2025, PT. Innovasi Terbaik Bangsa and contributors
 # For license information, please see license.txt
-# Last modified: 2025-07-05 by dannyaudian
 
 """
 Salary Slip Controller module - Indonesia-specific logic for salary processing
@@ -13,6 +12,7 @@ from typing import Dict, List, Tuple, Any, Optional, Union
 import frappe
 from frappe import _
 from frappe.utils import flt, cint, getdate, date_diff, add_months
+from frappe.model.document import Document
 
 from payroll_indonesia.frappe_helpers import logger
 from payroll_indonesia.config.config import get_component_tax_effect
@@ -31,7 +31,6 @@ from payroll_indonesia.override.salary_slip.tax_calculator import (
     get_slip_year_month,
     update_slip_fields,
 )
-from payroll_indonesia.utilities.field_accessor import SalarySlipFieldAccessor
 
 __all__ = [
     "IndonesiaPayrollSalarySlip",  # Add to public API
@@ -53,7 +52,6 @@ class IndonesiaPayrollSalarySlip:
     def __init__(self, doc=None):
         """Initialize with optional salary slip document"""
         self.doc = doc
-        self.accessor = SalarySlipFieldAccessor(doc) if doc else None
 
     def calculate_tax(self) -> float:
         """
@@ -62,7 +60,7 @@ class IndonesiaPayrollSalarySlip:
         Returns:
             float: Calculated tax amount
         """
-        if not self.doc or not self.accessor:
+        if not self.doc:
             return 0.0
 
         # Update tax components in the document
@@ -80,11 +78,11 @@ class IndonesiaPayrollSalarySlip:
 
     def update_custom_fields(self) -> None:
         """Update Indonesia-specific custom fields in the document"""
-        if not self.doc or not self.accessor:
+        if not self.doc:
             return
 
         # Skip if Indonesia payroll not enabled
-        if not cint(self.accessor.get("calculate_indonesia_tax", 0)):
+        if not cint(getattr(self.doc, "calculate_indonesia_tax", 0)):
             return
 
         # Update YTD data
@@ -246,7 +244,6 @@ class IndonesiaPayrollSalarySlip:
 
         except Exception as e:
             logger.exception(f"Error updating BPJS fields: {str(e)}")
-
 
 def calculate_taxable_earnings(doc: Any) -> float:
     """
