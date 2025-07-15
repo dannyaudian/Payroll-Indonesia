@@ -239,12 +239,12 @@
   {
     "doctype": "Custom Field",
     "dt": "Payroll Entry",
-    "fieldname": "use_ter_method",
+    "fieldname": "ter_method_enabled",
     "fieldtype": "Check",
     "insert_after": "naming_series",
     "label": "Use TER Method",
     "module": "Payroll Indonesia",
-    "name": "Payroll Entry-use_ter_method",
+    "name": "Payroll Entry-ter_method_enabled",
     "default": "0"
   },
   {
@@ -252,7 +252,7 @@
     "dt": "Payroll Entry",
     "fieldname": "is_december_override",
     "fieldtype": "Check",
-    "insert_after": "use_ter_method",
+    "insert_after": "ter_method_enabled",
     "label": "Run as December/Desember Override",
     "module": "Payroll Indonesia",
     "name": "Payroll Entry-is_december_override",
