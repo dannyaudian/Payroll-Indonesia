@@ -279,6 +279,28 @@ class TestTaxCalculator(unittest.TestCase):
         self.assertEqual(flt(details.get("correction_amount"), 2), flt(expected_correction, 2))
         self.assertEqual(flt(details.get("correction_amount"), 2), flt(details["december_tax"], 2))
 
+    def test_december_correction_with_prior_slips(self):
+        """Fallback should sum tax corrections from submitted salary slips"""
+        employee = self.test_employees["complete"]
+
+        # Earlier slip with tax correction
+        prev_slip = self.create_salary_slip(employee)
+        prev_slip.posting_date = getdate("2025-03-15")
+        prev_slip.koreksi_pph21 = 250000
+        prev_slip.save(ignore_permissions=True)
+        prev_slip.submit()
+
+        # December slip
+        dec_slip = self.create_salary_slip(employee)
+        dec_slip.posting_date = getdate("2025-12-15")
+        dec_slip.save(ignore_permissions=True)
+
+        from payroll_indonesia.override.salary_slip.tax_calculator import calculate_december_pph
+
+        _, details = calculate_december_pph(dec_slip)
+
+        self.assertEqual(flt(details.get("ytd_tax_correction", 0)), 250000)
+
     def test_december_correction_with_summary(self):
         """Ensure December correction uses YTD tax correction from summary"""
         employee = self.test_employees["complete"]

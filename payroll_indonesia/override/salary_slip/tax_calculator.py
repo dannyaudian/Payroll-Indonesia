@@ -359,8 +359,10 @@ def get_ytd_totals(slip: Any) -> Dict[str, float]:
         slip_name = getattr(slip, "name", "unknown")
 
         if not employee or not posting_date:
-            logger.warning(f"Missing employee or posting_date in slip {slip_name}, returning zeros")
-            return {"gross": 0.0, "bpjs": 0.0, "pph21": 0.0}
+            logger.warning(
+                f"Missing employee or posting_date in slip {slip_name}, returning zeros"
+            )
+            return {"gross": 0.0, "bpjs": 0.0, "pph21": 0.0, "tax_correction": 0.0}
 
         logger.debug(f"Fetching YTD totals for employee {employee}, year {year}")
 
@@ -372,7 +374,7 @@ def get_ytd_totals(slip: Any) -> Dict[str, float]:
             return cached_result
 
         # Default result if no data is found
-        result = {"gross": 0.0, "bpjs": 0.0, "pph21": 0.0}
+        result = {"gross": 0.0, "bpjs": 0.0, "pph21": 0.0, "tax_correction": 0.0}
 
         # Build fields list based on available columns
         select_fields = []
@@ -385,6 +387,8 @@ def get_ytd_totals(slip: Any) -> Dict[str, float]:
             "pph21": "pph21",
             "pph21_tax": "pph21",
             "base_pph21": "pph21",
+            "koreksi_pph21": "tax_correction",
+            "tax_correction": "tax_correction",
         }
 
         for db_field, result_field in field_mappings.items():
@@ -424,7 +428,7 @@ def get_ytd_totals(slip: Any) -> Dict[str, float]:
 
     except Exception as e:
         logger.exception(f"Error calculating YTD totals: {str(e)}")
-        return {"gross": 0.0, "bpjs": 0.0, "pph21": 0.0}
+        return {"gross": 0.0, "bpjs": 0.0, "pph21": 0.0, "tax_correction": 0.0}
 
 
 def get_slip_year_month(slip: Any) -> Tuple[int, int]:
@@ -975,7 +979,7 @@ def calculate_december_pph(slip: Any) -> Tuple[float, Dict[str, Any]]:
             ytd_bpjs = flt(ytd.get("bpjs", 0))
             ytd_taxable = ytd_gross  # Approximate
             ytd_deductions = ytd_bpjs  # Approximate
-            ytd_tax_correction = 0
+            ytd_tax_correction = flt(ytd.get("tax_correction", 0))
 
         # Get tax status (PTKP code)
         tax_status = get_tax_status(slip)
