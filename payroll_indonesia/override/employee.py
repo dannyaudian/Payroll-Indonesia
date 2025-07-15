@@ -16,6 +16,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from payroll_indonesia.frappe_helpers import logger
+from payroll_indonesia.utilities.field_accessor import EmployeeFieldAccessor
 
 # Define paths to try for Employee class import
 PATHS_TO_TRY = [
@@ -168,63 +169,82 @@ class EmployeeOverride(BaseEmployee):
         Checks NPWP, KTP, status pajak, and other Indonesia-specific fields.
         """
         try:
-            # Check if status_pajak exists and is valid
-            if hasattr(self, "status_pajak") and self.status_pajak:
-                valid_status = [
-                    "TK0",
-                    "TK1",
-                    "TK2",
-                    "TK3",
-                    "K0",
-                    "K1",
-                    "K2",
-                    "K3",
-                    "HB0",
-                    "HB1",
-                    "HB2",
-                    "HB3",
-                ]
 
-                if self.status_pajak not in valid_status:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+            accessor = EmployeeFieldAccessor(self)
+
+
+            # Check if status_pajak exists and is valid
+            status_pajak = accessor.get_status_pajak()
+            if status_pajak:
+                valid_status = EmployeeSchema.FIELDS["status_pajak"]["options"]
+                if status_pajak not in valid_status:
                     frappe.msgprint(
                         _("Status pajak '{0}' tidak valid. Gunakan salah satu dari: {1}").format(
-                            self.status_pajak, ", ".join(valid_status)
+
+                            status_pajak, ", ".join(valid_status)
                         ),
                         indicator="red",
                     )
 
             # Validate NPWP format if provided
-            if hasattr(self, "npwp") and self.npwp:
+
+            npwp = accessor.get("npwp")
+            if npwp:
                 # Just a basic length check for now
-                if len(self.npwp.replace(".", "").replace("-", "")) != 15:
+
+                if len(npwp.replace(".", "").replace("-", "")) != 15:
                     frappe.msgprint(
                         _("Format NPWP tidak valid. NPWP harus 15 digit."), indicator="yellow"
                     )
 
             # Validate KTP format if provided
-            if hasattr(self, "ktp") and self.ktp:
+
+            ktp = accessor.get("ktp")
+            if ktp:
                 # Just a basic length check for now
-                if len(self.ktp.replace(".", "").replace("-", "")) != 16:
+
+                if len(ktp.replace(".", "").replace("-", "")) != 16:
                     frappe.msgprint(
                         _("Format KTP tidak valid. KTP harus 16 digit."), indicator="yellow"
                     )
 
             # Check jumlah_tanggungan is consistent with status_pajak
-            if (
-                hasattr(self, "status_pajak")
-                and self.status_pajak
-                and hasattr(self, "jumlah_tanggungan")
-            ):
-                # Extract the number from status
-                if len(self.status_pajak) >= 2:
-                    status_num = self.status_pajak[-1]
+
+
+
+
+
+
+
+
+            if status_pajak and len(status_pajak) >= 2:
+                status_num = status_pajak[-1]
                     if status_num.isdigit():
                         expected_tanggungan = int(status_num)
-                        if self.jumlah_tanggungan != expected_tanggungan:
-                            self.jumlah_tanggungan = expected_tanggungan
+
+
+                    current_tanggungan = accessor.get("jumlah_tanggungan")
+                    if current_tanggungan != expected_tanggungan:
+                        accessor.set("jumlah_tanggungan", expected_tanggungan)
                             logger.debug(
                                 f"Updated jumlah_tanggungan to {expected_tanggungan} "
-                                f"based on status_pajak {self.status_pajak}"
+
+                            f"based on status_pajak {status_pajak}"
                             )
 
         except Exception as e:

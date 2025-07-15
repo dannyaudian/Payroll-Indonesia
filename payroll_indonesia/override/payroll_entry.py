@@ -25,7 +25,7 @@ from payroll_indonesia.constants import (
     NATURA_OBJEK_EFFECT,
     NATURA_NON_OBJEK_EFFECT,
 )
-
+from payroll_indonesia.utilities.field_accessor import PayrollEntryFieldAccessor
 
 class CustomPayrollEntry(Document):
     """
@@ -43,17 +43,19 @@ class CustomPayrollEntry(Document):
         Validate tax-related settings.
         """
         try:
+            accessor = PayrollEntryFieldAccessor(self)
+
             # Skip if Indonesia payroll not enabled
-            if cint(getattr(self, "calculate_indonesia_tax", 0)) != 1:
+            if not accessor.is_indonesia_tax_enabled():
                 return
             
             # Validate tax method
-            tax_method = getattr(self, "tax_method", "Progressive")
+            tax_method = accessor.get("tax_method", "Progressive")
             if tax_method not in ["Progressive", "TER"]:
                 frappe.throw(_("Invalid tax method. Must be 'Progressive' or 'TER'."))
             
             # If using TER, ensure TER settings are defined
-            if tax_method == "TER":
+            if tax_method == "TER" or accessor.is_ter_method_enabled():
                 self._validate_ter_settings()
             
             logger.debug(f"Tax settings validated for payroll entry {getattr(self, 'name', 'unknown')}")
