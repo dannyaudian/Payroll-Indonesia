@@ -78,7 +78,7 @@ def test_post_submit_updates_existing_history(monkeypatch):
 
     class DummyHistory:
         def __init__(self):
-            self.ytd_gross = 0
+            self.ytd_gross_pay = 0
             self.ytd_tax = 0
             self.flags = types.SimpleNamespace()
 
@@ -108,6 +108,6 @@ def test_post_submit_updates_existing_history(monkeypatch):
 
     enqueue_mock.assert_called_once_with(slip)
 
-    assert existing.ytd_gross == 1000
+    assert existing.ytd_gross_pay == 1000
     assert existing.ytd_tax == 50
     assert getattr(existing, "saved", False)

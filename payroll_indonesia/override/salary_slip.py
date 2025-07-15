@@ -232,8 +232,8 @@ class SalarySlipIndonesia:
                 self.doc.ptkp_value = annual_ptkp
             if hasattr(self.doc, "monthly_taxable"):
                 self.doc.monthly_taxable = monthly_taxable
-            if hasattr(self.doc, "annual_taxable"):
-                self.doc.annual_taxable = annual_taxable
+            if hasattr(self.doc, "annual_taxable_income"):
+                self.doc.annual_taxable_income = annual_taxable
             if hasattr(self.doc, "biaya_jabatan"):
                 self.doc.biaya_jabatan = biaya_jabatan
             if hasattr(self.doc, "tax_deductions"):
@@ -258,7 +258,7 @@ class SalarySlipIndonesia:
         """
         try:
             # Get YTD values
-            ytd_gross = flt(getattr(self.doc, "ytd_gross", 0))
+            ytd_gross = flt(getattr(self.doc, "ytd_gross_pay", 0))
             ytd_bpjs = flt(getattr(self.doc, "ytd_bpjs", 0))
             ytd_pph21 = flt(getattr(self.doc, "ytd_pph21", 0))
             
@@ -300,14 +300,14 @@ class SalarySlipIndonesia:
                 self.doc.ptkp_value = annual_ptkp
             if hasattr(self.doc, "monthly_taxable"):
                 self.doc.monthly_taxable = monthly_taxable
-            if hasattr(self.doc, "ytd_gross"):
-                self.doc.ytd_gross = ytd_gross
+            if hasattr(self.doc, "ytd_gross_pay"):
+                self.doc.ytd_gross_pay = ytd_gross
             if hasattr(self.doc, "ytd_bpjs"):
                 self.doc.ytd_bpjs = ytd_bpjs
             if hasattr(self.doc, "ytd_pph21"):
                 self.doc.ytd_pph21 = ytd_pph21
-            if hasattr(self.doc, "annual_taxable"):
-                self.doc.annual_taxable = annual_taxable
+            if hasattr(self.doc, "annual_taxable_income"):
+                self.doc.annual_taxable_income = annual_taxable
             if hasattr(self.doc, "biaya_jabatan"):
                 self.doc.biaya_jabatan = biaya_jabatan
             if hasattr(self.doc, "tax_deductions"):

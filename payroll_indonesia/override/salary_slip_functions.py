@@ -394,10 +394,10 @@ def _update_custom_fields(doc):
             doc.salary_month = month
 
         # Update YTD fields from tax calculation
-        if hasattr(doc, "ytd_gross") and not doc.ytd_gross:
+        if hasattr(doc, "ytd_gross_pay") and not doc.ytd_gross_pay:
             ytd = get_ytd_totals(doc)
-            if hasattr(doc, "ytd_gross"):
-                doc.ytd_gross = ytd.get("gross", 0)
+            if hasattr(doc, "ytd_gross_pay"):
+                doc.ytd_gross_pay = ytd.get("gross", 0)
             if hasattr(doc, "ytd_bpjs"):
                 doc.ytd_bpjs = ytd.get("bpjs", 0)
             if hasattr(doc, "ytd_pph21"):
