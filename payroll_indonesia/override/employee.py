@@ -169,24 +169,7 @@ class EmployeeOverride(BaseEmployee):
         Checks NPWP, KTP, status pajak, and other Indonesia-specific fields.
         """
         try:
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
             accessor = EmployeeFieldAccessor(self)
-
 
             # Check if status_pajak exists and is valid
             status_pajak = accessor.get_status_pajak()
@@ -195,55 +178,39 @@ class EmployeeOverride(BaseEmployee):
                 if status_pajak not in valid_status:
                     frappe.msgprint(
                         _("Status pajak '{0}' tidak valid. Gunakan salah satu dari: {1}").format(
-
                             status_pajak, ", ".join(valid_status)
                         ),
                         indicator="red",
                     )
 
             # Validate NPWP format if provided
-
             npwp = accessor.get("npwp")
             if npwp:
                 # Just a basic length check for now
-
                 if len(npwp.replace(".", "").replace("-", "")) != 15:
                     frappe.msgprint(
                         _("Format NPWP tidak valid. NPWP harus 15 digit."), indicator="yellow"
                     )
 
             # Validate KTP format if provided
-
             ktp = accessor.get("ktp")
             if ktp:
                 # Just a basic length check for now
-
                 if len(ktp.replace(".", "").replace("-", "")) != 16:
                     frappe.msgprint(
                         _("Format KTP tidak valid. KTP harus 16 digit."), indicator="yellow"
                     )
 
             # Check jumlah_tanggungan is consistent with status_pajak
-
-
-
-
-
-
-
-
             if status_pajak and len(status_pajak) >= 2:
                 status_num = status_pajak[-1]
                     if status_num.isdigit():
                         expected_tanggungan = int(status_num)
-
-
                     current_tanggungan = accessor.get("jumlah_tanggungan")
                     if current_tanggungan != expected_tanggungan:
                         accessor.set("jumlah_tanggungan", expected_tanggungan)
                             logger.debug(
                                 f"Updated jumlah_tanggungan to {expected_tanggungan} "
-
                             f"based on status_pajak {status_pajak}"
                             )
 
