@@ -16,6 +16,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from payroll_indonesia.frappe_helpers import logger
+from payroll_indonesia.schema.custom_fields import EmployeeSchema
 from payroll_indonesia.utilities.field_accessor import EmployeeFieldAccessor
 
 # Define paths to try for Employee class import
@@ -204,15 +205,15 @@ class EmployeeOverride(BaseEmployee):
             # Check jumlah_tanggungan is consistent with status_pajak
             if status_pajak and len(status_pajak) >= 2:
                 status_num = status_pajak[-1]
-                    if status_num.isdigit():
-                        expected_tanggungan = int(status_num)
+                if status_num.isdigit():
+                    expected_tanggungan = int(status_num)
                     current_tanggungan = accessor.get("jumlah_tanggungan")
                     if current_tanggungan != expected_tanggungan:
                         accessor.set("jumlah_tanggungan", expected_tanggungan)
-                            logger.debug(
-                                f"Updated jumlah_tanggungan to {expected_tanggungan} "
+                        logger.debug(
+                            f"Updated jumlah_tanggungan to {expected_tanggungan} "
                             f"based on status_pajak {status_pajak}"
-                            )
+                        )
 
         except Exception as e:
             logger.exception(f"Error validating Indonesian fields for {self.name}: {str(e)}")
