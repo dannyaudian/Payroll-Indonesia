@@ -18,6 +18,8 @@ from payroll_indonesia.override.salary_slip.tax_calculator import (
     get_ytd_totals,
     is_december_calculation,
 )
+from payroll_indonesia.frappe_helpers import logger
+from payroll_indonesia.payroll_indonesia import utils
 
 
 
@@ -159,9 +161,28 @@ def after_save(doc, method=None):
             return
         
         logger.debug(f"Completed after_save for slip {getattr(doc, 'name', 'unknown')}")
-    
+
     except Exception as e:
         logger.exception(f"Error in after_save: {str(e)}")
+
+
+def after_submit(doc, method=None):
+    """After submit hook for Salary Slip."""
+    try:
+        if hasattr(doc, "flags") and getattr(doc.flags, "skip_indonesia_hooks", False):
+            return
+
+        if cint(getattr(doc, "calculate_indonesia_tax", 0)) != 1:
+            return
+
+        utils.update_employee_tax_summary(doc.employee, doc.name)
+
+        logger.debug(
+            f"Updated tax summary after submit for slip {getattr(doc, 'name', 'unknown')}"
+        )
+
+    except Exception as e:
+        logger.exception(f"Error in after_submit: {str(e)}")
 
 
 def _update_deduction_amounts(doc):
