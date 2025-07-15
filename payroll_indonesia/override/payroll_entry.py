@@ -187,14 +187,21 @@ class CustomPayrollEntry(Document):
             value: Value to set (default True)
         """
         try:
-            self.use_ter_method = 1 if value else 0
+            self.ter_method_enabled = 1 if value else 0
             
             # If document is already saved, update in database
             if self.name and not self.is_new():
-                frappe.db.set_value("Payroll Entry", self.name, "use_ter_method", self.use_ter_method)
+                frappe.db.set_value(
+                    "Payroll Entry",
+                    self.name,
+                    "ter_method_enabled",
+                    self.ter_method_enabled,
+                )
                 frappe.db.commit()
-            
-            logger.debug(f"Set use_ter_method={self.use_ter_method} for payroll entry {getattr(self, 'name', 'unknown')}")
+
+            logger.debug(
+                f"Set ter_method_enabled={self.ter_method_enabled} for payroll entry {getattr(self, 'name', 'unknown')}"
+            )
         
         except Exception as e:
             logger.exception(f"Error setting TER method: {str(e)}")
@@ -321,10 +328,15 @@ class PayrollEntryIndonesia:
                 return
             
             # Get settings to propagate
+            tax_method = (
+                "TER"
+                if cint(getattr(self.doc, "ter_method_enabled", 0)) == 1
+                else getattr(self.doc, "tax_method", "Progressive")
+            )
             settings = {
                 "calculate_indonesia_tax": 1,
-                "tax_method": getattr(self.doc, "tax_method", "Progressive"),
-                "is_december_override": cint(getattr(self.doc, "is_december_override", 0))
+                "tax_method": tax_method,
+                "is_december_override": cint(getattr(self.doc, "is_december_override", 0)),
             }
             
             # Propagate to each slip
