@@ -75,7 +75,7 @@ class TestTERCalculator(unittest.TestCase):
 
     def test_ter_calculation_basic(self):
         """Test basic TER calculation for TK0 with NPWP"""
-        calculate_monthly_pph_with_ter(self.test_salary_slip, self.test_employee)
+        tax, details = calculate_monthly_pph_with_ter(self.test_salary_slip, self.test_employee)
 
         # Assert TER calculation results
         self.assertEqual(self.test_salary_slip.ter_category, "TER A")  # For income < 13jt
@@ -86,6 +86,11 @@ class TestTERCalculator(unittest.TestCase):
         self.assertEqual(flt(self.test_salary_slip.ter_rate, 2), 5.00)
         self.assertEqual(
             flt(self.test_salary_slip.monthly_tax), flt(self.test_salary_slip.gross_pay * 0.05)
+        )
+        self.assertIn("monthly_gross_for_ter", details)
+        self.assertEqual(
+            flt(self.test_salary_slip.monthly_gross_for_ter, 2),
+            flt(details["monthly_gross_for_ter"], 2),
         )
 
     def test_ter_calculation_no_npwp(self):

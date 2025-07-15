@@ -158,6 +158,7 @@ class TestTaxCalculator(unittest.TestCase):
         # Verify TER application
         self.assertTrue(salary_slip.is_using_ter)
         self.assertTrue(salary_slip.ter_rate > 0)
+        self.assertEqual(flt(salary_slip.monthly_gross_for_ter, 2), flt(expected_taxable, 2))
 
         # Verify final PPh21 amount
         expected_pph21 = expected_taxable * (salary_slip.ter_rate / 100)
@@ -190,6 +191,7 @@ class TestTaxCalculator(unittest.TestCase):
 
         # Verify taxable income equals gross (no BPJS reduction)
         self.assertEqual(flt(salary_slip.monthly_taxable_income, 2), flt(salary_slip.gross_pay, 2))
+        self.assertEqual(flt(salary_slip.monthly_gross_for_ter, 2), flt(salary_slip.gross_pay, 2))
 
     def test_ter_override(self):
         """Test explicit TER method override"""
@@ -203,6 +205,7 @@ class TestTaxCalculator(unittest.TestCase):
         self.assertTrue(salary_slip.is_using_ter)
         self.assertTrue(salary_slip.ter_rate > 0)
         self.assertTrue(salary_slip.ter_category)
+        self.assertTrue(salary_slip.monthly_gross_for_ter > 0)
 
     def test_progressive_override(self):
         """Test explicit Progressive method override"""
