@@ -373,16 +373,16 @@ def _update_custom_fields(doc):
             doc.taxable_earnings = calculate_taxable_earnings(doc)
 
         # Update gross pay in base currency
-        if hasattr(doc, "base_gross_pay") and hasattr(doc, "gross_pay"):
-            doc.base_gross_pay = doc.gross_pay
+        if hasattr(doc, "indo_base_gross_pay") and hasattr(doc, "gross_pay"):
+            doc.indo_base_gross_pay = doc.gross_pay
 
         # Update net pay in base currency
-        if hasattr(doc, "base_net_pay") and hasattr(doc, "net_pay"):
-            doc.base_net_pay = doc.net_pay
+        if hasattr(doc, "indo_base_net_pay") and hasattr(doc, "net_pay"):
+            doc.indo_base_net_pay = doc.net_pay
 
         # Update total deduction in base currency
-        if hasattr(doc, "base_total_deduction") and hasattr(doc, "total_deduction"):
-            doc.base_total_deduction = doc.total_deduction
+        if hasattr(doc, "indo_base_total_deduction") and hasattr(doc, "total_deduction"):
+            doc.indo_base_total_deduction = doc.total_deduction
 
         # Update year and month fields
         year, month = get_slip_year_month(doc)
