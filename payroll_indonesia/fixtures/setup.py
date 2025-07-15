@@ -17,7 +17,7 @@ from frappe.exceptions import ValidationError
 from frappe.utils import getdate, flt, cint
 
 from payroll_indonesia.frappe_helpers import logger
-import payroll_indonesia.override.salary_structure as salary_structure
+from payroll_indonesia.override import salary_structure
 from payroll_indonesia.config.config import get_config as get_default_config
 from payroll_indonesia.config.config import doctype_defined, get_tax_effect_types
 from payroll_indonesia.setup.settings_migration import migrate_all_settings, _load_defaults
