@@ -1,14 +1,23 @@
 
-
-
-
-
-
-
-
-
-
-
+from frappe.utils import flt, cint
+from payroll_indonesia.constants import (
+    BIAYA_JABATAN_PERCENT,
+    BIAYA_JABATAN_MAX,
+    MONTHS_PER_YEAR,
+    TAX_DEDUCTION_EFFECT,
+    TAX_OBJEK_EFFECT,
+    NATURA_OBJEK_EFFECT,
+)
+from payroll_indonesia.override.salary_slip.tax_calculator import (
+    calculate_december_pph,
+    calculate_monthly_pph_progressive,
+    categorize_components_by_tax_effect,
+    get_ptkp_value,
+    get_tax_status,
+    get_slip_year_month,
+    get_ytd_totals,
+    is_december_calculation,
+)
 
 
 
@@ -248,22 +257,53 @@ def _update_custom_fields(doc):
         
         # Update koreksi_pph21 for December
         if is_december_calculation(doc):
-            # Use the difference between calculated tax and normal monthly tax
-            normal_tax, _ = calculate_monthly_pph_progressive(doc)
-            december_tax, _ = calculate_december_pph(doc)
-            doc.koreksi_pph21 = december_tax - normal_tax
+            # Use correction amount from December tax calculation
+            _, details = calculate_december_pph(doc)
+            doc.koreksi_pph21 = flt(details.get("correction_amount", 0))
 
         # Update is_final_gabung_suami
         if hasattr(doc, "is_final_gabung_suami"):
             employee_doc = frappe.get_doc("Employee", doc.employee)
             doc.is_final_gabung_suami = cint(getattr(employee_doc, "npwp_gabung_suami", 0))
 
-        # Update netto field
-        if hasattr(doc, "netto"):
+        # Update netto and related tax fields
+        if (
+            hasattr(doc, "netto")
+            or hasattr(doc, "biaya_jabatan")
+            or hasattr(doc, "annual_taxable_income")
+            or hasattr(doc, "annual_pkp")
+        ):
             tax_components = categorize_components_by_tax_effect(doc)
+
             gross_income = tax_components["totals"].get(TAX_OBJEK_EFFECT, 0)
+            gross_income += tax_components["totals"].get(NATURA_OBJEK_EFFECT, 0)
             deductions = tax_components["totals"].get(TAX_DEDUCTION_EFFECT, 0)
-            doc.netto = gross_income - deductions
+
+            netto = gross_income - deductions
+
+            if hasattr(doc, "netto"):
+                doc.netto = netto
+
+            if hasattr(doc, "biaya_jabatan"):
+                doc.biaya_jabatan = min(
+                    netto * BIAYA_JABATAN_PERCENT / 100, BIAYA_JABATAN_MAX
+                )
+
+            annual_taxable = gross_income * MONTHS_PER_YEAR
+
+            if hasattr(doc, "annual_taxable_income"):
+                doc.annual_taxable_income = annual_taxable
+
+            if hasattr(doc, "annual_pkp"):
+                annual_ptkp = get_ptkp_value(get_tax_status(doc))
+                annual_deductions = deductions * MONTHS_PER_YEAR
+                annual_biaya_jabatan = min(
+                    annual_taxable * BIAYA_JABATAN_PERCENT / 100,
+                    BIAYA_JABATAN_MAX * MONTHS_PER_YEAR,
+                )
+                doc.annual_pkp = max(
+                    0, annual_taxable - annual_biaya_jabatan - annual_deductions - annual_ptkp
+                )
 
         logger.debug(f"Updated custom fields for slip {getattr(doc, 'name', 'unknown')}")
     
