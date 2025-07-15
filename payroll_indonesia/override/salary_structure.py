@@ -52,26 +52,26 @@ def _get_component_tax_effects(component_name: str) -> Tuple[str, str]:
     """
     try:
         component = frappe.get_doc("Salary Component", component_name)
-        
-        # Default tax effects
-        tax_effect_earning = "Penambah Bruto/Objek Pajak"
-        tax_effect_deduction = "Pengurang Netto/Tax Deduction"
-        
-        # Check if the component has tax effect mappings
-        if hasattr(component, "tax_effect_by_type") and component.tax_effect_by_type:
-            for mapping in component.tax_effect_by_type:
-                if mapping.component_type == "Earning":
-                    tax_effect_earning = mapping.tax_effect_type
-                elif mapping.component_type == "Deduction":
-                    tax_effect_deduction = mapping.tax_effect_type
-        
-        # Fallback based on is_tax_applicable flag
-        elif hasattr(component, "is_tax_applicable"):
-            if not component.is_tax_applicable:
-                tax_effect_earning = "Tidak Berpengaruh ke Pajak"
-                tax_effect_deduction = "Tidak Berpengaruh ke Pajak"
-        
-        return tax_effect_earning, tax_effect_deduction
+
+        tax_effect = getattr(component, "tax_effect_type", "")
+        if tax_effect:
+            return tax_effect, tax_effect
+
+        is_tax_applicable = getattr(component, "is_tax_applicable", 1)
+        if component.type == "Deduction":
+            default_effect = (
+                "Pengurang Netto/Tax Deduction"
+                if is_tax_applicable
+                else "Tidak Berpengaruh ke Pajak"
+            )
+        else:
+            default_effect = (
+                "Penambah Bruto/Objek Pajak"
+                if is_tax_applicable
+                else "Tidak Berpengaruh ke Pajak"
+            )
+
+        return default_effect, default_effect
         
     except Exception as e:
         logger.warning(f"Error getting tax effects for {component_name}: {str(e)}")
