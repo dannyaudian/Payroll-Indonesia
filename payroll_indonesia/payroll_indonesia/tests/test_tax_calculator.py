@@ -294,6 +294,24 @@ class TestTaxCalculator(unittest.TestCase):
 
         self.assertEqual(flt(details.get("correction_amount"), 2), flt(expected_correction, 2))
 
+    def test_december_override_ter_uses_progressive(self):
+        """Slip with TER method and December override should use progressive logic"""
+        employee = self.test_employees["complete"]
+
+        salary_slip = self.create_salary_slip(employee)
+        salary_slip.tax_method = "TER"
+        salary_slip.is_december_override = 1
+        salary_slip.posting_date = getdate("2025-12-10")
+        salary_slip.save(ignore_permissions=True)
+
+        result = calculate_tax_components(salary_slip, employee)
+        self.assertTrue(result.get("success"))
+
+        # Should not use TER fields
+        self.assertEqual(flt(salary_slip.ter_rate, 2), 0)
+        self.assertTrue(getattr(salary_slip, "tax_brackets_json", ""))
+        self.assertTrue(getattr(salary_slip, "koreksi_pph21", 0) >= 0)
+
 
 def run_tax_calculator_tests():
     """Run tax calculator tests"""

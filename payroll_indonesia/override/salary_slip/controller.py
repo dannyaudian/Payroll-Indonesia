@@ -455,17 +455,20 @@ def process_indonesia_taxes(doc: Any) -> float:
             )
             return 0.0
 
-        # Get tax method
-        tax_method = getattr(doc, "tax_method", "Progressive")
-        logger.debug(f"Using tax method: {tax_method}")
-
-        # Calculate based on method
-        if tax_method == "TER":
-            tax_amount, details = calculate_monthly_pph_with_ter(doc)
-        elif is_december_calculation(doc):
+        # Check for December override first
+        if is_december_calculation(doc):
+            logger.debug("Using December tax calculation")
             tax_amount, details = calculate_december_pph(doc)
         else:
-            tax_amount, details = calculate_monthly_pph_progressive(doc)
+            # Get tax method
+            tax_method = getattr(doc, "tax_method", "Progressive")
+            logger.debug(f"Using tax method: {tax_method}")
+
+            # Calculate based on method
+            if tax_method == "TER":
+                tax_amount, details = calculate_monthly_pph_with_ter(doc)
+            else:
+                tax_amount, details = calculate_monthly_pph_progressive(doc)
 
         # Update slip with calculation details
         update_slip_with_tax_details(doc, details)
