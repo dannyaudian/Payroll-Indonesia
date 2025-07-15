@@ -15,6 +15,8 @@ from datetime import datetime
 import frappe
 from frappe.utils import flt, cint, getdate
 
+from payroll_indonesia.utilities.field_accessor import SalarySlipFieldAccessor
+
 from payroll_indonesia.config.config import get_live_config, get_component_tax_effect
 from payroll_indonesia.frappe_helpers import logger
 from payroll_indonesia.constants import (
@@ -304,42 +306,11 @@ def get_tax_status(slip: Any) -> str:
         str: Tax status code (e.g., TK0, K1)
     """
     try:
-        default_status = "TK0"
-
-        # Try to get from status_pajak field directly
-        if hasattr(slip, "status_pajak") and slip.status_pajak:
-            return slip.status_pajak
-
-        # Try to get from employee_doc field
-        employee = getattr(slip, "employee_doc", None)
-        if employee and hasattr(employee, "status_pajak") and employee.status_pajak:
-            return employee.status_pajak
-
-        # If employee_doc not available, try to get directly from employee
-        if hasattr(slip, "employee") and slip.employee:
-            try:
-                employee_id = slip.employee
-                employee_doc = frappe.get_doc("Employee", employee_id)
-                if hasattr(employee_doc, "status_pajak") and employee_doc.status_pajak:
-                    # Set employee_doc for future reference
-                    slip.employee_doc = employee_doc
-                    return employee_doc.status_pajak
-            except Exception as e:
-                logger.warning(
-                    f"Could not load employee {getattr(slip, 'employee', 'unknown')}: {e}"
-                )
-
-        # If we got here, use default
-        logger.warning(
-            f"No tax status found for employee {getattr(slip, 'employee', 'unknown')}. "
-            f"Using default: {default_status}"
-        )
-        return default_status
-
+        accessor = SalarySlipFieldAccessor(slip)
+        return accessor.get_status_pajak()
     except Exception as e:
         logger.exception(f"Error getting tax status: {str(e)}")
         return "TK0"
-
 
 def get_ytd_totals(slip: Any) -> Dict[str, float]:
     """
@@ -474,16 +445,21 @@ def is_december_calculation(slip: Any) -> bool:
         bool: True if is_december_override flag is set
     """
     try:
+        accessor = SalarySlipFieldAccessor(slip)
+        
         # Prioritize Payroll Entry flag if available
         payroll_entry = getattr(slip, "payroll_entry", None)
         if payroll_entry:
             try:
+                from payroll_indonesia.utilities.field_accessor import PayrollEntryFieldAccessor
+                
                 entry_doc = (
                     frappe.get_doc("Payroll Entry", payroll_entry)
                     if isinstance(payroll_entry, str)
                     else payroll_entry
                 )
-                override = cint(getattr(entry_doc, "is_december_override", 0)) == 1
+                entry_accessor = PayrollEntryFieldAccessor(entry_doc)
+                override = entry_accessor.is_december_override()
                 if override:
                     logger.debug(
                         f"December override flag set via Payroll Entry for slip {getattr(slip, 'name', 'unknown')}"
@@ -495,14 +471,10 @@ def is_december_calculation(slip: Any) -> bool:
                 )
 
         # Fallback to slip field
-        override = cint(getattr(slip, "is_december_override", 0)) == 1
-        if override:
-            logger.debug(f"December override flag set for slip {getattr(slip, 'name', 'unknown')}")
-        return override
+        return accessor.is_december_calculation()
     except Exception as e:
         logger.exception(f"Error checking December calculation: {str(e)}")
         return False
-
 
 def update_slip_fields(slip: Any, values: Dict[str, Any]) -> None:
     """
@@ -513,18 +485,13 @@ def update_slip_fields(slip: Any, values: Dict[str, Any]) -> None:
         values: Dictionary of field name/value pairs to update
     """
     try:
-        for field, value in values.items():
-            if hasattr(slip, field):
-                setattr(slip, field, value)
-                logger.debug(f"Updated {field}={value} in slip {getattr(slip, 'name', 'unknown')}")
-            else:
-                logger.warning(
-                    f"Field {field} not found in slip {getattr(slip, 'name', 'unknown')}"
-                )
+        accessor = SalarySlipFieldAccessor(slip)
+        updated = accessor.update(values)
+        
+        logger.debug(f"Updated fields in slip {getattr(slip, 'name', 'unknown')}: {updated}")
 
     except Exception as e:
         logger.exception(f"Error updating slip fields: {str(e)}")
-
 
 def categorize_components_by_tax_effect(slip: Any) -> Dict[str, Dict[str, float]]:
     """

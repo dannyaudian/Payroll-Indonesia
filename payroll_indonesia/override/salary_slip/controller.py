@@ -31,6 +31,7 @@ from payroll_indonesia.override.salary_slip.tax_calculator import (
     get_slip_year_month,
     update_slip_fields,
 )
+from payroll_indonesia.utilities.field_accessor import SalarySlipFieldAccessor
 
 __all__ = [
     "IndonesiaPayrollSalarySlip",  # Add to public API
@@ -52,6 +53,7 @@ class IndonesiaPayrollSalarySlip:
     def __init__(self, doc=None):
         """Initialize with optional salary slip document"""
         self.doc = doc
+        self.accessor = SalarySlipFieldAccessor(doc) if doc else None
 
     def calculate_tax(self) -> float:
         """
@@ -60,7 +62,7 @@ class IndonesiaPayrollSalarySlip:
         Returns:
             float: Calculated tax amount
         """
-        if not self.doc:
+        if not self.doc or not self.accessor:
             return 0.0
 
         # Update tax components in the document
@@ -78,11 +80,11 @@ class IndonesiaPayrollSalarySlip:
 
     def update_custom_fields(self) -> None:
         """Update Indonesia-specific custom fields in the document"""
-        if not self.doc:
+        if not self.doc or not self.accessor:
             return
 
         # Skip if Indonesia payroll not enabled
-        if not cint(getattr(self.doc, "calculate_indonesia_tax", 0)):
+        if not cint(self.accessor.get("calculate_indonesia_tax", 0)):
             return
 
         # Update YTD data
