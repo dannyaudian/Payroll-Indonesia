@@ -850,7 +850,10 @@ def calculate_monthly_pph_progressive(slip: Any) -> Tuple[float, Dict[str, Any]]
         
         # Deduct Biaya Jabatan (occupation allowance)
         # 5% of gross income, maximum 6,000,000 per year
-        biaya_jabatan = min(annual_taxable * BIAYA_JABATAN_PERCENT, BIAYA_JABATAN_MAX)
+        biaya_jabatan = min(
+            annual_taxable * BIAYA_JABATAN_PERCENT / 100,
+            BIAYA_JABATAN_MAX * MONTHS_PER_YEAR,
+        )
         
         # Deduct tax deductible components (annualized)
         tax_deductions = tax_components["total"]["pengurang_netto"] * MONTHS_PER_YEAR
@@ -970,7 +973,10 @@ def calculate_december_pph(slip: Any) -> Tuple[float, Dict[str, Any]]:
 
         # Deduct Biaya Jabatan (occupation allowance)
         # 5% of gross income, maximum 6,000,000 per year
-        biaya_jabatan = min(annual_taxable * BIAYA_JABATAN_PERCENT, BIAYA_JABATAN_MAX)
+        biaya_jabatan = min(
+            annual_taxable * BIAYA_JABATAN_PERCENT / 100,
+            BIAYA_JABATAN_MAX * MONTHS_PER_YEAR,
+        )
         
         # Deduct annual tax deductions (YTD BPJS + current month tax deductions)
         current_deductions = tax_components["total"]["pengurang_netto"]
