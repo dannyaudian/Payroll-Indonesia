@@ -312,6 +312,7 @@ def get_tax_status(slip: Any) -> str:
         logger.exception(f"Error getting tax status: {str(e)}")
         return "TK0"
 
+
 def get_ytd_totals(slip: Any) -> Dict[str, float]:
     """
     Get year-to-date totals for gross pay, BPJS, and PPh 21.
@@ -330,9 +331,7 @@ def get_ytd_totals(slip: Any) -> Dict[str, float]:
         slip_name = getattr(slip, "name", "unknown")
 
         if not employee or not posting_date:
-            logger.warning(
-                f"Missing employee or posting_date in slip {slip_name}, returning zeros"
-            )
+            logger.warning(f"Missing employee or posting_date in slip {slip_name}, returning zeros")
             return {"gross": 0.0, "bpjs": 0.0, "pph21": 0.0, "tax_correction": 0.0}
 
         logger.debug(f"Fetching YTD totals for employee {employee}, year {year}")
@@ -351,7 +350,7 @@ def get_ytd_totals(slip: Any) -> Dict[str, float]:
         select_fields = []
         field_mappings = {
             "gross_pay": "gross",
-            "base_gross_pay": "gross",
+            "indo_base_gross_pay": "gross",
             "total_bpjs": "bpjs",
             "bpjs_amount": "bpjs",
             "base_bpjs": "bpjs",
@@ -446,13 +445,13 @@ def is_december_calculation(slip: Any) -> bool:
     """
     try:
         accessor = SalarySlipFieldAccessor(slip)
-        
+
         # Prioritize Payroll Entry flag if available
         payroll_entry = getattr(slip, "payroll_entry", None)
         if payroll_entry:
             try:
                 from payroll_indonesia.utilities.field_accessor import PayrollEntryFieldAccessor
-                
+
                 entry_doc = (
                     frappe.get_doc("Payroll Entry", payroll_entry)
                     if isinstance(payroll_entry, str)
@@ -476,6 +475,7 @@ def is_december_calculation(slip: Any) -> bool:
         logger.exception(f"Error checking December calculation: {str(e)}")
         return False
 
+
 def update_slip_fields(slip: Any, values: Dict[str, Any]) -> None:
     """
     Update salary slip fields with calculated values.
@@ -487,11 +487,12 @@ def update_slip_fields(slip: Any, values: Dict[str, Any]) -> None:
     try:
         accessor = SalarySlipFieldAccessor(slip)
         updated = accessor.update(values)
-        
+
         logger.debug(f"Updated fields in slip {getattr(slip, 'name', 'unknown')}: {updated}")
 
     except Exception as e:
         logger.exception(f"Error updating slip fields: {str(e)}")
+
 
 def categorize_components_by_tax_effect(slip: Any) -> Dict[str, Dict[str, float]]:
     """

@@ -274,7 +274,8 @@ class TestPayrollIntegration(unittest.TestCase):
         # Add employees
         for employee in self.test_employees.values():
             payroll_entry.append(
-                "employees", {"employee": employee.name, "base_gross_pay": 15000000}  # 15 juta
+                "employees",
+                {"employee": employee.name, "indo_base_gross_pay": 15000000},  # 15 juta
             )
 
         payroll_entry.insert()
