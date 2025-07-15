@@ -779,7 +779,8 @@
         "read_only": 1,
         "default": "0"
     },
-    {
+    {   "doctype": "Custom Field",
+        "dt": "Salary Slip",
         "fieldname": "annual_tax",
         "fieldtype": "Currency",
         "insert_after": "annual_pkp",
