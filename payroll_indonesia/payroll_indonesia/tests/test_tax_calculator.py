@@ -258,6 +258,27 @@ class TestTaxCalculator(unittest.TestCase):
         self.assertEqual(salary_slip.monthly_tax, 0)
         self.assertEqual(salary_slip.annual_taxable_income, 0)
 
+    def test_december_correction_without_summary(self):
+        """Correction should equal December tax when there are no prior adjustments"""
+        employee = self.test_employees["complete"]
+
+        # Create December salary slip without an Employee Tax Summary
+        salary_slip = self.create_salary_slip(employee)
+        salary_slip.posting_date = getdate("2025-12-15")
+        salary_slip.save(ignore_permissions=True)
+
+        from payroll_indonesia.override.salary_slip.tax_calculator import calculate_december_pph
+
+        _, details = calculate_december_pph(salary_slip)
+
+        expected_correction = details["annual_tax"] - (
+            details["ytd_pph21"] + details.get("ytd_tax_correction", 0)
+        )
+
+        # With no prior corrections expected_correction should equal December tax
+        self.assertEqual(flt(details.get("correction_amount"), 2), flt(expected_correction, 2))
+        self.assertEqual(flt(details.get("correction_amount"), 2), flt(details["december_tax"], 2))
+
     def test_december_correction_with_summary(self):
         """Ensure December correction uses YTD tax correction from summary"""
         employee = self.test_employees["complete"]
