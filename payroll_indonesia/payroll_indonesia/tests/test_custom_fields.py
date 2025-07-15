@@ -36,7 +36,7 @@ def test_update_custom_fields_sets_values(monkeypatch):
         base_total_deduction=0,
         salary_year=0,
         salary_month=0,
-        ytd_gross=0,
+        ytd_gross_pay=0,
         ytd_bpjs=0,
         ytd_pph21=0,
         is_december_slip=0,
