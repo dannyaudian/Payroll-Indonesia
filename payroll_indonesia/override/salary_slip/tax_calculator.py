@@ -1027,10 +1027,16 @@ def calculate_december_pph(slip: Any) -> Tuple[float, Dict[str, Any]]:
         # Calculate tax using progressive method
         annual_tax, tax_details = calculate_progressive_tax(annual_pkp)
 
-        # Calculate December tax (annual tax - YTD tax)
+        # Calculate December tax. This represents the tax that needs to be
+        # withheld in December so that the total tax withheld matches the
+        # annual tax liability.
         december_tax = annual_tax - ytd_tax
 
-        # Calculate year-end correction considering prior adjustments
+        # Calculate the final year-end correction.  This amount adjusts the
+        # annual liability by subtracting any tax already withheld (YTD) and
+        # any corrections that were applied in previous months.  Do **not**
+        # subtract ``december_tax`` again here or the result would always be
+        # zero.
         correction_amount = annual_tax - (ytd_tax + ytd_tax_correction)
 
         # Prepare calculation details
