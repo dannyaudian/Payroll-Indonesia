@@ -895,7 +895,8 @@
         "insert_after": "description",
         "label": "Tax Effect Type",
         "description": "Define tax effect based on how this component is used",
-        "module": "Payroll Indonesia"
+        "module": "Payroll Indonesia",
+        "name": "Salary Component-tax_effect_type"
     },
     {
         "doctype": "Custom Field",
@@ -906,6 +907,7 @@
         "options": "Penambah Bruto/Objek Pajak\nPengurang Netto/Tax Deduction\nTidak Berpengaruh ke Pajak\nNatura/Fasilitas (Objek Pajak)\nNatura/Fasilitas (Non-Objek Pajak)",
         "insert_after": "is_recurring_additional_salary",
         "default": "",
-        "description": "How this component affects tax calculation"
+        "description": "How this component affects tax calculation",
+        "name": "Salary Detail-tax_effect_type"
     }
 ]
