@@ -13,6 +13,7 @@ import frappe
 from frappe import _
 from frappe.utils import flt, cint, getdate, date_diff, add_months
 from frappe.model.document import Document
+from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
 
 from payroll_indonesia.frappe_helpers import logger
 from payroll_indonesia.config.config import get_component_tax_effect
@@ -48,6 +49,9 @@ class IndonesiaPayrollSalarySlip:
     Class to handle Indonesia-specific salary slip processing.
     This is the main integration point for salary slip customizations.
     """
+    
+    def validate(self):
+        super().validate()
 
     def __init__(self, doc=None):
         """Initialize with optional salary slip document"""
