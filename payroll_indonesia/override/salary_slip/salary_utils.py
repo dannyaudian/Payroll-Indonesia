@@ -249,7 +249,10 @@ def categorize_components_by_tax_effect(slip: Any) -> Dict[str, Dict[str, float]
                 if amount <= 0:
                     continue
                 
-                tax_effect = get_component_tax_effect(component, "Earning")
+                tax_effect = (
+                    getattr(earning, "tax_effect_type", None)
+                    or get_component_tax_effect(component, "Earning")
+                )
                 
                 # Default to non-taxable if not defined
                 if not tax_effect:
@@ -276,7 +279,10 @@ def categorize_components_by_tax_effect(slip: Any) -> Dict[str, Dict[str, float]
                 if component == "PPh 21":
                     continue
                 
-                tax_effect = get_component_tax_effect(component, "Deduction")
+                tax_effect = (
+                    getattr(deduction, "tax_effect_type", None)
+                    or get_component_tax_effect(component, "Deduction")
+                )
                 
                 # Default to non-deductible if not defined
                 if not tax_effect:
