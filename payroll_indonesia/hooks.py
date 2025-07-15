@@ -73,7 +73,6 @@ override_doctype_class = {
 
 # Fixtures - dengan filter sesuai dengan kebutuhan
 fixtures = [
-    {"doctype": "Custom Field", "filters": [["module", "=", "Payroll Indonesia"]]},
     {"doctype": "Property Setter", "filters": [["module", "=", "Payroll Indonesia"]]},
     {"doctype": "Client Script", "filters": [["module", "=", "Payroll Indonesia"]]},
     {"doctype": "Workspace", "filters": [["module", "=", "Payroll Indonesia"]]},

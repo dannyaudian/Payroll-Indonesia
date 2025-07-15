@@ -890,9 +890,13 @@
   {
     "doctype": "Custom Field",
     "dt": "Salary Component",
-    "options": "Tax Effect Type Mapping",
-    "insert_after": "is_tax_applicable",
-    "description": "Define tax effect based on how this component is used (as Earning or Deduction)"
+    "fieldname": "tax_effect_type",
+    "fieldtype": "Select",
+    "options": "Penambah Bruto/Objek Pajak\nPengurang Netto/Tax Deduction\nTidak Berpengaruh ke Pajak\nNatura/Fasilitas (Objek Pajak)\nNatura/Fasilitas (Non-Objek Pajak)",
+    "insert_after": "description",
+    "label": "Tax Effect Type",
+    "description": "Define tax effect based on how this component is used",
+    "module": "Payroll Indonesia"
   },
   {
     "doctype": "Custom Field",
