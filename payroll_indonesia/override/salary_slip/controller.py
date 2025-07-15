@@ -33,29 +33,17 @@ from payroll_indonesia.override.salary_slip.tax_calculator import (
     update_slip_fields,
 )
 
-__all__ = [
-    "IndonesiaPayrollSalarySlip",  # Add to public API
-    "update_indonesia_tax_components",
-    "calculate_taxable_earnings",
-    "get_bpjs_deductions",
-    "update_slip_with_tax_details",
-    "process_indonesia_taxes",
-    "ensure_employee_tax_summary_integration",
-]
-
-
-class IndonesiaPayrollSalarySlip:
+# Make sure to properly inherit from SalarySlip
+class IndonesiaPayrollSalarySlip(SalarySlip):
     """
     Class to handle Indonesia-specific salary slip processing.
     This is the main integration point for salary slip customizations.
     """
     
     def validate(self):
-        super().validate()
-
-    def __init__(self, doc=None):
-        """Initialize with optional salary slip document"""
-        self.doc = doc
+        super(IndonesiaPayrollSalarySlip, self).validate()
+        self.calculate_tax()
+        self.update_custom_fields()
 
     def calculate_tax(self) -> float:
         """
@@ -64,16 +52,13 @@ class IndonesiaPayrollSalarySlip:
         Returns:
             float: Calculated tax amount
         """
-        if not self.doc:
-            return 0.0
-
         # Update tax components in the document
-        update_indonesia_tax_components(self.doc)
+        update_indonesia_tax_components(self)
 
         # Get the PPh 21 component amount
         pph21_amount = 0
-        if hasattr(self.doc, "deductions") and self.doc.deductions:
-            for deduction in self.doc.deductions:
+        if hasattr(self, "deductions") and self.deductions:
+            for deduction in self.deductions:
                 if deduction.salary_component == "PPh 21":
                     pph21_amount = flt(deduction.amount)
                     break
@@ -82,11 +67,8 @@ class IndonesiaPayrollSalarySlip:
 
     def update_custom_fields(self) -> None:
         """Update Indonesia-specific custom fields in the document"""
-        if not self.doc:
-            return
-
         # Skip if Indonesia payroll not enabled
-        if not cint(getattr(self.doc, "calculate_indonesia_tax", 0)):
+        if not cint(getattr(self, "calculate_indonesia_tax", 0)):
             return
 
         # Update YTD data
@@ -100,20 +82,17 @@ class IndonesiaPayrollSalarySlip:
 
     def update_ytd_data(self) -> None:
         """Update Year-to-Date data from Employee Tax Summary"""
-        if not self.doc:
-            return
-
         # Skip if Indonesia payroll not enabled
-        if not cint(getattr(self.doc, "calculate_indonesia_tax", 0)):
+        if not cint(getattr(self, "calculate_indonesia_tax", 0)):
             return
 
         try:
-            employee = getattr(self.doc, "employee", None)
+            employee = getattr(self, "employee", None)
             if not employee:
                 return
 
             # Get year from slip
-            year, _ = get_slip_year_month(self.doc)
+            year, _ = get_slip_year_month(self)
 
             # Try to get YTD data from Employee Tax Summary
             tax_summary = frappe.get_all(
@@ -131,16 +110,16 @@ class IndonesiaPayrollSalarySlip:
 
             if tax_summary:
                 # Update YTD fields
-                if hasattr(self.doc, "ytd_gross_pay"):
-                    self.doc.ytd_gross_pay = flt(tax_summary[0].ytd_gross_pay)
-                if hasattr(self.doc, "ytd_tax"):
-                    self.doc.ytd_tax = flt(tax_summary[0].ytd_tax)
-                if hasattr(self.doc, "ytd_bpjs"):
-                    self.doc.ytd_bpjs = flt(tax_summary[0].ytd_bpjs)
-                if hasattr(self.doc, "ytd_taxable_components"):
-                    self.doc.ytd_taxable_components = flt(tax_summary[0].ytd_taxable_components)
-                if hasattr(self.doc, "ytd_tax_deductions"):
-                    self.doc.ytd_tax_deductions = flt(tax_summary[0].ytd_tax_deductions)
+                if hasattr(self, "ytd_gross_pay"):
+                    self.ytd_gross_pay = flt(tax_summary[0].ytd_gross_pay)
+                if hasattr(self, "ytd_tax"):
+                    self.ytd_tax = flt(tax_summary[0].ytd_tax)
+                if hasattr(self, "ytd_bpjs"):
+                    self.ytd_bpjs = flt(tax_summary[0].ytd_bpjs)
+                if hasattr(self, "ytd_taxable_components"):
+                    self.ytd_taxable_components = flt(tax_summary[0].ytd_taxable_components)
+                if hasattr(self, "ytd_tax_deductions"):
+                    self.ytd_tax_deductions = flt(tax_summary[0].ytd_tax_deductions)
 
                 logger.debug(f"Updated YTD data from Employee Tax Summary for {employee}")
             else:
@@ -151,103 +130,98 @@ class IndonesiaPayrollSalarySlip:
 
     def update_tax_fields(self) -> None:
         """Update tax-related fields in the document"""
-        if not self.doc:
-            return
-
         # Skip if Indonesia payroll not enabled
-        if not cint(getattr(self.doc, "calculate_indonesia_tax", 0)):
+        if not cint(getattr(self, "calculate_indonesia_tax", 0)):
             return
 
         try:
             # Get tax method
-            tax_method = getattr(self.doc, "tax_method", "Progressive")
+            tax_method = getattr(self, "tax_method", "Progressive")
 
             # Update TER fields if using TER
             if tax_method == "TER":
-                if hasattr(self.doc, "is_using_ter"):
-                    self.doc.is_using_ter = 1
+                if hasattr(self, "is_using_ter"):
+                    self.is_using_ter = 1
 
             # Update December fields if December calculation
-            if is_december_calculation(self.doc):
-                if hasattr(self.doc, "is_december_override"):
-                    self.doc.is_december_override = 1
+            if is_december_calculation(self):
+                if hasattr(self, "is_december_override"):
+                    self.is_december_override = 1
 
             # Update tax status from employee if not set
-            if not getattr(self.doc, "tax_status", None):
-                employee = getattr(self.doc, "employee_doc", None)
-                if not employee and hasattr(self.doc, "employee"):
+            if not getattr(self, "tax_status", None):
+                employee = getattr(self, "employee_doc", None)
+                if not employee and hasattr(self, "employee"):
                     try:
-                        employee = frappe.get_doc("Employee", self.doc.employee)
-                        self.doc.employee_doc = employee
+                        employee = frappe.get_doc("Employee", self.employee)
+                        self.employee_doc = employee
                     except Exception:
                         pass
 
                 if employee and hasattr(employee, "status_pajak") and employee.status_pajak:
-                    self.doc.tax_status = employee.status_pajak
+                    self.tax_status = employee.status_pajak
 
             # Update NPWP gabung suami
-            if hasattr(self.doc, "is_final_gabung_suami"):
-                employee = getattr(self.doc, "employee_doc", None)
-                if not employee and hasattr(self.doc, "employee"):
+            if hasattr(self, "is_final_gabung_suami"):
+                employee = getattr(self, "employee_doc", None)
+                if not employee and hasattr(self, "employee"):
                     try:
-                        employee = frappe.get_doc("Employee", self.doc.employee)
-                        self.doc.employee_doc = employee
+                        employee = frappe.get_doc("Employee", self.employee)
+                        self.employee_doc = employee
                     except Exception:
                         pass
 
                 if employee and hasattr(employee, "npwp_gabung_suami"):
-                    self.doc.is_final_gabung_suami = cint(employee.npwp_gabung_suami)
+                    self.is_final_gabung_suami = cint(employee.npwp_gabung_suami)
 
         except Exception as e:
             logger.exception(f"Error updating tax fields: {str(e)}")
 
     def update_bpjs_fields(self) -> None:
         """Update BPJS-related fields in the document"""
-        if not self.doc:
-            return
-
         # Skip if Indonesia payroll not enabled
-        if not cint(getattr(self.doc, "calculate_indonesia_tax", 0)):
+        if not cint(getattr(self, "calculate_indonesia_tax", 0)):
             return
 
         try:
             # Get BPJS deductions
-            bpjs = get_bpjs_deductions(self.doc)
+            bpjs = get_bpjs_deductions(self)
 
             # Update fields
-            if hasattr(self.doc, "total_bpjs"):
-                self.doc.total_bpjs = bpjs["total_employee"]
+            if hasattr(self, "total_bpjs"):
+                self.total_bpjs = bpjs["total_employee"]
 
-            if hasattr(self.doc, "kesehatan_employee"):
-                self.doc.kesehatan_employee = bpjs["jkn_employee"]
+            if hasattr(self, "kesehatan_employee"):
+                self.kesehatan_employee = bpjs["jkn_employee"]
 
-            if hasattr(self.doc, "jht_employee"):
-                self.doc.jht_employee = bpjs["jht_employee"]
+            if hasattr(self, "jht_employee"):
+                self.jht_employee = bpjs["jht_employee"]
 
-            if hasattr(self.doc, "jp_employee"):
-                self.doc.jp_employee = bpjs["jp_employee"]
+            if hasattr(self, "jp_employee"):
+                self.jp_employee = bpjs["jp_employee"]
 
             # Employer BPJS
-            if hasattr(self.doc, "kesehatan_employer"):
-                self.doc.kesehatan_employer = bpjs.get("jkn_employer", 0)
+            if hasattr(self, "kesehatan_employer"):
+                self.kesehatan_employer = bpjs.get("jkn_employer", 0)
 
-            if hasattr(self.doc, "jht_employer"):
-                self.doc.jht_employer = bpjs.get("jht_employer", 0)
+            if hasattr(self, "jht_employer"):
+                self.jht_employer = bpjs.get("jht_employer", 0)
 
-            if hasattr(self.doc, "jp_employer"):
-                self.doc.jp_employer = bpjs.get("jp_employer", 0)
+            if hasattr(self, "jp_employer"):
+                self.jp_employer = bpjs.get("jp_employer", 0)
 
-            if hasattr(self.doc, "jkk_employer"):
-                self.doc.jkk_employer = bpjs.get("jkk_employer", 0)
+            if hasattr(self, "jkk_employer"):
+                self.jkk_employer = bpjs.get("jkk_employer", 0)
 
-            if hasattr(self.doc, "jkm_employer"):
-                self.doc.jkm_employer = bpjs.get("jkm_employer", 0)
+            if hasattr(self, "jkm_employer"):
+                self.jkm_employer = bpjs.get("jkm_employer", 0)
 
-            if hasattr(self.doc, "total_bpjs_employer"):
-                self.doc.total_bpjs_employer = bpjs.get("total_employer", 0)
+            if hasattr(self, "total_bpjs_employer"):
+                self.total_bpjs_employer = bpjs.get("total_employer", 0)
 
         except Exception as e:
             logger.exception(f"Error updating BPJS fields: {str(e)}")
+
 
 def calculate_taxable_earnings(doc: Any) -> float:
     """

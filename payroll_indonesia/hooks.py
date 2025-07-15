@@ -21,7 +21,7 @@ before_install = "payroll_indonesia.fixtures.setup.before_install"
 after_install = "payroll_indonesia.fixtures.setup.after_install"
 after_sync = "payroll_indonesia.setup.setup_module.after_sync"
 after_migrate = [
-    "payroll_indonesia.setup.setup_module.setup_accounts"
+    "payroll_indonesia.setup.setup_module.after_migrate"  # Use our new after_migrate function
 ]
 
 # List view JS
