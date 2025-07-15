@@ -13,6 +13,7 @@ import os
 from typing import Dict, Any, Optional
 
 import frappe
+from frappe.utils import cint  # Tambahkan import untuk fungsi cint
 from payroll_indonesia.frappe_helpers import logger
 
 __all__ = [
