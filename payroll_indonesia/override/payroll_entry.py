@@ -8,7 +8,8 @@ Payroll Entry - Main override for Indonesia-specific payroll processing
 """
 
 import logging
-from typing import Dict, List, Tuple, Any, Optional, Union
+import inspect
+from typing import Dict, List, Tuple, Any, Optional, Union, Type
 from datetime import datetime
 
 import frappe
@@ -27,7 +28,58 @@ from payroll_indonesia.constants import (
 )
 from payroll_indonesia.utilities.field_accessor import PayrollEntryFieldAccessor
 
-class CustomPayrollEntry(Document):
+# Paths to try for importing the core PayrollEntry class
+PAYROLL_ENTRY_PATHS = [
+    "hrms.payroll.doctype.payroll_entry.payroll_entry.PayrollEntry",
+    "hrms.hr.doctype.payroll_entry.payroll_entry.PayrollEntry",
+    "erpnext.payroll.doctype.payroll_entry.payroll_entry.PayrollEntry",
+    "erpnext.hr.doctype.payroll_entry.payroll_entry.PayrollEntry",
+]
+
+
+def _import_payroll_entry() -> Optional[Type]:
+    """Attempt to dynamically import PayrollEntry class from various paths."""
+    errors = []
+    for path in PAYROLL_ENTRY_PATHS:
+        try:
+            module_path, cls_name = path.rsplit(".", 1)
+            module = __import__(module_path, fromlist=[cls_name])
+            payroll_entry_cls = getattr(module, cls_name)
+            if (
+                inspect.isclass(payroll_entry_cls)
+                and issubclass(payroll_entry_cls, Document)
+                and payroll_entry_cls.__name__ == "PayrollEntry"
+            ):
+                logger.info(f"Successfully imported PayrollEntry class from: {path}")
+                return payroll_entry_cls
+        except ImportError as e:
+            errors.append(f"ImportError for {path}: {str(e)}")
+        except AttributeError as e:
+            errors.append(f"AttributeError for {path}: {str(e)}")
+        except Exception as e:
+            errors.append(f"Error {type(e).__name__} for {path}: {str(e)}")
+
+    if errors:
+        logger.error(
+            "Could not import PayrollEntry class from any known path:\n" + "\n".join(errors)
+        )
+    return None
+
+
+# Use imported PayrollEntry if available, otherwise fall back to Document
+BasePayrollEntry = _import_payroll_entry() or Document
+
+if BasePayrollEntry is Document:
+    logger.warning(
+        "Falling back to frappe.model.document.Document as base class. "
+        "This means the PayrollEntry class could not be found in any known location."
+    )
+else:
+    logger.info(
+        f"Using {BasePayrollEntry.__module__}.{BasePayrollEntry.__name__} as base class"
+    )
+
+class CustomPayrollEntry(BasePayrollEntry):
     """
     Custom Payroll Entry class for Indonesia-specific payroll functionality.
     """
@@ -36,7 +88,29 @@ class CustomPayrollEntry(Document):
         """
         Validate the document before saving.
         """
-        self.validate_tax_settings()
+        try:
+            if BasePayrollEntry is not Document:
+                try:
+                    super().validate()
+                    logger.debug(
+                        f"Called parent validate for {getattr(self, 'name', 'unknown')}"
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Error calling parent validate for {getattr(self, 'name', 'unknown')}: {str(e)}. "
+                        f"Continuing with custom validation."
+                    )
+            else:
+                logger.debug(
+                    f"Skipping parent validate for {getattr(self, 'name', 'unknown')} (no PayrollEntry class found)"
+                )
+
+            self.validate_tax_settings()
+
+        except Exception as e:
+            logger.exception(
+                f"Error in CustomPayrollEntry.validate for {getattr(self, 'name', 'unknown')}: {str(e)}"
+            )
     
     def validate_tax_settings(self):
         """
