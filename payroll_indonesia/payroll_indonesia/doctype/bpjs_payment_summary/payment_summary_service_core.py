@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union, cast
 import frappe
 from frappe import _
 from frappe.utils import cint, flt, get_datetime, today, now_datetime
+from payroll_indonesia.utilities import sanitize_update_data
 
 from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_utils import (
     safe_decimal,
@@ -126,7 +127,9 @@ class PaymentSummaryService:
 
         # Commit changes to database if this is a saved document
         if self.doc.name and not self.doc.is_new():
-            self.doc.db_set("total", total, update_modified=False)
+            data = sanitize_update_data({"total": total})
+            if "total" in data:
+                self.doc.db_set("total", total, update_modified=False)
 
         return total
 
@@ -215,8 +218,13 @@ class PaymentSummaryService:
 
             # Update database directly
             if not self.doc.is_new():
-                self.doc.db_set("payment_entry", payment_entry.name)
-                self.doc.db_set("status", "Paid")
+                data = sanitize_update_data(
+                    {"payment_entry": payment_entry.name, "status": "Paid"}
+                )
+                if "payment_entry" in data:
+                    self.doc.db_set("payment_entry", payment_entry.name)
+                if "status" in data:
+                    self.doc.db_set("status", "Paid")
 
             debug_log(f"Created Payment Entry {payment_entry.name} for {self.doc.name}")
             return payment_entry.name
@@ -332,7 +340,9 @@ class PaymentSummaryService:
 
             # Update database directly
             if not self.doc.is_new():
-                self.doc.db_set("journal_entry", journal_entry.name)
+                data = sanitize_update_data({"journal_entry": journal_entry.name})
+                if "journal_entry" in data:
+                    self.doc.db_set("journal_entry", journal_entry.name)
 
             debug_log(f"Created Journal Entry {journal_entry.name} for {self.doc.name}")
             return journal_entry.name
