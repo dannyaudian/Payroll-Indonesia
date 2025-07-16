@@ -42,7 +42,10 @@ Extra configuration for BPJS validation. Includes percentage ranges and mappings
 Lists of custom fields added to the `Employee` and `Salary Slip` DocTypes during setup.
 
 ## salary_components
-Default salary components for earnings and deductions.
+Default salary components for earnings and deductions. During setup each
+component is mapped to a GL account for the site's default company using
+`gl_account_mapper.get_gl_account_for_salary_component`. If the mapped
+account does not exist it will be created automatically.
 
 ## suppliers
 Supplier templates seeded during setup. Currently contains a single `bpjs` supplier definition.

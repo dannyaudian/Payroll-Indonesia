@@ -20,6 +20,9 @@ from payroll_indonesia.frappe_helpers import logger
 from payroll_indonesia.override import salary_structure
 from payroll_indonesia.config.config import get_config as get_default_config
 from payroll_indonesia.config.config import doctype_defined, get_tax_effect_types
+from payroll_indonesia.config.gl_account_mapper import (
+    get_gl_account_for_salary_component,
+)
 from payroll_indonesia.setup.settings_migration import migrate_all_settings, _load_defaults
 
 
@@ -491,10 +494,10 @@ def create_bpjs_supplier(config):
 def setup_pph21_ter(defaults=None):
     """
     Setup PPh 21 TER rates and other required tables in Payroll Indonesia Settings.
-    
+
     Args:
         defaults: Configuration data, loaded from defaults.json if None
-        
+
     Returns:
         bool: True if setup was successful, False otherwise
     """
@@ -502,62 +505,65 @@ def setup_pph21_ter(defaults=None):
         # Load defaults if not provided
         if defaults is None:
             from payroll_indonesia.setup.settings_migration import _load_defaults
+
             defaults = _load_defaults()
             if not defaults:
                 logger.warning("Could not load defaults for PPh 21 TER setup")
                 return False
-                
+
         settings = frappe.get_single("Payroll Indonesia Settings")
-        
+
         # Check if all required tables already have data
         tables_filled = (
-            settings.ter_rate_table and 
-            settings.ptkp_table and 
-            settings.ptkp_ter_mapping_table and 
-            settings.tax_brackets_table and 
-            settings.tipe_karyawan
+            settings.ter_rate_table
+            and settings.ptkp_table
+            and settings.ptkp_ter_mapping_table
+            and settings.tax_brackets_table
+            and settings.tipe_karyawan
         )
-        
+
         if tables_filled:
             logger.info("All required tables already have data in Payroll Indonesia Settings")
             return True
-        
+
         # PTKP Table
         if not settings.ptkp_table:
             settings.set("ptkp_table", [])
             ptkp_values = defaults.get("ptkp", {})
             if isinstance(ptkp_values, dict):
                 for status, amount in ptkp_values.items():
-                    settings.append("ptkp_table", {
-                        "status_pajak": status,
-                        "ptkp_amount": flt(amount)
-                    })
+                    settings.append(
+                        "ptkp_table", {"status_pajak": status, "ptkp_amount": flt(amount)}
+                    )
             logger.info(f"Added {len(ptkp_values)} PTKP values")
-                    
+
         # PTKP TER Mapping Table
         if not settings.ptkp_ter_mapping_table:
             settings.set("ptkp_ter_mapping_table", [])
             mapping = defaults.get("ptkp_to_ter_mapping", {})
             if isinstance(mapping, dict):
                 for ptkp_status, ter_category in mapping.items():
-                    settings.append("ptkp_ter_mapping_table", {
-                        "ptkp_status": ptkp_status,
-                        "ter_category": ter_category
-                    })
+                    settings.append(
+                        "ptkp_ter_mapping_table",
+                        {"ptkp_status": ptkp_status, "ter_category": ter_category},
+                    )
             logger.info(f"Added {len(mapping)} PTKP-TER mappings")
-        
+
         # Tax Brackets Table
         if not settings.tax_brackets_table:
             settings.set("tax_brackets_table", [])
             brackets = defaults.get("tax_brackets", [])
             for bracket in brackets:
-                settings.append("tax_brackets_table", {
-                    "income_from": flt(bracket.get("income_from", 0)),
-                    "income_to": flt(bracket.get("income_to", 0)),
-                    "tax_rate": flt(bracket.get("tax_rate", 0))
-                })
+                settings.append(
+                    "tax_brackets_table",
+                    {
+                        "income_from": flt(bracket.get("income_from", 0)),
+                        "income_to": flt(bracket.get("income_to", 0)),
+                        "tax_rate": flt(bracket.get("tax_rate", 0)),
+                    },
+                )
             logger.info(f"Added {len(brackets)} tax brackets")
-        
+
         # Tipe Karyawan
         if not settings.tipe_karyawan:
             settings.set("tipe_karyawan", [])
@@ -569,12 +575,12 @@ def setup_pph21_ter(defaults=None):
                     elif isinstance(tipe, dict) and "tipe_karyawan" in tipe:
                         settings.append("tipe_karyawan", tipe)
             logger.info(f"Added {len(tipe_karyawan)} employee types")
-        
+
         # TER Rates Table
         if not settings.ter_rate_table:
             # Get TER rates from defaults
             ter_rates = defaults.get("ter_rates", {})
-            
+
             # Set metadata if available
             metadata = ter_rates.get("metadata", {})
             if metadata:
@@ -582,17 +588,17 @@ def setup_pph21_ter(defaults=None):
                     field_name = f"ter_{field}"
                     if hasattr(settings, field_name):
                         setattr(settings, field_name, value)
-            
+
             # Prepare TER rate table rows
             settings.set("ter_rate_table", [])
             count = 0
-            
+
             # Convert dict structure to list of rows
             for category, rates in ter_rates.items():
                 # Skip metadata
                 if category == "metadata":
                     continue
-                    
+
                 # Process each rate in this category
                 for rate_data in rates:
                     # Create a new row with all needed fields
@@ -601,28 +607,30 @@ def setup_pph21_ter(defaults=None):
                         "income_from": flt(rate_data.get("income_from", 0)),
                         "income_to": flt(rate_data.get("income_to", 0)),
                         "rate": flt(rate_data.get("rate", 0)),
-                        "is_highest_bracket": cint(rate_data.get("is_highest_bracket", 0))
+                        "is_highest_bracket": cint(rate_data.get("is_highest_bracket", 0)),
                     }
                     settings.append("ter_rate_table", row)
                     count += 1
-            
+
             logger.info(f"Added {count} TER rate rows")
-        
+
         # Save settings
         settings.flags.ignore_permissions = True
         settings.save(ignore_permissions=True)
         frappe.db.commit()
-        
+
         logger.info("All required tables in Payroll Indonesia Settings populated successfully")
         return True
-        
+
     except Exception as e:
         logger.error(f"Error in setup_pph21_ter: {str(e)}")
         # Shorter error message to avoid truncation
-        frappe.log_error("Error setting up required tables in Payroll Indonesia Settings", 
-                         "Setup Error")
+        frappe.log_error(
+            "Error setting up required tables in Payroll Indonesia Settings", "Setup Error"
+        )
         return False
-    
+
+
 def setup_income_tax_slab(config, force_update=False):
     """
     Create Income Tax Slab for Indonesia using config data.
@@ -717,6 +725,11 @@ def setup_salary_components(config):
             logger.warning("No salary components found in configuration")
             raise ValidationError("No salary components found in configuration")
 
+        company = frappe.db.get_default("company")
+        if not company and frappe.db.table_exists("Company"):
+            companies = frappe.get_all("Company", pluck="name")
+            company = companies[0] if companies else None
+
         success_count = 0
         total_count = 0
         tax_effect_types = get_tax_effect_types()
@@ -759,7 +772,36 @@ def setup_salary_components(config):
                     component.description = "PPh 21 (PMK 168/2023)"
 
                 component.round_to_the_nearest_integer = 1
-                
+
+                # Map GL account if available and field empty
+                if company:
+                    account_name = get_gl_account_for_salary_component(company, component_name)
+                    if account_name:
+                        if hasattr(component, "accounts") and isinstance(component.accounts, list):
+                            row = next(
+                                (a for a in component.accounts if a.get("company") == company),
+                                None,
+                            )
+                            if row:
+                                if not row.get("default_account"):
+                                    row.default_account = account_name
+                            else:
+                                component.append(
+                                    "accounts",
+                                    {
+                                        "company": company,
+                                        "default_account": account_name,
+                                    },
+                                )
+                        elif hasattr(component, "default_account") and not getattr(
+                            component, "default_account", None
+                        ):
+                            component.default_account = account_name
+                        elif hasattr(component, "account") and not getattr(
+                            component, "account", None
+                        ):
+                            component.account = account_name
+
                 # Set tax effect type if mapping provided
                 if "tax_effect_by_type" in comp_data:
                     mapping = next(
@@ -805,7 +847,7 @@ def setup_default_salary_structure():
             "Default Salary Structure",
             "Default Structure",
             "Indonesia Standard Structure",
-            "Payroll Indonesia Default"
+            "Payroll Indonesia Default",
         ]
 
         existing_structure = None
@@ -844,10 +886,12 @@ def setup_default_salary_structure():
         logger.error(f"Error setting up default salary structure: {str(e)}")
         raise
 
+
 def setup_company_accounts(doc, method=None):
     # Dummy function untuk menghindari error pada setup wizard
     # Kamu bisa isi logic tambahan di sini kalau perlu, misalnya auto create account atau setting
     frappe.logger().info(f"[PAYROLL] setup_company_accounts triggered for: {doc.name}")
+
 
 def display_installation_summary(results, config):
     """
