@@ -315,4 +315,10 @@ class BPJSAccountMapping(Document):
 
     def on_update(self):
         """Clear cache after update"""
+        original_creation = frappe.db.get_value(self.doctype, self.name, "creation")
         frappe.cache().delete_value(f"bpjs_mapping_{self.company}")
+        if original_creation and self.creation != original_creation:
+            logger.warning(
+                f"Creation timestamp mismatch for {self.name}. Resetting to original value"
+            )
+            self.creation = original_creation

@@ -103,7 +103,13 @@ class EmployeeMonthlyTaxDetail(Document):
     
     def on_update(self):
         """Trigger parent document update when this document changes."""
+        original_creation = frappe.db.get_value(self.doctype, self.name, "creation")
         self.update_parent()
+        if original_creation and self.creation != original_creation:
+            logger.warning(
+                f"Creation timestamp mismatch for {self.name}. Resetting to original value"
+            )
+            self.creation = original_creation
 
     def get_tax_components_from_json(self):
         """Extract tax components from JSON field."""

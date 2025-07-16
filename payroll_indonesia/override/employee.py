@@ -143,6 +143,8 @@ class EmployeeOverride(BaseEmployee):
         Calls parent on_update if available and performs custom actions.
         """
         try:
+            original_creation = frappe.db.get_value(self.doctype, self.name, "creation")
+
             # Call parent on_update if Employee class was found
             if BaseEmployee is not Document:
                 try:
@@ -159,6 +161,12 @@ class EmployeeOverride(BaseEmployee):
             # Always run custom logic regardless of parent class
             self._update_related_records()
             logger.debug(f"Completed custom on_update logic for {self.name}")
+
+            if original_creation and self.creation != original_creation:
+                logger.warning(
+                    f"Creation timestamp mismatch for {self.name}. Resetting to original value"
+                )
+                self.creation = original_creation
 
         except Exception as e:
             logger.exception(f"Error in EmployeeOverride.on_update for {self.name}: {str(e)}")
@@ -270,6 +278,12 @@ def on_update(doc, method=None):
         method: The method that triggered this hook (unused)
     """
     try:
+        original_creation = frappe.db.get_value(doc.doctype, doc.name, "creation")
         doc.on_update()
+        if original_creation and doc.creation != original_creation:
+            logger.warning(
+                f"Creation timestamp mismatch for {doc.name}. Resetting to original value"
+            )
+            doc.creation = original_creation
     except Exception as e:
         logger.exception(f"Error in on_update hook for {doc.name}: {str(e)}")

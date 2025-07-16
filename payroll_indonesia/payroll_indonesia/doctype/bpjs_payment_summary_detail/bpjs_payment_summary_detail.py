@@ -57,7 +57,13 @@ class BPJSPaymentSummaryDetail(Document):
 
         Calls parent service to recalculate totals.
         """
+        original_creation = frappe.db.get_value(self.doctype, self.name, "creation")
         self._trigger_parent_recalculation()
+        if original_creation and self.creation != original_creation:
+            logger.warning(
+                f"Creation timestamp mismatch for {self.name}. Resetting to original value"
+            )
+            self.creation = original_creation
 
     def _trigger_parent_recalculation(self) -> None:
         """
