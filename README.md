@@ -95,6 +95,11 @@ Each Payroll Entry in ERPNext must belong to a defined **Payroll Period**. If yo
 
 For more details, see the [Payroll Period documentation](https://docs.erpnext.com/docs/user/manual/en/payroll/payroll-period).
 
+## 💾 Data Import
+
+Bulk upload employees and other records using Frappe's Data Import tool.
+> **Note:** When updating existing records, ensure the "Created On" column is blank or removed so that Frappe updates the record instead of creating a new one.
+
 ## 🔄 Optimization and Revision
 
 The Payroll Indonesia module is modularly optimized to provide top performance and maintain a clear, integrated code structure across modules such as BPJS Settings, PPh21 Settings, Salary Slip, Employee Tax Summary, and Payroll Indonesia Settings. All configurations adhere to current standards, ensuring accuracy in calculations and validations.
