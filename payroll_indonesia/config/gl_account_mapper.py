@@ -109,9 +109,9 @@ def map_gl_account(company: str, account_key: str, category: str) -> str:
             elif root_type == "Asset":
                 default_parent = "Assets - " + company_abbr
 
-            # Create the account
+            # Create the account using base name (without suffix)
             get_or_create_account(
-                company, formatted_account_name, account_type, root_type, default_parent
+                company, account_name, account_type, root_type, default_parent
             )
 
         return formatted_account_name
@@ -172,22 +172,24 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
     # Get tax effect for the component
     tax_effect = get_component_tax_effect(salary_component, component_type)
     
-    # For components not in the explicit mapping, generate account name based on tax effect
+    # For components not in the explicit mapping, generate and create the account
     if salary_component not in component_mapping:
-        # Get company abbreviation
-        company_abbr = frappe.get_cached_value("Company", company, "abbr")
-        
-        # Map tax effect to account name
+        # Map tax effect to base account name
         if tax_effect == "Penambah Bruto/Objek Pajak":
-            return f"Beban {salary_component} - {company_abbr}"
+            base_name = f"Beban {salary_component}"
         elif tax_effect == "Pengurang Netto/Tax Deduction":
-            return f"Beban {salary_component} - {company_abbr}"
+            base_name = f"Beban {salary_component}"
         elif tax_effect == "Natura/Fasilitas (Objek Pajak)":
-            return f"Beban Natura {salary_component} - {company_abbr}"
+            base_name = f"Beban Natura {salary_component}"
         elif tax_effect == "Natura/Fasilitas (Non-Objek Pajak)":
-            return f"Beban Fasilitas {salary_component} - {company_abbr}"
+            base_name = f"Beban Fasilitas {salary_component}"
         else:  # Tidak Berpengaruh ke Pajak
-            return f"{salary_component} Account - {company_abbr}"
+            base_name = f"{salary_component} Account"
+
+        # Create account if needed and return suffixed name
+        return get_or_create_account(
+            company, base_name, "Expense", "Expense"
+        )
     
     # Get the account key and category from the mapping
     account_key, category = component_mapping[salary_component]
@@ -204,21 +206,23 @@ def get_or_create_account(
 
     Args:
         company (str): Company name
-        account_name (str): Full account name with company suffix
+        account_name (str): Base account name without company suffix
         account_type (str): Account type (e.g., 'Expense', 'Payable')
         root_type (str): Root type (e.g., 'Expense', 'Liability', 'Asset')
         parent_account (str, optional): Parent account name. If not provided, will try to find appropriate parent.
 
     Returns:
-        str: Account name
+        str: Full account name with company suffix
     """
     try:
-        # Check if account already exists
-        if frappe.db.exists("Account", account_name):
-            return account_name
-
         # Get company abbreviation
         company_abbr = frappe.get_cached_value("Company", company, "abbr")
+
+        full_account_name = f"{account_name} - {company_abbr}"
+
+        # Check if account already exists
+        if frappe.db.exists("Account", full_account_name):
+            return full_account_name
 
         # Find appropriate parent account if not provided
         if not parent_account:
@@ -242,7 +246,7 @@ def get_or_create_account(
         account = frappe.get_doc(
             {
                 "doctype": "Account",
-                "account_name": account_name.replace(f" - {company_abbr}", ""),
+                "account_name": account_name,
                 "account_type": account_type,
                 "root_type": root_type,
                 "parent_account": parent_account,
@@ -252,9 +256,12 @@ def get_or_create_account(
         )
 
         account.insert(ignore_permissions=True)
-        debug_log(f"Created account {account_name} under {parent_account}", "GL Account Creation")
+        debug_log(
+            f"Created account {full_account_name} under {parent_account}",
+            "GL Account Creation",
+        )
 
-        return account_name
+        return full_account_name
 
     except Exception as e:
         logger.exception(f"Error creating account {account_name}: {str(e)}")
