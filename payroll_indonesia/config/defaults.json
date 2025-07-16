@@ -782,8 +782,8 @@
         ],
         "metadata": {
             "effective_date": "2023-01-01",
-            "regulation_ref": "PMK-168/PMK.010/2023",
-            "description": "Tarif Efektif Rata-rata (TER) sesuai PMK-168/PMK.010/2023",
+            "regulation_ref": "PMK 168/PMK.03/2023",
+            "description": "Tarif Efektif Rata-rata (TER) sesuai PMK 168/PMK.03/2023",
             "default_category": "TER A",
             "fallback_rate": 5.0
         }
