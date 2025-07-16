@@ -84,6 +84,7 @@ setup.after_install()
 * Automatically available default salary structure named **"Struktur Gaji Tetap G1"**.
 * Earnings and deductions components comply with standard Indonesian regulations (BPJS, PPh21).
 * See [docs/tax_effects.md](docs/tax_effects.md) for the tax treatment of BPJS and DPLK contributions.
+* See [docs/ter_monthly_calculation.md](docs/ter_monthly_calculation.md) for a detailed TER monthly tax example.
 
 ## 📅 Payroll Period
 
