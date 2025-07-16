@@ -38,11 +38,11 @@ doc_events = {
         "on_update": "payroll_indonesia.override.employee.on_update",
     },
     "Salary Slip": {
-        "validate": "payroll_indonesia.override.salary_slip_functions.update_component_amount",
-        "after_insert": "payroll_indonesia.override.salary_slip_functions.initialize_fields",
-        "on_submit": "payroll_indonesia.override.salary_slip_functions.salary_slip_post_submit",
+        "before_validate": "payroll_indonesia.override.salary_slip_functions.before_validate",
+        "validate": "payroll_indonesia.override.salary_slip_functions.validate",
+        "before_save": "payroll_indonesia.override.salary_slip_functions.before_save",
+        "after_save": "payroll_indonesia.override.salary_slip_functions.after_save",
         "after_submit": "payroll_indonesia.override.salary_slip_functions.after_submit",
-        "on_cancel": "payroll_indonesia.override.salary_slip_functions.enqueue_tax_summary_update",
     },
     "BPJS Account Mapping": {
         "validate": "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.validate",
