@@ -493,6 +493,7 @@ class EmployeeTaxSummary(Document):
     def on_update(self) -> None:
         """Perform actions after document is updated."""
         try:
+            original_creation = frappe.db.get_value(self.doctype, self.name, "creation")
             # Update title if not set
             if not self.title:
                 self._set_title()
@@ -533,6 +534,12 @@ class EmployeeTaxSummary(Document):
                         break
                 
                 self.db_set("december_override_note", december_note, update_modified=False)
+
+            if original_creation and self.creation != original_creation:
+                logger.warning(
+                    f"Creation timestamp mismatch for {self.name}. Resetting to original value"
+                )
+                self.creation = original_creation
                 
         except Exception as e:
             logger.error(f"Failed in on_update: {frappe.get_traceback()}")

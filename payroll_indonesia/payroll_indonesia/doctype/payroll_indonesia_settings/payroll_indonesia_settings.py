@@ -33,8 +33,14 @@ def on_update(doc, method=None):
         doc: The document instance being updated
         method: The method that triggered this hook (unused)
     """
+    original_creation = frappe.db.get_value(doc.doctype, doc.name, "creation")
     if doc.sync_to_defaults:
         utils.write_json_file_if_enabled(doc)
+    if original_creation and doc.creation != original_creation:
+        logger.warning(
+            f"Creation timestamp mismatch for {doc.name}. Resetting to original value"
+        )
+        doc.creation = original_creation
 
 
 class PayrollIndonesiaSettings(Document):
@@ -80,8 +86,15 @@ class PayrollIndonesiaSettings(Document):
 
         Syncs settings to defaults.json if enabled.
         """
+        original_creation = frappe.db.get_value(self.doctype, self.name, "creation")
         if self.sync_to_defaults:
             utils.write_json_file_if_enabled(self)
+
+        if original_creation and self.creation != original_creation:
+            logger.warning(
+                f"Creation timestamp mismatch for {self.name}. Resetting to original value"
+            )
+            self.creation = original_creation
 
     def _validate_tax_settings(self) -> None:
         """
