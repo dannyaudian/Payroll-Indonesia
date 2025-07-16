@@ -133,7 +133,7 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Pengurang Netto/Tax Deduction"
+    "tax_effect_type": "Tidak Berpengaruh ke Pajak"
   },
   {
     "doctype": "Salary Component",
@@ -146,7 +146,7 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Penambah Bruto/Objek Pajak"
+    "tax_effect_type": "Tidak Berpengaruh ke Pajak"
   },
   {
     "doctype": "Salary Component",
@@ -159,7 +159,7 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Penambah Bruto/Objek Pajak"
+    "tax_effect_type": "Tidak Berpengaruh ke Pajak"
   },
   {
     "doctype": "Salary Component",
@@ -172,7 +172,7 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Tidak Berpengaruh ke Pajak"
+    "tax_effect_type": "Penambah Bruto/Objek Pajak"
   },
   {
     "doctype": "Salary Component",
@@ -185,7 +185,7 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Tidak Berpengaruh ke Pajak"
+    "tax_effect_type": "Penambah Bruto/Objek Pajak"
   },
   {
     "doctype": "Salary Component",
