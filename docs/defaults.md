@@ -52,3 +52,9 @@ Supplier templates seeded during setup. Currently contains a single `bpjs` suppl
 
 ## tipe_karyawan
 List of employee types inserted into the **Tipe Karyawan Entry** child table (`tipe_karyawan`).
+
+## tax_component_config
+Maps salary components to tax effect categories used by the tax calculator. The
+`bpjs_employee_as_deduction` flag controls whether the employee portion of BPJS
+reduces taxable income. The earlier `bpjs_employer_as_income` option has been
+removed as employer contributions are always treated as non-taxable.
