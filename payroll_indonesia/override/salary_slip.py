@@ -24,6 +24,7 @@ from payroll_indonesia.constants import (
     NATURA_OBJEK_EFFECT,
     NATURA_NON_OBJEK_EFFECT,
     MONTHS_PER_YEAR,
+    BIAYA_JABATAN_MAX,
 )
 from payroll_indonesia.override.salary_slip.controller import (
     update_indonesia_tax_components,
@@ -208,8 +209,11 @@ class SalarySlipIndonesia:
             # Get tax components by effect
             tax_components = categorize_components_by_tax_effect(self.doc)
             
-            # Calculate biaya jabatan (5% of annual taxable, max 6,000,000 per year)
-            biaya_jabatan = min(annual_taxable * 0.05, 6000000)
+            # Calculate biaya jabatan (5% of annual taxable, capped monthly)
+            biaya_jabatan = min(
+                annual_taxable * 0.05,
+                BIAYA_JABATAN_MAX * MONTHS_PER_YEAR,
+            )
             
             # Sum tax deductions (annualized)
             tax_deductions = tax_components["totals"].get(TAX_DEDUCTION_EFFECT, 0) * MONTHS_PER_YEAR
@@ -275,8 +279,11 @@ class SalarySlipIndonesia:
             # Calculate total annual taxable income
             annual_taxable = ytd_gross + monthly_taxable
             
-            # Calculate biaya jabatan (5% of annual taxable, max 6,000,000 per year)
-            biaya_jabatan = min(annual_taxable * 0.05, 6000000)
+            # Calculate biaya jabatan (5% of annual taxable, capped monthly)
+            biaya_jabatan = min(
+                annual_taxable * 0.05,
+                BIAYA_JABATAN_MAX * MONTHS_PER_YEAR,
+            )
             
             # Calculate tax deductions (YTD BPJS + current month tax deductions)
             current_deductions = tax_components["totals"].get(TAX_DEDUCTION_EFFECT, 0)
