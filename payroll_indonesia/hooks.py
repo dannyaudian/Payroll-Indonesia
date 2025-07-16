@@ -60,6 +60,13 @@ doc_events = {
     "Payment Entry": {
         "on_submit": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_hooks.on_payment_entry_submit",
     },
+    "Payroll Entry": {
+        "before_validate": "payroll_indonesia.override.payroll_entry_functions.before_validate",
+        "validate": "payroll_indonesia.override.payroll_entry_functions.validate",
+        "before_submit": "payroll_indonesia.override.payroll_entry_functions.before_submit",
+        "on_submit": "payroll_indonesia.override.payroll_entry_functions.on_submit",
+        "after_submit": "payroll_indonesia.override.payroll_entry_functions.after_submit",
+    },
 }
 
 # ❸ Override DocType classes
