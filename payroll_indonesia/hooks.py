@@ -12,7 +12,7 @@ app_publisher = "PT. Innovasi Terbaik Bangsa"
 app_description = "Payroll module for Indonesian companies with local regulations"
 app_email = "danny.a.pratama@cao-group.co.id"
 app_icon = "octicon octicon-file-directory"
-app_license = "GPL-3"
+app_license = "MIT"
 app_version = "0.1.0"
 required_apps = ["erpnext", "hrms"]
 
