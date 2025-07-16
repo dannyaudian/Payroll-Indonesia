@@ -52,12 +52,23 @@ def setup_income_tax_slab(defaults: Optional[Dict[str, Any]] = None) -> bool:
                 {"from_amount": 5000000000, "to_amount": 0, "percent_deduction": 35},
             ]
 
+        # Resolve company for the slab
+        company = frappe.defaults.get_global_default("company")
+        if not company:
+            companies: List[str] = frappe.get_all("Company", pluck="name")
+            company = companies[0] if companies else None
+
+        if not company:
+            logger.warning("No company found for Income Tax Slab")
+            return False
+
         # Create new Income Tax Slab
         tax_slab = frappe.new_doc("Income Tax Slab")
         tax_slab.name = name
         tax_slab.currency = currency
         tax_slab.effective_from = "2023-01-01"
-        tax_slab.company = frappe.defaults.get_global_default("company")
+        if company:
+            tax_slab.company = company
         tax_slab.description = "Standard Indonesia Income Tax Slab"
 
         # Add is_default if the column exists
@@ -78,6 +89,7 @@ def setup_income_tax_slab(defaults: Optional[Dict[str, Any]] = None) -> bool:
 
         # Save the document
         tax_slab.flags.ignore_permissions = True
+        tax_slab.flags.ignore_mandatory = True
         tax_slab.insert()
         frappe.db.commit()
 
