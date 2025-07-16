@@ -22,6 +22,7 @@ from frappe.utils import cint, flt, get_datetime, today, now_datetime
 from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_summary_service_core import (
     PaymentSummaryService,
 )
+from payroll_indonesia.utilities import sanitize_update_data
 
 logger = logging.getLogger("bpjs_payment_services")
 
@@ -216,8 +217,19 @@ class BPJSPaymentService:
                 _(f"BPJS Payment Summary {payment_summary} must be submitted before reconciliation")
             )
 
+        # Sanitize input fields
+        update_fields = sanitize_update_data(
+            {
+                "journal_entry": journal_entry,
+                "payment_entry": payment_entry,
+            }
+        )
+
         # Update references
         changed = False
+
+        journal_entry = update_fields.get("journal_entry")
+        payment_entry = update_fields.get("payment_entry")
 
         if journal_entry and doc.journal_entry != journal_entry:
             doc.db_set("journal_entry", journal_entry)

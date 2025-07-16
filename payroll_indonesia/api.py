@@ -29,6 +29,7 @@ from payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payme
     get_employee_bpjs_details,
     get_summary_for_period,
 )
+from payroll_indonesia.utilities import sanitize_update_data
 
 logger = logging.getLogger("payroll_api")
 
@@ -213,11 +214,20 @@ def reconcile_payment_journal(
         # Create service instance
         service = BPJSPaymentService()
 
+        # Sanitize input before passing to service
+        params = sanitize_update_data(
+            {
+                "payment_summary": payment_summary,
+                "journal_entry": journal_entry,
+                "payment_entry": payment_entry,
+            }
+        )
+
         # Delegate to service layer
         result = service.reconcile_payment_journal(
-            payment_summary=payment_summary,
-            journal_entry=journal_entry,
-            payment_entry=payment_entry,
+            payment_summary=params.get("payment_summary"),
+            journal_entry=params.get("journal_entry"),
+            payment_entry=params.get("payment_entry"),
         )
 
         # Return result
