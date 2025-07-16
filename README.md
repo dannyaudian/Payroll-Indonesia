@@ -45,6 +45,8 @@ can run outside of a bench instance.
 ```bash
 bench --site your_site.local migrate
 ```
+   This step now also creates default expense accounts such as **Beban Gaji Pokok**,
+   **Beban Tunjangan Makan**, and **Beban Tunjangan Transport** for each company.
 
 2. **⚙ Manual Setup After Installation:**
 

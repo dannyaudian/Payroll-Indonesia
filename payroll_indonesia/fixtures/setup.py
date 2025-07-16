@@ -22,6 +22,7 @@ from payroll_indonesia.config.config import get_config as get_default_config
 from payroll_indonesia.config.config import doctype_defined, get_tax_effect_types
 from payroll_indonesia.config.gl_account_mapper import (
     get_gl_account_for_salary_component,
+    map_gl_account,
 )
 from payroll_indonesia.setup.settings_migration import migrate_all_settings, _load_defaults
 
@@ -887,10 +888,50 @@ def setup_default_salary_structure():
         raise
 
 
-def setup_company_accounts(doc, method=None):
-    # Dummy function untuk menghindari error pada setup wizard
-    # Kamu bisa isi logic tambahan di sini kalau perlu, misalnya auto create account atau setting
-    frappe.logger().info(f"[PAYROLL] setup_company_accounts triggered for: {doc.name}")
+def setup_company_accounts(doc=None, method=None, company=None, config=None):
+    """Create payroll GL accounts for a specific company.
+
+    This can be triggered from the ``Company`` DocType hooks or called directly
+    with a company name.  When executed from hooks ``doc`` will be the Company
+    document instance.
+
+    Args:
+        doc: Optional ``Company`` document when called by Frappe hooks.
+        method: Unused hook parameter.
+        company: Company name when invoked programmatically.
+        config: Optional configuration dictionary. ``defaults.json`` will be
+            loaded when not provided.
+
+    Returns:
+        bool: ``True`` on success, ``False`` otherwise.
+    """
+
+    try:
+        company_name = company or getattr(doc, "name", None)
+        if not company_name:
+            logger.warning("setup_company_accounts called without company name")
+            return False
+
+        if config is None:
+            config = get_default_config()
+
+        setup_accounts(config=config, specific_company=company_name)
+
+        # Create expense accounts for standard salary components
+        gl_accounts = config.get("gl_accounts", {}).get("expense_accounts", {})
+        for key in ["beban_gaji_pokok", "beban_tunjangan_makan", "beban_tunjangan_transport"]:
+            if key in gl_accounts:
+                map_gl_account(company_name, key, "expense_accounts")
+
+        logger.info(f"[PAYROLL] GL accounts created for: {company_name}")
+        return True
+    except Exception as e:
+        logger.error(f"[PAYROLL] setup_company_accounts failed for {company_name}: {str(e)}")
+        frappe.log_error(
+            f"setup_company_accounts failed for {company_name}: {str(e)}",
+            "Payroll Indonesia Setup",
+        )
+        return False
 
 
 def display_installation_summary(results, config):

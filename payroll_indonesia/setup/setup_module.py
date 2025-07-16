@@ -54,19 +54,19 @@ def setup_accounts() -> bool:
     try:
         from payroll_indonesia.fixtures.setup import setup_company_accounts
 
-        # Get all companies
-        companies = frappe.get_all("Company", pluck="name")
-        for company in companies:
-            setup_company_accounts(None, company=company)
-        logger.info("Company accounts setup completed")
-
-        logger.info("Setting up Payroll Indonesia tax infrastructure")
-
         # Load defaults from configuration
         defaults = _load_defaults()
         if not defaults:
             logger.warning("Could not load defaults from configuration")
             return False
+
+        # Get all companies and create GL accounts
+        companies = frappe.get_all("Company", pluck="name")
+        for company in companies:
+            setup_company_accounts(company=company, config=defaults)
+        logger.info("Company accounts setup completed")
+
+        logger.info("Setting up Payroll Indonesia tax infrastructure")
 
         # Import specialized setup functions
         from payroll_indonesia.utilities.tax_slab import setup_income_tax_slab
