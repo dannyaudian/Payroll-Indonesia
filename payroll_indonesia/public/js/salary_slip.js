@@ -6,16 +6,16 @@ frappe.ui.form.on('Salary Slip', {
     refresh: function(frm) {
         // Add status indicators based on document fields
         add_status_indicators(frm);
-        
+
         // Add action buttons
         add_action_buttons(frm);
-        
+
         // Add tax summary section if document is submitted
         if (frm.doc.docstatus === 1) {
             add_tax_summary_buttons(frm);
         }
     },
-    
+
     // Show payroll note in a dialog for better readability
     after_save: function(frm) {
         if (frm.doc.payroll_note && frm.doc.payroll_note.trim().length > 0) {
@@ -25,11 +25,11 @@ frappe.ui.form.on('Salary Slip', {
             }, __('Actions'));
         }
     },
-    
+
     // When December Override is toggled, update the UI
     is_december_override: function(frm) {
         frm.refresh();
-        
+
         // Show a message to inform the user about December override behavior
         if (frm.doc.is_december_override) {
             frappe.show_alert({
@@ -38,11 +38,11 @@ frappe.ui.form.on('Salary Slip', {
             }, 5);
         }
     },
-    
+
     // When tax method changes, update the UI
     tax_method: function(frm) {
         frm.refresh();
-        
+
         // Show information about the selected tax method
         const method = frm.doc.tax_method || 'Progressive';
         frappe.show_alert({
@@ -58,22 +58,22 @@ function add_status_indicators(frm) {
     if (frm.doc.is_final_gabung_suami) {
         frm.dashboard.add_indicator(__("NPWP Gabung Suami"), "blue");
     }
-    
+
     // Add indicator for TER method
     if (frm.doc.tax_method === 'TER') {
         frm.dashboard.add_indicator(__("Using TER Method") + ` (${frm.doc.ter_rate || 0}%)`, "green");
     }
-    
+
     // Add indicator for tax status
     if (frm.doc.status_pajak) {
         frm.dashboard.add_indicator(__("Tax Status: ") + frm.doc.status_pajak, "blue");
     }
-    
+
     // Add indicator for December correction
     if (frm.doc.is_december_override) {
         frm.dashboard.add_indicator(__("December Override Active"), "blue");
     }
-    
+
     // Add indicator for December tax correction amount
     if (frm.doc.koreksi_pph21 && frm.doc.is_december_override) {
         const indicator_color = frm.doc.koreksi_pph21 > 0 ? "orange" : "green";
@@ -90,21 +90,21 @@ function add_action_buttons(frm) {
             get_tax_effect_settings(frm.doc.name);
         }, __('Actions'));
     }
-    
+
     // Add TER calculation debug button
     if (frm.doc.tax_method === 'TER') {
         frm.add_custom_button(__('Debug TER Calc'), function() {
             debug_ter_calculation(frm);
         }, __('Actions'));
     }
-    
+
     // Add Fix TER Calculation button for draft documents
     if ((frm.is_new() || frm.doc.docstatus === 0) && frm.doc.tax_method === 'TER') {
         frm.add_custom_button(__('Fix TER Calculation'), function() {
             fix_ter_calculation(frm);
         }, __('Actions')).addClass('btn-primary');
     }
-    
+
     // Add December Override toggle button for draft documents
     if (frm.is_new() || frm.doc.docstatus === 0) {
         frm.add_custom_button(__('Toggle December Override'), function() {
@@ -117,17 +117,17 @@ function add_action_buttons(frm) {
 function add_tax_summary_buttons(frm) {
     // Add section header
     frm.add_custom_button(__('Tax Summary'), function() {}, "Actions").addClass('btn-default dropdown-toggle');
-    
+
     // Button to view tax summary
     frm.add_custom_button(__('View Tax Summary'), function() {
         view_tax_summary(frm);
     }, __('Tax Summary'));
-    
+
     // Button to refresh tax summary
     frm.add_custom_button(__('Refresh Tax Summary'), function() {
         refresh_tax_summary(frm);
     }, __('Tax Summary'));
-    
+
     // Button for force refreshing all tax summary for this employee
     frm.add_custom_button(__('Rebuild Annual Tax Data'), function() {
         rebuild_annual_tax_data(frm);
@@ -163,22 +163,22 @@ function debug_ter_calculation(frm) {
         callback: function(r) {
             if (r.message) {
                 const components = r.message;
-                
+
                 // Calculate totals from components
                 const taxable_earnings = components.totals.penambah_bruto || 0;
                 const tax_deductions = components.totals.pengurang_netto || 0;
                 const non_taxable_earnings = components.totals.tidak_berpengaruh || 0;
-                
+
                 let pph21_amount = 0;
                 (frm.doc.deductions || []).forEach(function(d) {
                     if (d.salary_component === "PPh 21") {
                         pph21_amount += flt(d.amount);
                     }
                 });
-                
+
                 const ter_rate = (frm.doc.ter_rate || 0) / 100;
                 const expected_ter_tax = taxable_earnings * ter_rate;
-                
+
                 let message = `
                     <div style="max-width: 600px;">
                         <h3>TER Calculation Debug</h3>
@@ -210,21 +210,21 @@ function debug_ter_calculation(frm) {
                             <tr>
                                 <td><strong>Expected TER Tax</strong></td>
                                 <td>${format_currency(expected_ter_tax)}</td>
-                                <td>${Math.abs(pph21_amount - expected_ter_tax) > 1 ? 
-                                    '<span style="color: red;">Mismatch!</span>' : 
+                                <td>${Math.abs(pph21_amount - expected_ter_tax) > 1 ?
+                                    '<span style="color: red;">Mismatch!</span>' :
                                     '<span style="color: green;">Match</span>'}</td>
                             </tr>
                         </table>
-                        
-                        ${Math.abs(taxable_earnings + non_taxable_earnings - frm.doc.gross_pay) > 1 ? 
+
+                        ${Math.abs(taxable_earnings + non_taxable_earnings - frm.doc.gross_pay) > 1 ?
                         `<div class="alert alert-warning">
-                         gross_pay (${format_currency(frm.doc.gross_pay)}) berbeda dengan 
-                         total earnings (${format_currency(taxable_earnings + non_taxable_earnings)}). 
+                         gross_pay (${format_currency(frm.doc.gross_pay)}) berbeda dengan
+                         total earnings (${format_currency(taxable_earnings + non_taxable_earnings)}).
                          Ini bisa menjadi indikasi masalah perhitungan.
                         </div>` : ''}
                     </div>
                 `;
-                
+
                 frappe.msgprint({
                     title: __('TER Calculation Debug'),
                     indicator: 'blue',
@@ -247,12 +247,12 @@ function fix_ter_calculation(frm) {
         callback: function(r) {
             if (r.message) {
                 const components = r.message;
-                
+
                 // Calculate taxable earnings from components
                 const taxable_earnings = components.totals.penambah_bruto || 0;
                 const ter_rate = (frm.doc.ter_rate || 0) / 100;
                 const correct_tax = taxable_earnings * ter_rate;
-                
+
                 // Update PPh 21 component
                 let found_pph21 = false;
                 frm.doc.deductions.forEach(function(d) {
@@ -261,17 +261,17 @@ function fix_ter_calculation(frm) {
                         found_pph21 = true;
                     }
                 });
-                
+
                 if (!found_pph21) {
                     frappe.msgprint(__("Komponen PPh 21 tidak ditemukan."));
                     return;
                 }
-                
+
                 frm.refresh_field('deductions');
                 frappe.msgprint({
                     title: __('TER Calculation Fixed'),
                     indicator: 'green',
-                    message: __('PPh 21 sekarang dihitung langsung dari penghasilan kena pajak bulanan: {0}', 
+                    message: __('PPh 21 sekarang dihitung langsung dari penghasilan kena pajak bulanan: {0}',
                                 [format_currency(correct_tax)])
                 });
             }
@@ -283,17 +283,17 @@ function fix_ter_calculation(frm) {
 function toggle_december_override(frm) {
     // Toggle the is_december_override field
     frm.set_value('is_december_override', frm.doc.is_december_override ? 0 : 1);
-    
+
     // Show an alert to indicate the change
     const status = frm.doc.is_december_override ? 'Enabled' : 'Disabled';
     const indicator = frm.doc.is_december_override ? 'green' : 'blue';
-    
+
     frappe.show_alert({
-        message: __('December Override {0} - Annual tax correction will {1} be applied', 
+        message: __('December Override {0} - Annual tax correction will {1} be applied',
             [status, frm.doc.is_december_override ? '' : 'not']),
         indicator: indicator
     }, 5);
-    
+
     // If enabling December mode, warn about TER
     if (frm.doc.is_december_override && frm.doc.tax_method === 'TER') {
         frappe.msgprint({
@@ -309,7 +309,7 @@ function view_tax_summary(frm) {
     // Get employee and year from salary slip
     const employee = frm.doc.employee;
     const year = moment(frm.doc.end_date).year();
-    
+
     // Call API to get tax summary status
     frappe.call({
         method: 'payroll_indonesia.api.get_tax_summary_status',
@@ -354,7 +354,7 @@ function refresh_tax_summary(frm) {
                             message: __('Tax summary refreshed successfully'),
                             indicator: 'green'
                         }, 5);
-                        
+
                         // Add option to view tax summary after refresh
                         frappe.confirm(
                             __('Tax summary has been refreshed. Do you want to view it now?'),
@@ -380,7 +380,7 @@ function refresh_tax_summary(frm) {
 function rebuild_annual_tax_data(frm) {
     const employee = frm.doc.employee;
     const year = moment(frm.doc.end_date).year();
-    
+
     let d = new frappe.ui.Dialog({
         title: __('Rebuild Annual Tax Data'),
         fields: [
@@ -417,7 +417,7 @@ function rebuild_annual_tax_data(frm) {
         primary_action_label: __('Rebuild Tax Summary'),
         primary_action: function() {
             const values = d.get_values();
-            
+
             frappe.call({
                 method: 'payroll_indonesia.api.refresh_tax_summary',
                 args: {
@@ -432,11 +432,11 @@ function rebuild_annual_tax_data(frm) {
                     if (r.message && r.message.status === 'success') {
                         d.hide();
                         frappe.show_alert({
-                            message: __('Annual tax data rebuild queued with {0} of {1} slips processed', 
+                            message: __('Annual tax data rebuild queued with {0} of {1} slips processed',
                                 [r.message.processed, r.message.total_slips]),
                             indicator: 'green'
                         }, 10);
-                        
+
                         // Add link to tax summary
                         if (r.message.tax_summary) {
                             frappe.set_route('Form', 'Employee Tax Summary', r.message.tax_summary);
@@ -452,7 +452,7 @@ function rebuild_annual_tax_data(frm) {
             });
         }
     });
-    
+
     d.show();
 }
 
@@ -465,16 +465,16 @@ function display_tax_calculation_dialog(note_content) {
             fieldname: 'calculation_html'
         }]
     });
-    
+
     const formatted_content = note_content
         .replace(/\n/g, '<br>')
         .replace(/===(.+?)===/g, '<strong>$1</strong>')
         .replace(/Rp\s(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)/g, '<b>Rp $1</b>');
-    
+
     d.fields_dict.calculation_html.$wrapper.html(
         `<div style="max-height: 300px; overflow-y: auto; padding: 10px;">${formatted_content}</div>`
     );
-    
+
     d.show();
 }
 
@@ -488,7 +488,7 @@ function display_tax_summary_dialog(data, employee, year) {
         });
         return;
     }
-    
+
     let d = new frappe.ui.Dialog({
         title: __('Employee Tax Summary - {0}', [year]),
         fields: [{
@@ -501,7 +501,7 @@ function display_tax_summary_dialog(data, employee, year) {
             frappe.set_route('Form', 'Employee Tax Summary', data.tax_summary.name);
         }
     });
-    
+
     // Generate monthly tax data table
     let monthly_table = `
         <table class="table table-bordered table-striped table-hover">
@@ -517,11 +517,11 @@ function display_tax_summary_dialog(data, employee, year) {
             </thead>
             <tbody>
     `;
-    
+
     for (let month_data of data.monthly_data || []) {
         // Skip if no slip or no data
         if (!month_data.has_slip && !month_data.has_data) continue;
-        
+
         let status_indicator;
         if (month_data.has_data && month_data.has_slip) {
             status_indicator = '<span class="indicator green">Synchronized</span>';
@@ -532,16 +532,16 @@ function display_tax_summary_dialog(data, employee, year) {
         } else {
             status_indicator = '<span class="indicator gray">N/A</span>';
         }
-        
+
         // Format tax method status
         let tax_method_display = '';
         if (month_data.has_data && month_data.data) {
             const method = month_data.data.tax_method || 'Progressive';
-            const ter_rate = month_data.data.tax_method === 'TER' ? 
+            const ter_rate = month_data.data.tax_method === 'TER' ?
                 ` (${month_data.data.ter_rate}%)` : '';
             tax_method_display = `<span class="indicator blue">${method}${ter_rate}</span>`;
         }
-        
+
         // Format December status
         let december_status = '';
         if (month_data.has_data && month_data.data && month_data.data.is_december_override) {
@@ -549,13 +549,13 @@ function display_tax_summary_dialog(data, employee, year) {
         } else {
             december_status = '<span class="indicator gray">No</span>';
         }
-        
+
         // Format gross pay and tax amount
-        let gross_pay = month_data.has_data && month_data.data ? 
+        let gross_pay = month_data.has_data && month_data.data ?
             month_data.data.formatted_gross : '-';
-        let tax_amount = month_data.has_data && month_data.data ? 
+        let tax_amount = month_data.has_data && month_data.data ?
             month_data.data.formatted_tax : '-';
-        
+
         monthly_table += `
             <tr>
                 <td>${month_data.month_name}</td>
@@ -567,12 +567,12 @@ function display_tax_summary_dialog(data, employee, year) {
             </tr>
         `;
     }
-    
+
     monthly_table += `
             </tbody>
         </table>
     `;
-    
+
     // Create summary info
     let summary_info = `
         <div class="row">
@@ -584,9 +584,9 @@ function display_tax_summary_dialog(data, employee, year) {
                         <p><strong>${__('Employee')}:</strong> ${employee}</p>
                         <p><strong>${__('YTD Tax')}:</strong> ${data.tax_summary.formatted_ytd_tax}</p>
                         <p><strong>${__('Tax Method')}:</strong> ${data.tax_summary.tax_method || 'Progressive'}</p>
-                        ${data.tax_summary.tax_method === 'TER' ? 
+                        ${data.tax_summary.tax_method === 'TER' ?
                             `<p><strong>${__('TER Rate')}:</strong> ${data.tax_summary.ter_rate}%</p>` : ''}
-                        ${data.tax_summary.is_december_override ? 
+                        ${data.tax_summary.is_december_override ?
                             `<p><strong>${__('December Override')}:</strong> ${__('Yes')}</p>` : ''}
                     </div>
                 </div>
@@ -597,10 +597,10 @@ function display_tax_summary_dialog(data, employee, year) {
                         <h5 class="card-title">${__('Status')}</h5>
                         <p><strong>${__('Months with Data')}:</strong> ${data.stats.months_with_data} / 12</p>
                         <p><strong>${__('Months with Salary Slips')}:</strong> ${data.stats.potential_months}</p>
-                        ${data.needs_refresh ? 
+                        ${data.needs_refresh ?
                             `<div class="alert alert-warning">
                                 ${data.refresh_recommendation}
-                            </div>` : 
+                            </div>` :
                             `<div class="alert alert-success">
                                 ${__('Tax summary is up to date with all salary slips.')}
                             </div>`
@@ -610,7 +610,7 @@ function display_tax_summary_dialog(data, employee, year) {
             </div>
         </div>
     `;
-    
+
     d.fields_dict.tax_summary_html.$wrapper.html(
         `<div style="max-height: 500px; overflow-y: auto; padding: 10px;">
             ${summary_info}
@@ -618,7 +618,7 @@ function display_tax_summary_dialog(data, employee, year) {
             ${monthly_table}
         </div>`
     );
-    
+
     d.show();
 }
 
@@ -631,7 +631,7 @@ function display_tax_effect_dialog(data) {
             fieldname: 'tax_effect_html'
         }]
     });
-    
+
     // Prepare component tables by category
     const categories = {
         'penambah_bruto': {
@@ -655,9 +655,9 @@ function display_tax_effect_dialog(data) {
             description: __('These benefits in kind are not taxable')
         }
     };
-    
+
     let html = `<div style="max-height: 500px; overflow-y: auto; padding: 10px;">`;
-    
+
     // Add summary information
     html += `
         <div class="row">
@@ -670,7 +670,7 @@ function display_tax_effect_dialog(data) {
             </div>
         </div>
     `;
-    
+
     // Generate tables for each category
     for (let category in categories) {
         if (data[category] && Object.keys(data[category]).length > 0) {
@@ -688,7 +688,7 @@ function display_tax_effect_dialog(data) {
                             </thead>
                             <tbody>
             `;
-            
+
             for (let component in data[category]) {
                 html += `
                     <tr>
@@ -697,7 +697,7 @@ function display_tax_effect_dialog(data) {
                     </tr>
                 `;
             }
-            
+
             html += `
                             </tbody>
                             <tfoot>
@@ -712,7 +712,7 @@ function display_tax_effect_dialog(data) {
             `;
         }
     }
-    
+
     // Add missing tax effect warning if any
     if (data.missing_effects && data.missing_effects.length > 0) {
         html += `
@@ -723,11 +723,11 @@ function display_tax_effect_dialog(data) {
                         <p>${__('The following components do not have tax effect settings defined:')}</p>
                         <ul>
         `;
-        
+
         for (let component of data.missing_effects) {
             html += `<li>${component}</li>`;
         }
-        
+
         html += `
                         </ul>
                         <p>${__('These components are treated as non-taxable by default.')}</p>
@@ -736,9 +736,9 @@ function display_tax_effect_dialog(data) {
             </div>
         `;
     }
-    
+
     html += `</div>`;
-    
+
     d.fields_dict.tax_effect_html.$wrapper.html(html);
     d.show();
 }
