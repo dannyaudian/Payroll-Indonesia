@@ -3,10 +3,26 @@ from __future__ import annotations
 import frappe
 
 from payroll_indonesia.payroll_indonesia import salary_slip_functions as ssf
+import argparse
+import os
 
 
 def main() -> None:
-    frappe.connect(site="itb_dev_lokal")  # ganti site Anda
+    parser = argparse.ArgumentParser(description="Debug PPh21 route")
+    parser.add_argument(
+        "--site",
+        default=os.getenv("FRAPPE_SITE"),
+        help="Frappe site name or set FRAPPE_SITE env variable",
+    )
+    args = parser.parse_args()
+    site = args.site
+
+    if not site:
+        parser.print_usage()
+        print("error: site must be provided via --site or FRAPPE_SITE")
+        return
+
+    frappe.connect(site=site)
 
     # 1. Ensure settings
     settings = frappe.get_cached_doc("Payroll Indonesia Settings")
