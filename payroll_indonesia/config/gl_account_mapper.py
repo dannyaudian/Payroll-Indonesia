@@ -236,11 +236,34 @@ def get_or_create_account(
         if not parent_account:
             # Fallback to standard parent accounts
             if root_type == "Liability":
-                parent_account = f"Liabilities - {company_abbr}"
+                fallback_parent = f"Liabilities - {company_abbr}"
             elif root_type == "Asset":
-                parent_account = f"Assets - {company_abbr}"
+                fallback_parent = f"Assets - {company_abbr}"
             else:  # Expense
-                parent_account = f"Expenses - {company_abbr}"
+                fallback_parent = f"Expenses - {company_abbr}"
+
+            # Only use the fallback if it actually exists
+            if frappe.db.exists("Account", fallback_parent):
+                parent_account = fallback_parent
+            else:
+                # Look for any group account with matching root_type
+                generic_parent = frappe.db.get_value(
+                    "Account",
+                    {
+                        "company": company,
+                        "root_type": root_type,
+                        "is_group": 1,
+                    },
+                    "name",
+                )
+                if generic_parent:
+                    parent_account = generic_parent
+                    debug_log(
+                        f"Selected generic {root_type} parent {generic_parent} for {full_account_name}",
+                        "GL Account Creation",
+                    )
+                else:
+                    parent_account = fallback_parent
 
         # Create the account
         account = frappe.get_doc(
