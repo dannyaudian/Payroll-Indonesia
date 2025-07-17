@@ -5,28 +5,25 @@
 
 """
 setup_module.py – basic setup routines for Payroll Indonesia.
-Provides minimal setup functions used during installation and migration.
+Provides minimal setup functions used during installation and migration,
+including helpers to map GL accounts to salary components.
 """
-
-from typing import Dict, Any, Optional, List
-import os
-from pathlib import Path
 
 import frappe
 from frappe import _
-from frappe.utils import now_datetime, cint, flt
-
-from payroll_indonesia.frappe_helpers import get_logger
-logger = get_logger("setup")
-
+from frappe.utils import now_datetime
 from payroll_indonesia.config.config import doctype_defined
 from payroll_indonesia.setup.settings_migration import migrate_all_settings, _load_defaults
+from payroll_indonesia.frappe_helpers import get_logger
+
+logger = get_logger("setup")
+
 
 def setup_module() -> bool:
     """
     Primary setup function for Payroll Indonesia.
     Creates basic structure needed for the app to function.
-    
+
     Returns:
         bool: Success status
     """
@@ -42,6 +39,7 @@ def setup_module() -> bool:
     else:
         logger.warning("Payroll Indonesia basic setup completed with warnings")
     return success
+
 
 def setup_accounts() -> bool:
     """
@@ -108,10 +106,11 @@ def setup_accounts() -> bool:
         logger.error(f"Error setting up accounts: {str(e)}")
         return False
 
+
 def create_custom_workspace() -> bool:
     """
     Create the Payroll Indonesia workspace.
-    
+
     Returns:
         bool: Success status
     """
@@ -157,10 +156,11 @@ def create_custom_workspace() -> bool:
         )
         return False
 
+
 def setup_default_modules() -> bool:
     """
     Create the Payroll Indonesia module definition.
-    
+
     Returns:
         bool: Success status
     """
@@ -191,12 +191,13 @@ def setup_default_modules() -> bool:
         )
         return False
 
+
 def ensure_settings_doctype_exists() -> bool:
     """
     Create the Payroll Indonesia Settings document if it doesn't exist.
     Only creates the basic document structure with minimal required fields.
     Data population is delegated to settings_migration.py.
-    
+
     Returns:
         bool: Success status
     """
@@ -205,7 +206,7 @@ def ensure_settings_doctype_exists() -> bool:
         if not doctype_defined("Payroll Indonesia Settings"):
             logger.warning("Payroll Indonesia Settings DocType is not defined")
             return False
-        
+
         settings_name = "Payroll Indonesia Settings"
         if frappe.db.exists(settings_name, settings_name):
             logger.info("Payroll Indonesia Settings already exists")
@@ -246,13 +247,26 @@ def ensure_settings_doctype_exists() -> bool:
 
 
 def after_migrate():
-    """Run after migrate"""
+    """Run after migrate.
+
+    Ensures salary components receive GL account mappings and the default
+    salary structure is created when running ``bench migrate``.
+    """
     try:
         # Setup fixtures that may have been skipped
         setup_accounts()
 
+        # Map GL accounts to salary components
+        from payroll_indonesia.fixtures.setup import (
+            setup_default_salary_structure,
+            setup_salary_components,
+        )
+
+        defaults = _load_defaults()
+        if defaults:
+            setup_salary_components(defaults)
+
         # Setup default salary structure
-        from payroll_indonesia.fixtures.setup import setup_default_salary_structure
         setup_default_salary_structure()
 
         logger.info("Post-migration setup completed successfully")
