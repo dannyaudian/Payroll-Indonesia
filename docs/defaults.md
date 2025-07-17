@@ -32,6 +32,15 @@ Values used when creating the default salary structure and for related fields in
 ## gl_accounts
 Chart of Accounts templates for payroll. Includes `root_account`, `expense_accounts`, `payable_accounts` and BPJS related accounts. Data is stored as JSON in the settings fields `expense_accounts_json`, `payable_accounts_json`, `parent_accounts_json` and `bpjs_account_mapping_json`.
 
+### Root account names
+
+The default configuration assumes your site uses the standard English root
+groups created by ERPNext, such as **"Assets - {abbr}"**, **"Liabilities -
+{abbr}"** and **"Expenses - {abbr}"**. If your Chart of Accounts uses localized
+names, adjust `parent_account_candidates_expense` and
+`parent_account_candidates_liability` in the settings to point to your actual
+top‑level expense and liability accounts.
+
 ## settings
 Miscellaneous behaviour flags such as `sync_to_defaults` and parent account candidates. Stored on **Payroll Indonesia Settings**.
 
