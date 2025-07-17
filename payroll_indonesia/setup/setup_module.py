@@ -246,6 +246,26 @@ def ensure_settings_doctype_exists() -> bool:
         return False
 
 
+def ensure_bpjs_account_mappings() -> bool:
+    """Ensure each company has a BPJS Account Mapping."""
+    try:
+        from payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping import (
+            bpjs_account_mapping,
+        )
+
+        created = False
+        companies = frappe.get_all("Company", pluck="name")
+        for company in companies:
+            if not frappe.db.exists("BPJS Account Mapping", {"company": company}):
+                bpjs_account_mapping.create_default_mapping(company)
+                created = True
+
+        return created
+    except Exception as e:
+        logger.error(f"Error ensuring BPJS Account Mappings: {str(e)}")
+        return False
+
+
 def after_migrate():
     """Run after migrate.
 
@@ -255,6 +275,7 @@ def after_migrate():
     try:
         # Setup fixtures that may have been skipped
         setup_accounts()
+        ensure_bpjs_account_mappings()
 
         # Map GL accounts to salary components
         from payroll_indonesia.fixtures.setup import (
