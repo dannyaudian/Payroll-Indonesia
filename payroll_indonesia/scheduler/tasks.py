@@ -158,76 +158,56 @@ def create_bpjs_summaries(date_obj=None):
         raise
 
 
-def create_default_mapping(company):
-    try:
-        mapping = frappe.new_doc("BPJS Account Mapping")
-        mapping.company = company
-        default_payable = frappe.db.get_value("Company", company, "default_payable_account")
-        if default_payable:
-            mapping.kesehatan_account = default_payable
-            mapping.jht_account = default_payable
-            mapping.jp_account = default_payable
-            mapping.jkk_account = default_payable
-            mapping.jkm_account = default_payable
-        mapping.insert()
-        return mapping.name
-    except Exception as e:
-        logger.error(f"Error creating default mapping: {str(e)}")
-        return None
-
-
 def validate_tax_cache(employee: Optional[str] = None) -> Dict[str, Any]:
     logger = frappe.logger("payroll_indonesia.cache")
     logger.info("Starting tax cache validation")
-    
+
     result = {
         "status": "success",
         "validated": 0,
         "rebuilt": 0,
         "skipped": 0,
         "errors": 0,
-        "message": ""
+        "message": "",
     }
-    
+
     try:
         _ensure_tax_summary_fields()
-        
+
         filters = {}
         if employee:
             filters["employee"] = employee
         else:
             yesterday = add_days(getdate(), -1)
             filters["modified"] = [">=", yesterday]
-        
+
         tax_summaries = frappe.get_all(
             "Employee Tax Summary",
             filters=filters,
             fields=["name", "employee", "year"],
-            limit=100 if not employee else None
+            limit=100 if not employee else None,
         )
-        
+
         if not tax_summaries and not employee:
             tax_summaries = frappe.get_all(
-                "Employee Tax Summary",
-                fields=["name", "employee", "year"],
-                limit=50
+                "Employee Tax Summary", fields=["name", "employee", "year"], limit=50
             )
-        
+
         rebuild_count = 0
         valid_count = 0
         error_count = 0
-        
+
         for summary in tax_summaries:
             try:
                 result["validated"] += 1
                 if validate_summary_consistency(summary.name, summary.employee, summary.year):
                     valid_count += 1
                     continue
-                
+
                 rebuild_count += 1
                 logger.warning(f"Tax summary {summary.name} inconsistent, rebuilding...")
                 rebuild_tax_summary(summary.name)
-                
+
                 if rebuild_count >= 10 and not employee:
                     logger.info("Reached rebuild limit, will continue in next run")
                     result["skipped"] = len(tax_summaries) - result["validated"]
@@ -236,23 +216,23 @@ def validate_tax_cache(employee: Optional[str] = None) -> Dict[str, Any]:
                 error_count += 1
                 logger.error(f"Error validating summary {summary.name}: {str(e)}")
                 continue
-        
+
         cache_patterns = ["tax_summary:*", "ytd:*", "salary_slip:tax:*"]
         cleared_keys = 0
         for pattern in cache_patterns:
             cleared = cache_utils.clear_pattern(pattern)
             cleared_keys += cleared or 0
-        
+
         result["rebuilt"] = rebuild_count
         result["errors"] = error_count
         result["message"] = (
             f"Validation complete: {valid_count} valid, {rebuild_count} rebuilt, "
             f"{error_count} errors, {cleared_keys} cache keys cleared"
         )
-        
+
         logger.info(result["message"])
         return result
-        
+
     except Exception as e:
         error_msg = f"Error in tax cache validation: {str(e)}"
         logger.error(error_msg)
@@ -264,10 +244,10 @@ def validate_tax_cache(employee: Optional[str] = None) -> Dict[str, Any]:
 
 def _ensure_tax_summary_fields():
     logger = frappe.logger("payroll_indonesia.cache")
-    
+
     if not frappe.db.has_column("Employee Tax Summary", "year"):
         logger.warning("Employee Tax Summary missing 'year' field, creating via Property Setter")
-        
+
         try:
             year_property = frappe.new_doc("Property Setter")
             year_property.doctype_or_field = "DocField"
@@ -277,7 +257,7 @@ def _ensure_tax_summary_fields():
             year_property.value = "Int"
             year_property.property_type = "Int"
             year_property.insert(ignore_permissions=True)
-            
+
             label_property = frappe.new_doc("Property Setter")
             label_property.doctype_or_field = "DocField"
             label_property.doc_type = "Employee Tax Summary"
@@ -286,9 +266,9 @@ def _ensure_tax_summary_fields():
             label_property.value = "Tax Year"
             label_property.property_type = "Data"
             label_property.insert(ignore_permissions=True)
-            
+
             logger.info("Created 'year' field via Property Setter")
-            
+
             if not frappe.db.has_column("Employee Tax Summary", "year"):
                 custom_field = frappe.new_doc("Custom Field")
                 custom_field.dt = "Employee Tax Summary"
@@ -308,30 +288,30 @@ def _ensure_tax_summary_fields():
 def _run_validate_tax_cache_tests():
     import unittest
     from unittest.mock import patch
-    
+
     class TestValidateTaxCache(unittest.TestCase):
         def setUp(self):
             self.employee = "EMP-00001"
-        
+
         @patch("frappe.get_all")
         @patch("payroll_indonesia.scheduler.tasks.validate_summary_consistency")
         @patch("payroll_indonesia.scheduler.tasks.rebuild_tax_summary")
         def test_validate_tax_cache(self, mock_rebuild, mock_validate, mock_get_all):
             mock_get_all.return_value = [
                 frappe._dict({"name": "TAX-001", "employee": self.employee, "year": 2023}),
-                frappe._dict({"name": "TAX-002", "employee": self.employee, "year": 2022})
+                frappe._dict({"name": "TAX-002", "employee": self.employee, "year": 2022}),
             ]
-            
+
             mock_validate.side_effect = [True, False]
-            
+
             result = validate_tax_cache(self.employee)
-            
+
             self.assertEqual(result["status"], "success")
             self.assertEqual(result["validated"], 2)
             self.assertEqual(result["rebuilt"], 1)
             self.assertEqual(mock_rebuild.call_count, 1)
             mock_rebuild.assert_called_with("TAX-002")
-    
+
     if frappe.conf.get("developer_mode"):
         unittest.main()
 
@@ -446,4 +426,3 @@ def cleanup_logs(days: int = 90) -> None:
         logger.info(f"Deleted {count} Payroll Log entries older than {days} days")
     except Exception as e:
         logger.warning(f"Error cleaning Payroll Log: {str(e)}")
-
