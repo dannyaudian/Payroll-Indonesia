@@ -1,6 +1,6 @@
 # Payroll Indonesia
 
-Payroll Indonesia by PT. Innovasi Terbaik Bangsa is an ERPNext v15 payroll module specifically designed for Indonesian companies. This module is modular, scalable, and compatible with both VPS and Frappe Cloud.
+Payroll Indonesia by PT. Inovasi Terbaik Bangsa is an ERPNext v15 payroll module specifically designed for Indonesian companies. This module is modular, scalable, and compatible with both VPS and Frappe Cloud.
 
 ## 🚀 Key Features
 
