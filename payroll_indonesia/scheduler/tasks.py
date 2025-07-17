@@ -428,11 +428,22 @@ def clear_caches():
         logger.warning(f"Error clearing all caches: {str(e)}")
 
 
-def cleanup_logs():
-    pass
+def cleanup_logs(days: int = 90) -> None:
+    """Delete old Payroll Log entries.
 
-def cleanup_logs():
-
-
-    pass
+    Args:
+        days: Number of days to retain logs. Entries older than this
+            threshold will be removed.
+    """
+    try:
+        cutoff_date = add_days(getdate(), -days)
+        count = frappe.db.count("Payroll Log", {"log_time": ["<", cutoff_date]})
+        if count:
+            frappe.db.delete(
+                "Payroll Log",
+                {"log_time": ["<", cutoff_date]},
+            )
+        logger.info(f"Deleted {count} Payroll Log entries older than {days} days")
+    except Exception as e:
+        logger.warning(f"Error cleaning Payroll Log: {str(e)}")
 
