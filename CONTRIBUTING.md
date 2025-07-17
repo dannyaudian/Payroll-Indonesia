@@ -45,4 +45,15 @@ bench --site test.local run-tests --app payroll_indonesia
 
 This command will launch `pytest` with Frappe's test runner so all tests in `payroll_indonesia/payroll_indonesia/tests` are executed against the created site.
 
+## 5. Lint the code
+
+Before committing your changes, install the linter and run it against the code base:
+
+```bash
+pip install flake8
+flake8
+```
+
+Fix any reported issues prior to creating a pull request.
+
 
