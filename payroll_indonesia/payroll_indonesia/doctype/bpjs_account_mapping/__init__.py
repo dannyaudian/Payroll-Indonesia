@@ -1,1 +1,4 @@
-# This file marks the BPJS Account Mapping doctype directory as a Python package
+# Explicit exports for easier imports
+from .bpjs_account_mapping import create_default_mapping
+
+__all__ = ["create_default_mapping"]
