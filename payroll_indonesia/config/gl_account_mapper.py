@@ -99,7 +99,7 @@ def map_gl_account(company: str, account_key: str, category: str) -> str:
         # Check if account exists, create if needed
         if not frappe.db.exists("Account", formatted_account_name):
             # Get account type and root type from config
-            account_type = account_info.get("account_type", "Expense")
+            account_type = account_info.get("account_type", "Expense Account")
             root_type = account_info.get("root_type", "Expense")
 
             # Determine default parent
@@ -188,7 +188,7 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
 
         # Create account if needed and return suffixed name
         return get_or_create_account(
-            company, base_name, "Expense", "Expense"
+            company, base_name, "Expense Account", "Expense"
         )
     
     # Get the account key and category from the mapping
