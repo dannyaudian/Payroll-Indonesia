@@ -25,6 +25,7 @@ from payroll_indonesia.config.gl_account_mapper import (
     map_gl_account,
 )
 from payroll_indonesia.setup.settings_migration import migrate_all_settings, _load_defaults
+from payroll_indonesia.setup.setup_module import ensure_bpjs_account_mappings
 
 
 # Define exported functions
@@ -73,6 +74,7 @@ def _run_full_install(config=None, skip_existing=True):
 
         # Setup accounts
         results["accounts"] = setup_accounts(config)
+        ensure_bpjs_account_mappings()
         logger.info("Account setup completed")
 
         # Setup suppliers
