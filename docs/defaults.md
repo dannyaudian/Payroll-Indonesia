@@ -42,6 +42,16 @@ names, adjust `parent_account_candidates_expense` and
 to your actual top‑level expense and liability accounts. You can specify more
 than one name separated by commas or new lines.
 
+Example for Indonesian account groups:
+
+```
+parent_account_candidates_expense: Beban
+parent_account_candidates_liability: Kewajiban
+```
+
+With these values the module can create accounts like "Hutang PPh 21" under the
+"Kewajiban" group if no matching English parent exists.
+
 ## settings
 Miscellaneous behaviour flags such as `sync_to_defaults` and parent account candidates. Stored on **Payroll Indonesia Settings**.
 
