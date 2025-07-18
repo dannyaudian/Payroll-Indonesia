@@ -80,6 +80,7 @@ setup.after_install()
 
 * Use the **BPJS Account Mapping** DocType to set up BPJS Employee and Employer accounts.
 * Ensure account configurations align with the company's Chart of Accounts structure.
+* A default mapping is automatically created for each company during installation.
 
 ### 🗂 Parent Account Candidates
 
