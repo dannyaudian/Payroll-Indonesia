@@ -52,6 +52,8 @@ def setup_accounts(config=None, specific_company=None, *, skip_existing=False):
     Returns:
         dict: Results of account setup
     """
+    logger.info(f"Starting setup_accounts for company: {specific_company}")
+
     try:
         from payroll_indonesia.fixtures.setup import setup_company_accounts
 
@@ -106,6 +108,9 @@ def setup_accounts(config=None, specific_company=None, *, skip_existing=False):
             if result:
                 logger.info("PPh 21 TER rates setup completed successfully")
             else:
+
+        logger.info(f"Completed setup_accounts. Results: {results}")
+        return results
                 logger.info("PPh 21 TER rates setup skipped (already exists)")
         except Exception as e:
             logger.error(f"Error setting up PPh 21 TER rates: {str(e)}")
@@ -260,11 +265,11 @@ def ensure_settings_doctype_exists() -> bool:
         return False
 
 
-
-
 def after_migrate():
     """Run essential post-migration setup."""
     try:
+        logger.info("========== RUNNING PAYROLL INDONESIA AFTER_MIGRATE ==========")
+
         # Core setup that must always run
         ensure_settings_doctype_exists()
 
