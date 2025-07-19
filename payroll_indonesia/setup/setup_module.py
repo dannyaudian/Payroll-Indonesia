@@ -273,11 +273,14 @@ def after_migrate():
     salary structure is created when running ``bench migrate``.
     """
     try:
+        # Ensure settings document exists first
+        ensure_settings_doctype_exists()
+
         # Setup fixtures that may have been skipped
         setup_accounts()
         ensure_bpjs_account_mappings()
 
-        # Map GL accounts to salary components
+        # Map GL accounts to salary components and create default salary structure
         from payroll_indonesia.fixtures.setup import (
             setup_default_salary_structure,
             setup_salary_components,
@@ -287,7 +290,6 @@ def after_migrate():
         if defaults:
             setup_salary_components(defaults)
 
-        # Setup default salary structure
         setup_default_salary_structure()
 
         logger.info("Post-migration setup completed successfully")
