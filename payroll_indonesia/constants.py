@@ -50,6 +50,23 @@ BPJS_JP_MAX_SALARY = 9077600  # Maximum salary for pension calculation
 BPJS_JKK_PERCENT = 0.24  # Work accident insurance employer contribution
 BPJS_JKM_PERCENT = 0.3  # Death insurance employer contribution
 
+# BPJS account fields
+BPJS_ACCOUNT_FIELDS = [
+    "kesehatan_employee_account",
+    "jht_employee_account",
+    "jp_employee_account",
+    "kesehatan_employer_debit_account",
+    "kesehatan_employer_credit_account",
+    "jht_employer_debit_account",
+    "jht_employer_credit_account",
+    "jp_employer_debit_account",
+    "jp_employer_credit_account",
+    "jkk_employer_debit_account",
+    "jkk_employer_credit_account",
+    "jkm_employer_debit_account",
+    "jkm_employer_credit_account",
+]
+
 # Tax calculation constants
 BIAYA_JABATAN_PERCENT = 5.0  # Position allowance expense percentage
 BIAYA_JABATAN_MAX = 500000  # Maximum monthly position allowance expense (in rupiah)

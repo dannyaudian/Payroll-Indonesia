@@ -267,12 +267,14 @@ def ensure_bpjs_account_mappings(transaction_open=False) -> bool:
 
 
 def after_migrate():
-    """Run post-migration data updates."""
+    """Run essential post-migration setup."""
     try:
+        # Core setup that must always run
         ensure_settings_doctype_exists()
-        migrate_all_settings()
-        ensure_bpjs_account_mappings()
 
+        # Delegate to fixtures.setup for the main installation
+        from payroll_indonesia.fixtures.setup import perform_essential_setup
+        perform_essential_setup()
         logger.info("Post-migration setup completed successfully")
     except Exception as e:
         logger.error(f"Error in after_migrate: {str(e)}")

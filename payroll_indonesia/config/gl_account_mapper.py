@@ -149,45 +149,56 @@ def map_gl_account(company: str, account_key: str, category: str) -> str:
         return f"{account_key} - {company}"
 
 
+def _determine_bpjs_field_name(salary_component: str) -> str:
+    """
+    Determine the correct field name in BPJS Account Mapping based on component name.
+    Args:
+        salary_component: Salary component name
+
+    Returns:
+        str: Field name or empty string if no match
+    """
+        component = salary_component.lower()
+        if "kesehatan" in component:
+        return "kesehatan_employer_debit_account" if "employer" in component else "kesehatan_employee_account"
+        elif "jht" in component:
+        return "jht_employer_debit_account" if "employer" in component else "jht_employee_account"
+        elif "jp" in component:
+        return "jp_employer_debit_account" if "employer" in component else "jp_employee_account"
+        elif "jkk" in component:
+        return "jkk_employer_debit_account"
+        elif "jkm" in component:
+        return "jkm_employer_debit_account"
+
+        return ""
+
 def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
-    """Return BPJS account mapped to the given component if available.
+    """
+    Get BPJS account for a specific company and salary component.
 
     Args:
         company: Company name
-        salary_component: Salary Component name
+        salary_component: Salary component name
 
     Returns:
         str: Account name or empty string if not found
     """
     try:
-        mapping = frappe.get_all("BPJS Account Mapping", filters={"company": company}, fields=["*"])
+        # Determine which field to retrieve
+        field_name = _determine_bpjs_field_name(salary_component)
+        if not field_name or field_name not in BPJS_ACCOUNT_FIELDS:
+        return ""
+
+        # Get mapping for this company
+        mapping = frappe.get_all("BPJS Account Mapping", filters={"company": company}, fields=[field_name])
 
         if not mapping:
             return ""
 
-        row = mapping[0]
-        component = salary_component.lower()
-        field_name = ""
-
-        if "kesehatan" in component:
-            field_name = "kesehatan_employer_debit_account" if "employer" in component else "kesehatan_employee_account"
-        elif "jht" in component:
-            field_name = "jht_employer_debit_account" if "employer" in component else "jht_employee_account"
-        elif "jp" in component:
-            field_name = "jp_employer_debit_account" if "employer" in component else "jp_employee_account"
-        elif "jkk" in component:
-            field_name = "jkk_employer_debit_account"
-        elif "jkm" in component:
-            field_name = "jkm_employer_debit_account"
-
-        if field_name and field_name in BPJS_ACCOUNT_FIELDS:
-            return row.get(field_name, "")
-
-        return ""
-    except Exception as e:  # pragma: no cover - defensive
+        return mapping[0].get(field_name, "")
+    except Exception as e:
         logger.exception(f"Error getting BPJS account mapping: {e}")
         return ""
-
 
 def get_gl_account_for_salary_component(company: str, salary_component: str) -> str:
     """
