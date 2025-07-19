@@ -42,6 +42,7 @@ doc_events = {
         "validate": "payroll_indonesia.override.salary_slip_functions.validate",
         "before_save": "payroll_indonesia.override.salary_slip_functions.before_save",
         "after_save": "payroll_indonesia.override.salary_slip_functions.after_save",
+        "on_cancel": "payroll_indonesia.override.salary_slip_functions.on_cancel",
         "after_submit": "payroll_indonesia.override.salary_slip_functions.after_submit",
     },
     "BPJS Account Mapping": {

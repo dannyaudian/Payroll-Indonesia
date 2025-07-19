@@ -36,6 +36,9 @@ from payroll_indonesia.override.salary_slip.controller import (
 )
 from payroll_indonesia.frappe_helpers import logger
 from payroll_indonesia.payroll_indonesia import utils
+from payroll_indonesia.payroll_indonesia.doctype.employee_tax_summary.employee_tax_summary import (
+    reset_from_cancelled_slip,
+)
 
 
 def before_validate(doc, method=None):
@@ -510,3 +513,21 @@ def get_component_details(slip, component_name):
     except Exception as e:
         logger.exception(f"Error getting component details for {component_name}: {str(e)}")
         return {"found": False, "type": None, "amount": 0.0, "tax_effect": None}
+
+
+def on_cancel(doc, method=None):
+    """Handle Salary Slip cancellation."""
+    try:
+        if cint(getattr(doc, "calculate_indonesia_tax", 0)) != 1:
+            return
+
+        try:
+            reset_from_cancelled_slip(doc.name)
+            logger.info(f"Reset tax summary from cancelled slip {doc.name}")
+        except Exception:
+            logger.exception(
+                f"Error resetting tax summary from cancelled slip {doc.name}"
+            )
+
+    except Exception as e:
+        logger.exception(f"Error in on_cancel: {str(e)}")
