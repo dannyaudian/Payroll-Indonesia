@@ -56,7 +56,7 @@ doc_events = {
     "Company": {
         "after_insert": [
             "payroll_indonesia.fixtures.setup.setup_company_accounts",
-            "payroll_indonesia.setup.setup_module.ensure_bpjs_account_mappings",
+            "payroll_indonesia.setup.bpjs.ensure_bpjs_account_mappings",
         ],
         "on_update": "payroll_indonesia.fixtures.setup.setup_company_accounts",
     },

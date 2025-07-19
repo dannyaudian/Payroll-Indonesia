@@ -26,7 +26,7 @@ from payroll_indonesia.config.gl_account_mapper import (
     _map_component_to_account,
 )
 from payroll_indonesia.setup.settings_migration import migrate_all_settings, _load_defaults
-from payroll_indonesia.setup.setup_module import ensure_bpjs_account_mappings
+from payroll_indonesia.setup.bpjs import ensure_bpjs_account_mappings
 
 
 # Define exported functions
