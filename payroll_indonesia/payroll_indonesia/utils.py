@@ -326,9 +326,19 @@ def get_default_parent_candidates(root_type: str) -> list:
         list: List of potential parent account names
     """
     if root_type == "Liability":
-        return ["Duties and Taxes", "Current Liabilities", "Accounts Payable"]
+        return [
+            "Kewajiban",
+            "Duties and Taxes",
+            "Current Liabilities",
+            "Accounts Payable",
+        ]
     elif root_type == "Expense":
-        return ["Direct Expenses", "Indirect Expenses", "Expenses"]
+        return [
+            "Beban",
+            "Direct Expenses",
+            "Indirect Expenses",
+            "Expenses",
+        ]
     elif root_type == "Income":
         return ["Income", "Direct Income", "Indirect Income"]
     elif root_type == "Asset":

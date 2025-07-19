@@ -79,7 +79,9 @@ hutang_kasbon
 
 The default configuration assumes your site uses the standard English root
 groups created by ERPNext, such as **"Assets - {abbr}"**, **"Liabilities -
-{abbr}"** and **"Expenses - {abbr}"**. If your Chart of Accounts uses localized
+{abbr}"** and **"Expenses - {abbr}"**. The bundled defaults also include the
+Indonesian group names **"Beban"** and **"Kewajiban"** so that common charts of
+accounts work out of the box. If your Chart of Accounts uses other localized
 names, adjust `parent_account_candidates_expense` and
 `parent_account_candidates_liability` in **Payroll Indonesia Settings** to point
 to your actual top‑level expense and liability accounts. You can specify more
