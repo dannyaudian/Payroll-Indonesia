@@ -132,10 +132,54 @@ def map_gl_account(company: str, account_key: str, category: str) -> str:
         return f"{account_key} - {company}"
 
 
+def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
+    """Return BPJS account mapped to the given component if available.
+
+    Args:
+        company: Company name
+        salary_component: Salary Component name
+
+    Returns:
+        str: Account name or empty string if not found
+    """
+    try:
+        mapping = frappe.get_all(
+            "BPJS Account Mapping", filters={"company": company}, fields=["*"]
+        )
+
+        if not mapping:
+            return ""
+
+        row = mapping[0]
+        component = salary_component.lower()
+
+        if "kesehatan" in component:
+            if "employer" in component:
+                return row.get("kesehatan_employer_debit_account", "")
+            return row.get("kesehatan_employee_account", "")
+        if "jht" in component:
+            if "employer" in component:
+                return row.get("jht_employer_debit_account", "")
+            return row.get("jht_employee_account", "")
+        if "jp" in component:
+            if "employer" in component:
+                return row.get("jp_employer_debit_account", "")
+            return row.get("jp_employee_account", "")
+        if "jkk" in component:
+            return row.get("jkk_employer_debit_account", "")
+        if "jkm" in component:
+            return row.get("jkm_employer_debit_account", "")
+
+        return ""
+    except Exception as e:  # pragma: no cover - defensive
+        logger.exception(f"Error getting BPJS account mapping: {e}")
+        return ""
+
+
 def get_gl_account_for_salary_component(company: str, salary_component: str) -> str:
     """
     Maps a salary component to its corresponding GL account for a specific company.
-    Note: BPJS components now use accounts from BPJSAccountMapping DocType.
+    Looks up ``Salary Component Account`` first, then BPJS Account Mapping for BPJS components.
 
     Args:
         company (str): The company name
@@ -144,13 +188,23 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
     Returns:
         str: The mapped GL account with company suffix
     """
-    # Skip BPJS components - handled by BPJSAccountMapping DocType
-    if "BPJS" in salary_component:
+    # Check for existing account mapping in Salary Component Account child table
+    account = frappe.db.get_value(
+        "Salary Component Account",
+        {"company": company, "parent": salary_component},
+        "default_account",
+    )
+    if account:
+        return account
+
+    # Handle BPJS components via BPJS Account Mapping DocType
+    bpjs_account = _get_bpjs_account_mapping(company, salary_component)
+    if bpjs_account:
         debug_log(
-            f"Skipping GL account mapping for BPJS component '{salary_component}' as it's handled by BPJSAccountMapping DocType",
+            f"Using BPJS account mapping for {salary_component}: {bpjs_account}",
             "Salary Component Mapping",
         )
-        return ""
+        return bpjs_account
 
     # Define the mapping from salary component to account key and category
     component_mapping = {
