@@ -29,18 +29,12 @@ def migrate_cli():
     try:
         logger.info("Starting migration of settings from defaults.json")
 
-        # Start transaction
-        frappe.db.begin()
-
-        # Migrate all settings with default parameters
         results = migrate_all_settings()
 
         # Check if any changes were made
         changes_made = any(results.values())
 
-        # Save if changes were made
         if changes_made:
-            frappe.db.commit()
             logger.info("Successfully migrated settings from defaults.json")
             print("Settings migration completed successfully")
 
@@ -49,12 +43,10 @@ def migrate_cli():
             total_count = len(results)
             print(f"Migration summary: {success_count}/{total_count} sections updated")
         else:
-            frappe.db.rollback()
             logger.info("No changes needed, all settings already populated")
             print("No changes needed, all settings already populated")
 
     except Exception as e:
-        frappe.db.rollback()
         logger.error(f"Error during settings migration: {str(e)}")
         print(f"Error during settings migration: {str(e)}")
 
@@ -70,70 +62,80 @@ def migrate_all_settings(settings_doc=None, defaults=None, *args, **kwargs) -> D
     Returns:
         Dict[str, bool]: Status of each migration section
     """
-    # Load settings document if not provided
-    if settings_doc is None:
-        try:
-            settings_doc = frappe.get_single("Payroll Indonesia Settings")
-            settings_doc.flags.ignore_validate = True
-            settings_doc.flags.ignore_permissions = True
-        except Exception as e:
-            logger.error(f"Error fetching Payroll Indonesia Settings: {str(e)}")
-            return {"error": False}
+    frappe.db.begin()
+    try:
+        # Load settings document if not provided
+        if settings_doc is None:
+            try:
+                settings_doc = frappe.get_single("Payroll Indonesia Settings")
+                settings_doc.flags.ignore_validate = True
+                settings_doc.flags.ignore_permissions = True
+            except Exception as e:
+                logger.error(f"Error fetching Payroll Indonesia Settings: {str(e)}")
+                raise
 
-    # Load defaults if not provided
-    if defaults is None:
-        defaults = _load_defaults()
-        if not defaults:
-            logger.error("Could not load defaults.json")
-            return {"error": False}
+        # Load defaults if not provided
+        if defaults is None:
+            defaults = _load_defaults()
+            if not defaults:
+                logger.error("Could not load defaults.json")
+                raise Exception("Failed to load defaults.json")
 
-    results = {}
+        results = {}
 
-    # Migrate TER rates
-    if hasattr(settings_doc, "ter_rate_table"):
-        results["ter_rates"] = _seed_ter_rates(settings_doc, defaults)
+        # Migrate TER rates
+        if hasattr(settings_doc, "ter_rate_table"):
+            results["ter_rates"] = _seed_ter_rates(settings_doc, defaults)
 
-    # Migrate PTKP values
-    if hasattr(settings_doc, "ptkp_table"):
-        results["ptkp_values"] = _seed_ptkp_values(settings_doc, defaults)
+        # Migrate PTKP values
+        if hasattr(settings_doc, "ptkp_table"):
+            results["ptkp_values"] = _seed_ptkp_values(settings_doc, defaults)
 
-    # Migrate PTKP to TER mapping
-    if hasattr(settings_doc, "ptkp_ter_mapping_table"):
-        results["ptkp_ter_mapping"] = _seed_ptkp_ter_mapping(settings_doc, defaults)
+        # Migrate PTKP to TER mapping
+        if hasattr(settings_doc, "ptkp_ter_mapping_table"):
+            results["ptkp_ter_mapping"] = _seed_ptkp_ter_mapping(settings_doc, defaults)
 
-    # Migrate tax brackets
-    if hasattr(settings_doc, "tax_brackets_table"):
-        results["tax_brackets"] = _seed_tax_brackets(settings_doc, defaults)
+        # Migrate tax brackets
+        if hasattr(settings_doc, "tax_brackets_table"):
+            results["tax_brackets"] = _seed_tax_brackets(settings_doc, defaults)
 
-    # Migrate employee types
-    if hasattr(settings_doc, "tipe_karyawan"):
-        results["employee_types"] = _seed_tipe_karyawan(settings_doc, defaults)
+        # Migrate employee types
+        if hasattr(settings_doc, "tipe_karyawan"):
+            results["employee_types"] = _seed_tipe_karyawan(settings_doc, defaults)
 
-    # Update general settings
-    results["general_settings"] = _update_general_settings(settings_doc, defaults)
+        # Update general settings
+        results["general_settings"] = _update_general_settings(settings_doc, defaults)
 
-    # Update BPJS settings
-    bpjs_result = _update_bpjs_settings(settings_doc, defaults)
-    results["bpjs_settings"] = bpjs_result
-    results["account_mappings"] = bpjs_result  # Alias as requested
+        # Update BPJS settings
+        bpjs_result = _update_bpjs_settings(settings_doc, defaults)
+        results["bpjs_settings"] = bpjs_result
+        results["account_mappings"] = bpjs_result  # Alias as requested
 
-    # Seed GL account mappings
-    results["gl_account_mappings"] = _seed_gl_account_mappings(settings_doc, defaults)
+        # Seed GL account mappings
+        results["gl_account_mappings"] = _seed_gl_account_mappings(settings_doc, defaults)
 
-    # Save if we created the settings doc
-    if not getattr(settings_doc, "_doc_before_save", None):
-        settings_doc.save()
+        # Save if we created the settings doc
+        if not getattr(settings_doc, "_doc_before_save", None):
+            settings_doc.save()
 
-    # Log summary
-    success_count = sum(1 for result in results.values() if result)
-    total_count = len(results)
+        frappe.db.commit()
 
-    logger.info(f"Settings migration summary: {success_count}/{total_count} sections updated")
-    for section, success in results.items():
-        status = "updated" if success else "skipped"
-        logger.info(f"Section '{section}': {status}")
+        # Log summary
+        success_count = sum(1 for result in results.values() if result)
+        total_count = len(results)
 
-    return results
+        logger.info(
+            f"Settings migration summary: {success_count}/{total_count} sections updated"
+        )
+        for section, success in results.items():
+            status = "updated" if success else "skipped"
+            logger.info(f"Section '{section}': {status}")
+
+        return results
+    except Exception as e:
+        frappe.db.rollback()
+        logger.error(f"Error during settings migration: {str(e)}")
+        raise
 
 
 def _load_defaults() -> Dict[str, Any]:
@@ -237,7 +239,7 @@ def _seed_ter_rates(settings: "frappe.Document", defaults: Dict[str, Any]) -> bo
         return len(ter_rate_table_rows) > 0
     except Exception as e:
         logger.error(f"Error seeding TER rates: {str(e)}")
-        return False
+        raise
 
 
 def _seed_ptkp_values(settings: "frappe.Document", defaults: Dict[str, Any]) -> bool:
@@ -274,7 +276,7 @@ def _seed_ptkp_values(settings: "frappe.Document", defaults: Dict[str, Any]) -> 
 
     except Exception as e:
         logger.error(f"Error seeding PTKP values: {str(e)}")
-        return False
+        raise
 
 
 def _seed_ptkp_ter_mapping(settings: "frappe.Document", defaults: Dict[str, Any]) -> bool:
@@ -313,7 +315,7 @@ def _seed_ptkp_ter_mapping(settings: "frappe.Document", defaults: Dict[str, Any]
 
     except Exception as e:
         logger.error(f"Error seeding PTKP-TER mapping: {str(e)}")
-        return False
+        raise
 
 
 def _seed_tax_brackets(settings: "frappe.Document", defaults: Dict[str, Any]) -> bool:
@@ -357,7 +359,7 @@ def _seed_tax_brackets(settings: "frappe.Document", defaults: Dict[str, Any]) ->
 
     except Exception as e:
         logger.error(f"Error seeding tax brackets: {str(e)}")
-        return False
+        raise
 
 
 def _seed_tipe_karyawan(settings: "frappe.Document", defaults: Dict[str, Any]) -> bool:
@@ -394,7 +396,7 @@ def _seed_tipe_karyawan(settings: "frappe.Document", defaults: Dict[str, Any]) -
 
     except Exception as e:
         logger.error(f"Error seeding employee types: {str(e)}")
-        return False
+        raise
 
 
 def _update_general_settings(settings: "frappe.Document", defaults: Dict[str, Any]) -> bool:
@@ -484,7 +486,7 @@ def _update_general_settings(settings: "frappe.Document", defaults: Dict[str, An
 
     except Exception as e:
         logger.error(f"Error updating general settings: {str(e)}")
-        return False
+        raise
 
 
 def _update_bpjs_settings(settings: "frappe.Document", defaults: Dict[str, Any]) -> bool:
@@ -544,7 +546,7 @@ def _update_bpjs_settings(settings: "frappe.Document", defaults: Dict[str, Any])
 
     except Exception as e:
         logger.error(f"Error updating BPJS settings: {str(e)}")
-        return False
+        raise
 
 
 def _seed_gl_account_mappings(settings: "frappe.Document", defaults: Dict[str, Any]) -> bool:
@@ -601,4 +603,4 @@ def _seed_gl_account_mappings(settings: "frappe.Document", defaults: Dict[str, A
 
     except Exception as e:
         logger.error(f"Error updating GL account mappings: {str(e)}")
-        return False
+        raise
