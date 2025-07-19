@@ -45,8 +45,8 @@ doc_events = {
         "after_submit": "payroll_indonesia.override.salary_slip_functions.after_submit",
     },
     "BPJS Account Mapping": {
-        "validate": "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.BPJSAccountMapping.validate",
-        "on_update": "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.BPJSAccountMapping.on_update",
+        "validate": "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.validate",
+        "on_update": "payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping.bpjs_account_mapping.on_update",
     },
     "BPJS Payment Summary": {
         "validate": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.validate",

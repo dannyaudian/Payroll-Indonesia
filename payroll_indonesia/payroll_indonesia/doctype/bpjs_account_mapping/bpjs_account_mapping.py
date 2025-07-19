@@ -14,6 +14,8 @@ __all__ = [
     "create_default_mapping",
     "get_bpjs_accounts",
     "sync_to_settings",
+    "validate",
+    "on_update",
 ]
 
 # Account field names as defined in bpjs_account_mapping.json
@@ -277,3 +279,18 @@ class BPJSAccountMapping(Document):
             self.creation = original_creation
         # keep settings in sync after update
         sync_to_settings(self)
+
+
+# ---------------------------------------------------------------------------
+# Hook wrappers
+# ---------------------------------------------------------------------------
+
+
+def validate(doc, method=None):
+    """DocType hook that proxies to the document's validate method."""
+    doc.validate()
+
+
+def on_update(doc, method=None):
+    """DocType hook that proxies to the document's on_update method."""
+    doc.on_update()
