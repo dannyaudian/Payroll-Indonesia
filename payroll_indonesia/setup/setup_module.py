@@ -49,6 +49,7 @@ def setup_accounts(config=None, specific_company=None, *, skip_existing=False):
         config: Configuration dictionary from defaults.json
         specific_company: Specific company to set up accounts for
         skip_existing: If True, skip creation of accounts that already exist
+
     Returns:
         dict: Results of account setup
     """
@@ -108,9 +109,6 @@ def setup_accounts(config=None, specific_company=None, *, skip_existing=False):
             if result:
                 logger.info("PPh 21 TER rates setup completed successfully")
             else:
-
-        logger.info(f"Completed setup_accounts. Results: {results}")
-        return results
                 logger.info("PPh 21 TER rates setup skipped (already exists)")
         except Exception as e:
             logger.error(f"Error setting up PPh 21 TER rates: {str(e)}")
@@ -121,10 +119,13 @@ def setup_accounts(config=None, specific_company=None, *, skip_existing=False):
             logger.info("Payroll Indonesia tax infrastructure setup completed")
         else:
             logger.warning("Payroll Indonesia tax infrastructure setup completed with warnings")
+
+        logger.info(f"Completed setup_accounts. Results: {results}")
         return {"success": success, "results": results, "tax_results": tax_results}
     except Exception as e:
         logger.error(f"Error setting up accounts: {str(e)}")
         return {"success": False}
+
 
 def create_custom_workspace() -> bool:
     """
