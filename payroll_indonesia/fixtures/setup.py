@@ -481,6 +481,7 @@ def create_bpjs_supplier(config, *, skip_existing=False):
         logger.error(f"Failed to create BPJS supplier: {str(e)}")
         raise
 
+
 def setup_pph21_ter(defaults=None, transaction_open=False):
     """
     Setup PPh 21 TER rates and other required tables in Payroll Indonesia Settings.
@@ -743,9 +744,7 @@ def setup_salary_components(config, transaction_open=False, *, skip_existing=Fal
 
                 if frappe.db.exists("Salary Component", component_name):
                     if skip_existing:
-                        logger.info(
-                            f"Salary component {component_name} already exists, skipping"
-                        )
+                        logger.info(f"Salary component {component_name} already exists, skipping")
                         continue
                     component = frappe.get_doc("Salary Component", component_name)
                     is_new = False
@@ -805,9 +804,7 @@ def setup_salary_components(config, transaction_open=False, *, skip_existing=Fal
 
                 success_count += 1
 
-        logger.info(
-            f"Processed {success_count} of {total_count} salary components successfully"
-        )
+        logger.info(f"Processed {success_count} of {total_count} salary components successfully")
         if not transaction_open:
             frappe.db.commit()
         logger.info("Salary components transaction committed successfully")
@@ -818,6 +815,8 @@ def setup_salary_components(config, transaction_open=False, *, skip_existing=Fal
             frappe.db.rollback()
         logger.error(f"Error setting up salary components, rolling back: {str(e)}")
         raise
+
+
 def setup_default_salary_structure(*, skip_existing=False):
     """
     Create default salary structure using the helper from salary_structure module.
@@ -841,9 +840,7 @@ def setup_default_salary_structure(*, skip_existing=False):
         for name in default_names:
             if frappe.db.exists("Salary Structure", name):
                 if skip_existing:
-                    logger.info(
-                        f"Default salary structure already exists: {name}, skipping"
-                    )
+                    logger.info(f"Default salary structure already exists: {name}, skipping")
                     return True
                 logger.info(f"Default salary structure already exists: {name}")
                 existing_structure = name
@@ -879,7 +876,9 @@ def setup_default_salary_structure(*, skip_existing=False):
         raise
 
 
-def setup_company_accounts(doc=None, method=None, company=None, config=None, *, skip_existing=False):
+def setup_company_accounts(
+    doc=None, method=None, company=None, config=None, *, skip_existing=False
+):
     """Create payroll GL accounts for a specific company.
 
     This can be triggered from the ``Company`` DocType hooks or called directly
@@ -915,6 +914,8 @@ def setup_company_accounts(doc=None, method=None, company=None, config=None, *, 
             "beban_gaji_pokok",
             "beban_tunjangan_makan",
             "beban_tunjangan_transport",
+            "beban_insentif",
+            "beban_bonus",
             "beban_tunjangan_jabatan",
             "beban_tunjangan_lembur",
             "beban_natura",
@@ -932,6 +933,7 @@ def setup_company_accounts(doc=None, method=None, company=None, config=None, *, 
             "Payroll Indonesia Setup",
         )
         return False
+
 
 def display_installation_summary(results, config):
     """
