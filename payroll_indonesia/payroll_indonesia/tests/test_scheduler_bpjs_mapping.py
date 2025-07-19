@@ -29,6 +29,7 @@ class TestSchedulerBPJSMapping(unittest.TestCase):
             frappe.db.delete("BPJS Account Mapping", {"company": self.company.name})
 
         create_default_mapping(self.company.name)
+        frappe.db.commit()
 
         self.assertTrue(
             frappe.db.exists("BPJS Account Mapping", {"company": self.company.name})

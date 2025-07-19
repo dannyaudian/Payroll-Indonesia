@@ -43,6 +43,7 @@ class TestBPJSAccountMapping(unittest.TestCase):
             frappe.db.delete("BPJS Account Mapping", {"company": self.company.name})
 
         name = create_default_mapping(self.company.name)
+        frappe.db.commit()
         self.assertTrue(frappe.db.exists("BPJS Account Mapping", name))
 
         doc = frappe.get_doc("BPJS Account Mapping", name)
@@ -53,6 +54,7 @@ class TestBPJSAccountMapping(unittest.TestCase):
     def test_get_mapping_for_company_includes_fields(self):
         if not frappe.db.exists("BPJS Account Mapping", {"company": self.company.name}):
             create_default_mapping(self.company.name)
+            frappe.db.commit()
 
         mapping_dict = get_mapping_for_company(self.company.name)
         for field in ACCOUNT_FIELDS:
@@ -73,6 +75,7 @@ class TestBPJSAccountMapping(unittest.TestCase):
             )
         else:
             name = create_default_mapping(self.company.name)
+            frappe.db.commit()
             mapping = frappe.get_doc("BPJS Account Mapping", name)
 
         mapping.kesehatan_employee_account = wrong_acc
