@@ -928,8 +928,8 @@
     },
     "settings": {
         "sync_to_defaults": false,
-        "parent_account_candidates_expense": "Direct Expenses",
-        "parent_account_candidates_liability": "Duties and Taxes"
+        "parent_account_candidates_expense": "Direct Expenses, Beban",
+        "parent_account_candidates_liability": "Duties and Taxes, Kewajiban"
     },
     "bpjs_settings": {
         "validation_rules": {

@@ -91,7 +91,8 @@ setup.after_install()
 
 ### 🗂 Parent Account Candidates
 
-* Set **Parent Account Candidates (Expense)** and **Parent Account Candidates (Liability)** if your Chart of Accounts uses non‑standard names.
+* The defaults include Indonesian group names **Beban** and **Kewajiban** in addition to their English counterparts.
+* Set **Parent Account Candidates (Expense)** and **Parent Account Candidates (Liability)** if your Chart of Accounts uses other names.
 * These fields accept comma‑separated lists and are consulted when creating GL accounts such as **"Hutang PPh 21"**.
 * See [docs/defaults.md](docs/defaults.md#root-account-names) for further details.
 
