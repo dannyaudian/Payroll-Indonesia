@@ -450,25 +450,31 @@ def fix_bpjs_account_mapping():
                 "reqd": 1,
                 "insert_after": "mapping_name",
             },
-            "employee_expense_account": {
-                "fieldtype": "Link",
-                "label": "Employee Expense Account",
-                "options": "Account",
-                "insert_after": "company",
-            },
-            "employer_expense_account": {
-                "fieldtype": "Link",
-                "label": "Employer Expense Account",
-                "options": "Account",
-                "insert_after": "employee_expense_account",
-            },
-            "payable_account": {
-                "fieldtype": "Link",
-                "label": "Payable Account",
-                "options": "Account",
-                "insert_after": "employer_expense_account",
-            },
         }
+
+        for idx, field in enumerate(
+            [
+                "kesehatan_employee_account",
+                "jht_employee_account",
+                "jp_employee_account",
+                "kesehatan_employer_debit_account",
+                "kesehatan_employer_credit_account",
+                "jht_employer_debit_account",
+                "jht_employer_credit_account",
+                "jp_employer_debit_account",
+                "jp_employer_credit_account",
+                "jkk_employer_debit_account",
+                "jkk_employer_credit_account",
+                "jkm_employer_debit_account",
+                "jkm_employer_credit_account",
+            ]
+        ):
+            required_fields[field] = {
+                "fieldtype": "Link",
+                "label": frappe.unscrub(field).replace("account", "Account").title(),
+                "options": "Account",
+                "insert_after": list(required_fields.keys())[-1],
+            }
 
         # Check if fields exist already
         docfields = frappe.get_meta("BPJS Account Mapping").fields
@@ -583,9 +589,19 @@ def diagnose_doctype_structure():
             # Check required fields
             required_fields = [
                 "company",
-                "employee_expense_account",
-                "employer_expense_account",
-                "payable_account",
+                "kesehatan_employee_account",
+                "jht_employee_account",
+                "jp_employee_account",
+                "kesehatan_employer_debit_account",
+                "kesehatan_employer_credit_account",
+                "jht_employer_debit_account",
+                "jht_employer_credit_account",
+                "jp_employer_debit_account",
+                "jp_employer_credit_account",
+                "jkk_employer_debit_account",
+                "jkk_employer_credit_account",
+                "jkm_employer_debit_account",
+                "jkm_employer_credit_account",
             ]
             docfields = frappe.get_meta("BPJS Account Mapping").fields
             existing_fields = [df.fieldname for df in docfields]

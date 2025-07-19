@@ -18,6 +18,23 @@ __all__ = [
     "sync_to_settings",
 ]
 
+# Account field names as defined in bpjs_account_mapping.json
+ACCOUNT_FIELDS = [
+    "kesehatan_employee_account",
+    "jht_employee_account",
+    "jp_employee_account",
+    "kesehatan_employer_debit_account",
+    "kesehatan_employer_credit_account",
+    "jht_employer_debit_account",
+    "jht_employer_credit_account",
+    "jp_employer_debit_account",
+    "jp_employer_credit_account",
+    "jkk_employer_debit_account",
+    "jkk_employer_credit_account",
+    "jkm_employer_debit_account",
+    "jkm_employer_credit_account",
+]
+
 # ---------------------------------------------------------------------------
 # Module level functions
 # ---------------------------------------------------------------------------
@@ -119,10 +136,9 @@ def get_mapping_for_company(company=None):
         mapping_dict = {
             "name": mapping.name,
             "company": mapping.company,
-            "employee_expense_account": mapping.employee_expense_account,
-            "employer_expense_account": mapping.employer_expense_account,
-            "payable_account": mapping.payable_account,
         }
+        for field in ACCOUNT_FIELDS:
+            mapping_dict[field] = mapping.get(field)
 
         # Cache the result with appropriate TTL
         frappe.cache().set_value(cache_key, mapping_dict, expires_in_sec=3600)
@@ -166,10 +182,9 @@ def create_default_mapping(company):
         mapping.company = company
         mapping.mapping_name = f"BPJS Mapping - {company}"
 
-        # Set blank accounts
-        mapping.employee_expense_account = ""
-        mapping.employer_expense_account = ""
-        mapping.payable_account = ""
+        # Set blank accounts for all fields
+        for field in ACCOUNT_FIELDS:
+            setattr(mapping, field, "")
 
         # Insert with ignore_permissions
         mapping.insert(ignore_permissions=True)
@@ -197,11 +212,7 @@ def create_default_mapping(company):
 @frappe.whitelist()
 def get_bpjs_accounts(company):
     """
-    Returns dict {
-        "employee_expense": <Account>,
-        "employer_expense": <Account>,
-        "payable": <Account>
-    }
+    Returns dict of BPJS account field names mapped to account values.
 
     Args:
         company (str): Company to get BPJS accounts for
@@ -228,25 +239,15 @@ def get_bpjs_accounts(company):
     mapping = frappe.get_doc("BPJS Account Mapping", mapping_name)
 
     # Check if all required accounts are set
-    if not mapping.employee_expense_account:
-        frappe.throw(
-            _("Employee expense account not set in BPJS Account Mapping"), frappe.ValidationError
-        )
-
-    if not mapping.employer_expense_account:
-        frappe.throw(
-            _("Employer expense account not set in BPJS Account Mapping"), frappe.ValidationError
-        )
-
-    if not mapping.payable_account:
-        frappe.throw(_("Payable account not set in BPJS Account Mapping"), frappe.ValidationError)
+    for field in ACCOUNT_FIELDS:
+        if not mapping.get(field):
+            frappe.throw(
+                _("{0} not set in BPJS Account Mapping").format(frappe.unscrub(field)),
+                frappe.ValidationError,
+            )
 
     # Return accounts
-    return {
-        "employee_expense": mapping.employee_expense_account,
-        "employer_expense": mapping.employer_expense_account,
-        "payable": mapping.payable_account,
-    }
+    return {field: mapping.get(field) for field in ACCOUNT_FIELDS}
 
 
 # ---------------------------------------------------------------------------
@@ -282,7 +283,7 @@ class BPJSAccountMapping(Document):
 
     def validate_accounts_belong_to_company(self):
         """Validate that all accounts belong to the specified company"""
-        account_fields = ["employee_expense_account", "employer_expense_account", "payable_account"]
+        account_fields = ACCOUNT_FIELDS
 
         for field in account_fields:
             account = self.get(field)
