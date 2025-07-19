@@ -150,27 +150,33 @@ def map_gl_account(company: str, account_key: str, category: str) -> str:
 
 
 def _determine_bpjs_field_name(salary_component: str) -> str:
-    """
-    Determine the correct field name in BPJS Account Mapping based on component name.
-    Args:
-        salary_component: Salary component name
+    """Determine the correct field name in BPJS Account Mapping based on component name."""
 
-    Returns:
-        str: Field name or empty string if no match
-    """
-        component = salary_component.lower()
-        if "kesehatan" in component:
-        return "kesehatan_employer_debit_account" if "employer" in component else "kesehatan_employee_account"
-        elif "jht" in component:
-        return "jht_employer_debit_account" if "employer" in component else "jht_employee_account"
-        elif "jp" in component:
-        return "jp_employer_debit_account" if "employer" in component else "jp_employee_account"
-        elif "jkk" in component:
+    component = salary_component.lower()
+    if "kesehatan" in component:
+        return (
+            "kesehatan_employer_debit_account"
+            if "employer" in component
+            else "kesehatan_employee_account"
+        )
+    elif "jht" in component:
+        return (
+            "jht_employer_debit_account"
+            if "employer" in component
+            else "jht_employee_account"
+        )
+    elif "jp" in component:
+        return (
+            "jp_employer_debit_account"
+            if "employer" in component
+            else "jp_employee_account"
+        )
+    elif "jkk" in component:
         return "jkk_employer_debit_account"
-        elif "jkm" in component:
+    elif "jkm" in component:
         return "jkm_employer_debit_account"
 
-        return ""
+    return ""
 
 def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
     """
@@ -187,10 +193,12 @@ def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
         # Determine which field to retrieve
         field_name = _determine_bpjs_field_name(salary_component)
         if not field_name or field_name not in BPJS_ACCOUNT_FIELDS:
-        return ""
+            return ""
 
         # Get mapping for this company
-        mapping = frappe.get_all("BPJS Account Mapping", filters={"company": company}, fields=[field_name])
+        mapping = frappe.get_all(
+            "BPJS Account Mapping", filters={"company": company}, fields=[field_name]
+        )
 
         if not mapping:
             return ""
