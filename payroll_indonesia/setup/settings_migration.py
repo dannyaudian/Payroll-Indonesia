@@ -66,6 +66,7 @@ def migrate_all_settings(
     """
     if not transaction_open:
         frappe.db.begin()
+    errors: List[str] = []
     try:
         # Load settings document if not provided
         if settings_doc is None:
@@ -88,38 +89,79 @@ def migrate_all_settings(
 
         # Migrate TER rates
         if hasattr(settings_doc, "ter_rate_table"):
-            results["ter_rates"] = _seed_ter_rates(settings_doc, defaults)
+            try:
+                results["ter_rates"] = _seed_ter_rates(settings_doc, defaults)
+            except Exception as e:
+                errors.append(f"TER rates: {e}")
+                results["ter_rates"] = False
 
         # Migrate PTKP values
         if hasattr(settings_doc, "ptkp_table"):
-            results["ptkp_values"] = _seed_ptkp_values(settings_doc, defaults)
+            try:
+                results["ptkp_values"] = _seed_ptkp_values(settings_doc, defaults)
+            except Exception as e:
+                errors.append(f"PTKP values: {e}")
+                results["ptkp_values"] = False
 
         # Migrate PTKP to TER mapping
         if hasattr(settings_doc, "ptkp_ter_mapping_table"):
-            results["ptkp_ter_mapping"] = _seed_ptkp_ter_mapping(settings_doc, defaults)
+            try:
+                results["ptkp_ter_mapping"] = _seed_ptkp_ter_mapping(settings_doc, defaults)
+            except Exception as e:
+                errors.append(f"PTKP-TER mapping: {e}")
+                results["ptkp_ter_mapping"] = False
 
         # Migrate tax brackets
         if hasattr(settings_doc, "tax_brackets_table"):
-            results["tax_brackets"] = _seed_tax_brackets(settings_doc, defaults)
+            try:
+                results["tax_brackets"] = _seed_tax_brackets(settings_doc, defaults)
+            except Exception as e:
+                errors.append(f"Tax brackets: {e}")
+                results["tax_brackets"] = False
 
         # Migrate employee types
         if hasattr(settings_doc, "tipe_karyawan"):
-            results["employee_types"] = _seed_tipe_karyawan(settings_doc, defaults)
+            try:
+                results["employee_types"] = _seed_tipe_karyawan(settings_doc, defaults)
+            except Exception as e:
+                errors.append(f"Employee types: {e}")
+                results["employee_types"] = False
 
         # Update general settings
-        results["general_settings"] = _update_general_settings(settings_doc, defaults)
+        try:
+            results["general_settings"] = _update_general_settings(settings_doc, defaults)
+        except Exception as e:
+            errors.append(f"General settings: {e}")
+            results["general_settings"] = False
 
         # Update BPJS settings
-        bpjs_result = _update_bpjs_settings(settings_doc, defaults)
-        results["bpjs_settings"] = bpjs_result
-        results["account_mappings"] = bpjs_result  # Alias as requested
+        try:
+            bpjs_result = _update_bpjs_settings(settings_doc, defaults)
+            results["bpjs_settings"] = bpjs_result
+            results["account_mappings"] = bpjs_result  # Alias as requested
+        except Exception as e:
+            errors.append(f"BPJS settings: {e}")
+            results["bpjs_settings"] = False
+            results["account_mappings"] = False
 
         # Seed GL account mappings
-        results["gl_account_mappings"] = _seed_gl_account_mappings(settings_doc, defaults)
+        try:
+            results["gl_account_mappings"] = _seed_gl_account_mappings(settings_doc, defaults)
+        except Exception as e:
+            errors.append(f"GL account mappings: {e}")
+            results["gl_account_mappings"] = False
 
         # Save if we created the settings doc
         if not getattr(settings_doc, "_doc_before_save", None):
             settings_doc.save()
+
+        if errors:
+            if not transaction_open:
+                frappe.db.rollback()
+            logger.error("Settings migration encountered errors:")
+            for err in errors:
+                logger.error(f" - {err}")
+            return results
 
         if not transaction_open:
             frappe.db.commit()
