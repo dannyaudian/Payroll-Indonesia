@@ -88,7 +88,7 @@ def setup_accounts(config=None, specific_company=None, *, skip_existing=False):
         from payroll_indonesia.utilities.tax_slab import setup_income_tax_slab
         from payroll_indonesia.fixtures.setup import setup_pph21_ter
 
-        tax_results = {"income_tax_slab": False, "pph21_ter": False}
+        tax_results = {"income_tax_slab": False, "pph21_ter": False, "bpjs_mappings": False}
 
         # Setup income tax slab if needed
         try:
@@ -113,6 +113,19 @@ def setup_accounts(config=None, specific_company=None, *, skip_existing=False):
         except Exception as e:
             logger.error(f"Error setting up PPh 21 TER rates: {str(e)}")
             frappe.log_error(f"Error setting up PPh 21 TER rates: {str(e)}", "TER Setup Error")
+
+        # Setup BPJS account mappings
+        try:
+            from payroll_indonesia.setup.bpjs import ensure_bpjs_account_mappings
+            bpjs_created = ensure_bpjs_account_mappings()
+            tax_results["bpjs_mappings"] = bpjs_created
+            if bpjs_created:
+                logger.info("BPJS account mappings created successfully")
+            else:
+                logger.info("BPJS account mappings already exist")
+        except Exception as e:
+            logger.error(f"Error ensuring BPJS Account Mappings: {str(e)}")
+            frappe.log_error(f"Error ensuring BPJS Account Mappings: {str(e)}", "BPJS Setup Error")
 
         success = any(tax_results.values())
         if success:

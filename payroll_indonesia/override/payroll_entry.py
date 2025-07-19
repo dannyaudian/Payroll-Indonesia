@@ -172,6 +172,11 @@ class CustomPayrollEntry(BasePayrollEntry):
         except Exception as e:
             logger.exception(f"Error validating TER settings: {str(e)}")
     
+class CustomPayrollEntry(BasePayrollEntry):
+    """
+    Custom Payroll Entry class for Indonesia-specific payroll functionality.
+    """
+
     def propagate_tax_settings_to_slips(self, slips):
         """
         Propagate tax settings from payroll entry to salary slips.
@@ -205,6 +210,109 @@ class CustomPayrollEntry(BasePayrollEntry):
         except Exception as e:
             logger.exception(f"Error propagating tax settings: {str(e)}")
     
+    def create_salary_slips(self):
+        """
+        Override to ensure proper Indonesia tax settings are propagated.
+        """
+        try:
+            # Log entry point
+            logger.info(f"Creating salary slips for payroll entry {self.name}")
+
+            # Set Indonesia tax flag if enabled
+            if not hasattr(self, "calculate_indonesia_tax"):
+                self.calculate_indonesia_tax = 1
+
+            # Call parent method (either standard version or with super())
+            if BasePayrollEntry is not Document:
+                result = super().create_salary_slips()
+            else:
+                # Fallback if parent class not properly detected
+                result = self.create_salary_slip_standard()
+
+            # After slips are created, get them and update tax settings
+            slip_names = frappe.get_all(
+                "Salary Slip",
+                filters={"payroll_entry": self.name},
+                pluck="name"
+            )
+
+            if slip_names:
+                logger.info(f"Found {len(slip_names)} salary slips to update")
+                slips = [frappe.get_doc("Salary Slip", name) for name in slip_names]
+                self.propagate_tax_settings_to_slips(slips)
+
+                # Save all slips
+                for slip in slips:
+                    slip.flags.ignore_validate = True
+                    slip.save()
+
+                logger.info(f"Updated tax settings for {len(slips)} salary slips")
+            else:
+                logger.warning("No salary slips found to update tax settings")
+
+            return result
+        except Exception as e:
+            logger.exception(f"Error in create_salary_slips: {str(e)}")
+            frappe.log_error(
+                f"Error in create_salary_slips: {str(e)}",
+                "Payroll Entry Indonesia"
+            )
+            # Re-raise to maintain original behavior
+            raise
+
+    def submit_salary_slips(self):
+        """
+        Override to ensure proper Indonesia tax settings before submission.
+        """
+        try:
+            logger.info(f"Submitting salary slips for payroll entry {self.name}")
+
+            # Get all unsubmitted slips
+            slip_names = frappe.get_all(
+                "Salary Slip",
+                filters={
+                    "payroll_entry": self.name,
+                    "docstatus": 0  # Draft
+                },
+                pluck="name"
+            )
+
+            if slip_names:
+                logger.info(f"Found {len(slip_names)} salary slips to update before submission")
+                slips = [frappe.get_doc("Salary Slip", name) for name in slip_names]
+
+                # Update tax settings once more
+                self.propagate_tax_settings_to_slips(slips)
+
+                # Save all slips before submission
+                for slip in slips:
+                    # Force tax calculation
+                    if hasattr(slip, "calculate_tax"):
+                        try:
+                            slip.calculate_tax()
+                        except Exception as calc_error:
+                            logger.warning(f"Error calculating tax for slip {slip.name}: {str(calc_error)}")
+
+                    slip.flags.ignore_validate = True
+                    slip.save()
+
+                logger.info(f"Updated tax settings for {len(slips)} salary slips before submission")
+
+            # Call parent method
+            if BasePayrollEntry is not Document:
+                return super().submit_salary_slips()
+            else:
+                # Fallback implementation
+                return self.submit_salary_slips_standard()
+
+        except Exception as e:
+            logger.exception(f"Error in submit_salary_slips: {str(e)}")
+            frappe.log_error(
+                f"Error in submit_salary_slips: {str(e)}",
+                "Payroll Entry Indonesia"
+            )
+            # Re-raise to maintain original behavior
+            raise
     def is_december_payroll(self):
         """
         Check if this is a December payroll.

@@ -80,24 +80,66 @@ def validate(doc, method=None):
         method: Method name (not used)
     """
     try:
+        logger.info(f"🔍 Salary Slip validate hook called for {getattr(doc, 'name', 'unknown')}")
+        
         # Skip if document is already validated
         if hasattr(doc, "flags") and getattr(doc.flags, "skip_indonesia_hooks", False):
+            logger.info("⚠️ Skipping because skip_indonesia_hooks is True")
             return
 
+        # Check if Indonesia payroll is enabled
+        indo_tax_enabled = cint(getattr(doc, "calculate_indonesia_tax", 0))
+        logger.info(f"🔍 calculate_indonesia_tax = {indo_tax_enabled}")
+        
+        # If not enabled from payroll entry, check if it should be enabled
+        if indo_tax_enabled != 1:
+            # Check payroll entry for setting
+            payroll_entry = getattr(doc, "payroll_entry", None)
+            if payroll_entry:
+                pe_doc = frappe.db.get_value(
+                    "Payroll Entry", 
+                    payroll_entry, 
+                    "calculate_indonesia_tax", 
+                    as_dict=True
+                )
+                if pe_doc and cint(pe_doc.get("calculate_indonesia_tax", 0)) == 1:
+                    doc.calculate_indonesia_tax = 1
+                    indo_tax_enabled = 1
+                    logger.info("🔍 Enabled calculate_indonesia_tax from Payroll Entry")
+            
+            # Still not enabled, check if we have Indo components
+            if indo_tax_enabled != 1:
+                # Check for Indo-specific components
+                has_indo_components = False
+                
+                # Check deductions for BPJS or PPh 21
+                if hasattr(doc, "deductions") and doc.deductions:
+                    for deduction in doc.deductions:
+                        if "bpjs" in deduction.salary_component.lower() or "pph" in deduction.salary_component.lower():
+                            has_indo_components = True
+                            break
+                
+                if has_indo_components:
+                    doc.calculate_indonesia_tax = 1
+                    indo_tax_enabled = 1
+                    logger.info("🔍 Enabled calculate_indonesia_tax based on components")
+                    
         # Only process if Indonesia payroll is enabled
-        if cint(getattr(doc, "calculate_indonesia_tax", 0)) != 1:
+        if indo_tax_enabled != 1:
+            logger.info("⚠️ Skipping Indonesia payroll processing (not enabled)")
             return
 
         # Process Indonesia payroll calculations
+        logger.info("🔍 Processing Indonesia payroll")
         process_indonesia_payroll(doc)
 
         # Update custom fields for reporting
         _update_custom_fields(doc)
 
-        logger.debug(f"Completed validate for slip {getattr(doc, 'name', 'unknown')}")
+        logger.info(f"✅ Completed validate for slip {getattr(doc, 'name', 'unknown')}")
 
     except Exception as e:
-        logger.exception(f"Error in validate: {str(e)}")
+        logger.exception(f"❌ Error in validate: {str(e)}")
 
 
 def before_save(doc, method=None):
@@ -175,6 +217,31 @@ def after_submit(doc, method=None):
         logger.exception(f"Error in after_submit: {str(e)}")
 
 
+def on_cancel(doc, method=None):
+    """
+    On cancel hook for Salary Slip.
+
+    Args:
+        doc: Salary Slip document
+        method: Method name (not used)
+    """
+    try:
+        # Only process if Indonesia payroll is enabled
+        if cint(getattr(doc, "calculate_indonesia_tax", 0)) != 1:
+            return
+
+        try:
+            reset_from_cancelled_slip(doc.name)
+            logger.info(f"Reset tax summary from cancelled slip {doc.name}")
+        except Exception:
+            logger.exception(
+                f"Error resetting tax summary from cancelled slip {doc.name}"
+            )
+
+    except Exception as e:
+        logger.exception(f"Error in on_cancel: {str(e)}")
+
+
 def validate_salary_slip(doc):
     """
     Validate the salary slip for Indonesia-specific requirements.
@@ -232,19 +299,47 @@ def process_indonesia_payroll(doc):
         doc: Salary Slip document
     """
     try:
+        logger.info(f"🔍 Processing Indonesia payroll for {getattr(doc, 'name', 'unknown')}")
+        
+        # Ensure PPh 21 component exists
+        has_pph21 = False
+        has_bpjs = False
+        
+        # Check for PPh 21 and BPJS components
+        if hasattr(doc, "deductions") and doc.deductions:
+            for deduction in doc.deductions:
+                if deduction.salary_component == "PPh 21":
+                    has_pph21 = True
+                elif "bpjs" in deduction.salary_component.lower():
+                    has_bpjs = True
+        
+        # Make sure we have PPh 21 component
+        if not has_pph21:
+            logger.info("🔍 Adding missing PPh 21 component")
+            pph21_component = frappe.get_doc({
+                "doctype": "Salary Detail",
+                "parentfield": "deductions",
+                "parenttype": "Salary Slip",
+                "salary_component": "PPh 21",
+                "abbr": "PPH21",
+                "amount": 0
+            })
+            doc.append("deductions", pph21_component)
+        
         # Calculate tax components
+        logger.info("🔍 Calculating Indonesia tax components")
         update_indonesia_tax_components(doc)
 
         # Set taxable earnings for reporting
         doc.taxable_earnings = calculate_taxable_earnings(doc)
 
-        # Check if Employee Tax Summary exists for this employee/year
+        # Ensure Employee Tax Summary integration
         ensure_employee_tax_summary_integration(doc)
 
-        logger.debug(f"Processed Indonesia payroll for slip {getattr(doc, 'name', 'unknown')}")
-
+        logger.info(f"✅ Processed Indonesia payroll for slip {getattr(doc, 'name', 'unknown')}")
+    
     except Exception as e:
-        logger.exception(f"Error processing Indonesia payroll: {str(e)}")
+        logger.exception(f"❌ Error processing Indonesia payroll: {str(e)}")
 
 
 def ensure_employee_tax_summary_integration(doc):
@@ -513,21 +608,3 @@ def get_component_details(slip, component_name):
     except Exception as e:
         logger.exception(f"Error getting component details for {component_name}: {str(e)}")
         return {"found": False, "type": None, "amount": 0.0, "tax_effect": None}
-
-
-def on_cancel(doc, method=None):
-    """Handle Salary Slip cancellation."""
-    try:
-        if cint(getattr(doc, "calculate_indonesia_tax", 0)) != 1:
-            return
-
-        try:
-            reset_from_cancelled_slip(doc.name)
-            logger.info(f"Reset tax summary from cancelled slip {doc.name}")
-        except Exception:
-            logger.exception(
-                f"Error resetting tax summary from cancelled slip {doc.name}"
-            )
-
-    except Exception as e:
-        logger.exception(f"Error in on_cancel: {str(e)}")

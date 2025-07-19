@@ -40,6 +40,22 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     This is the main integration point for salary slip customizations.
     """
     
+    def before_save(self):
+        """Ensure tax calculations are done before saving."""
+        if hasattr(super(), "before_save"):
+            super().before_save()
+        # Skip if Indonesia payroll not enabled
+        if not cint(getattr(self, "calculate_indonesia_tax", 0)):
+            return
+
+        # Force recalculation of tax
+        self.calculate_tax()
+
+        # Make sure all custom fields are updated
+        self.update_custom_fields()
+
+        logger.debug(f"Indonesia before_save completed for slip {getattr(self, 'name', 'unknown')}")
+
     def validate(self):
         super(IndonesiaPayrollSalarySlip, self).validate()
         self.calculate_tax()
@@ -48,7 +64,6 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
     def calculate_tax(self) -> float:
         """
         Calculate PPh 21 tax amount.
-
         Returns:
             float: Calculated tax amount
         """
@@ -99,11 +114,11 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
                 "Employee Tax Summary",
                 filters={"employee": employee, "year": year},
                 fields=[
-                    "ytd_gross_pay",
-                    "ytd_tax",
-                    "ytd_bpjs",
-                    "ytd_taxable_components",
-                    "ytd_tax_deductions",
+            "ytd_gross_pay",
+            "ytd_tax",
+            "ytd_bpjs",
+            "ytd_taxable_components",
+            "ytd_tax_deductions",
                 ],
                 limit=1,
             )
@@ -124,7 +139,6 @@ class IndonesiaPayrollSalarySlip(SalarySlip):
                 logger.debug(f"Updated YTD data from Employee Tax Summary for {employee}")
             else:
                 logger.debug(f"No Employee Tax Summary found for {employee}, year {year}")
-
         except Exception as e:
             logger.exception(f"Error updating YTD data: {str(e)}")
 
