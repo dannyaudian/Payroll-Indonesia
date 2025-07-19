@@ -257,7 +257,7 @@ def ensure_bpjs_account_mappings(transaction_open=False) -> bool:
         companies = frappe.get_all("Company", pluck="name")
         for company in companies:
             if not frappe.db.exists("BPJS Account Mapping", {"company": company}):
-                create_default_mapping(company, transaction_open=transaction_open)
+                create_default_mapping(company)
                 created = True
 
         return created
