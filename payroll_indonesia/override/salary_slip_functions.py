@@ -41,6 +41,28 @@ from payroll_indonesia.payroll_indonesia.doctype.employee_tax_summary.employee_t
 )
 
 
+def _is_indonesia_tax_enabled(doc):
+    """Return True if Indonesia tax calculation should run for this slip."""
+    try:
+        indo_tax_enabled = cint(getattr(doc, "calculate_indonesia_tax", 0))
+
+        if indo_tax_enabled != 1:
+            payroll_entry = getattr(doc, "payroll_entry", None)
+            if payroll_entry:
+                pe_val = frappe.db.get_value(
+                    "Payroll Entry", payroll_entry, "calculate_indonesia_tax"
+                )
+                if cint(pe_val) == 1:
+                    if hasattr(doc, "calculate_indonesia_tax"):
+                        doc.calculate_indonesia_tax = 1
+                    indo_tax_enabled = 1
+
+        return indo_tax_enabled == 1
+    except Exception:
+        logger.exception("Error checking calculate_indonesia_tax")
+        return False
+
+
 def before_validate(doc, method=None):
     """
     Before validate hook for Salary Slip.
@@ -55,7 +77,7 @@ def before_validate(doc, method=None):
             return
 
         # Only process if Indonesia payroll is enabled
-        if cint(getattr(doc, "calculate_indonesia_tax", 0)) != 1:
+        if not _is_indonesia_tax_enabled(doc):
             return
 
         # Check if status_pajak is set, if not, try to get from employee
@@ -156,7 +178,7 @@ def before_save(doc, method=None):
             return
 
         # Only process if Indonesia payroll is enabled
-        if cint(getattr(doc, "calculate_indonesia_tax", 0)) != 1:
+        if not _is_indonesia_tax_enabled(doc):
             return
 
         # Update deduction amounts if needed
@@ -182,7 +204,7 @@ def after_save(doc, method=None):
             return
 
         # Only process if Indonesia payroll is enabled
-        if cint(getattr(doc, "calculate_indonesia_tax", 0)) != 1:
+        if not _is_indonesia_tax_enabled(doc):
             return
 
         logger.debug(f"Completed after_save for slip {getattr(doc, 'name', 'unknown')}")
@@ -205,7 +227,7 @@ def after_submit(doc, method=None):
             return
 
         # Only process if Indonesia payroll is enabled
-        if cint(getattr(doc, "calculate_indonesia_tax", 0)) != 1:
+        if not _is_indonesia_tax_enabled(doc):
             return
 
         # Update the Employee Tax Summary with this slip's data
@@ -227,7 +249,7 @@ def on_cancel(doc, method=None):
     """
     try:
         # Only process if Indonesia payroll is enabled
-        if cint(getattr(doc, "calculate_indonesia_tax", 0)) != 1:
+        if not _is_indonesia_tax_enabled(doc):
             return
 
         try:
