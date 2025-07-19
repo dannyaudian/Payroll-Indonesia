@@ -96,12 +96,19 @@ async function validate_create_journal_entry(frm) {
 // Update status indicator based on mapping completeness
 function update_mapping_status(frm) {
     const required_accounts = [
-        'kesehatan_employee_account', 
+        'kesehatan_employee_account',
         'kesehatan_employer_debit_account',
         'kesehatan_employer_credit_account',
         'jht_employee_account',
         'jht_employer_debit_account',
-        'jht_employer_credit_account'
+        'jht_employer_credit_account',
+        'jp_employee_account',
+        'jp_employer_debit_account',
+        'jp_employer_credit_account',
+        'jkk_employer_debit_account',
+        'jkk_employer_credit_account',
+        'jkm_employer_debit_account',
+        'jkm_employer_credit_account'
     ];
     
     let total_filled = 0;
