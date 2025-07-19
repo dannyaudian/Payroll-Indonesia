@@ -58,8 +58,6 @@ def validate_mapping(doc, method=None):
     # Call the instance methods
     if not getattr(doc, "flags", {}).get("ignore_validate"):
         doc.validate_duplicate_mapping()
-        doc.validate_account_types()
-        doc.setup_missing_accounts()
 
     # Clean up flag
     doc._validated = False
