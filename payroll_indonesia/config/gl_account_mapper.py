@@ -224,8 +224,13 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
         "Tunjangan Transport": ("beban_tunjangan_transport", "expense_accounts"),
         "Insentif": ("beban_insentif", "expense_accounts"),
         "Bonus": ("beban_bonus", "expense_accounts"),
+        "Tunjangan Jabatan": ("beban_tunjangan_jabatan", "expense_accounts"),
+        "Tunjangan Lembur": ("beban_tunjangan_lembur", "expense_accounts"),
+        "Uang Makan": ("beban_natura", "expense_accounts"),
+        "Fasilitas Kendaraan": ("beban_fasilitas_kendaraan", "expense_accounts"),
         # Deductions
         "PPh 21": ("hutang_pph21", "payable_accounts"),
+        "Potongan Kasbon": ("hutang_kasbon", "payable_accounts"),
     }
 
     # Get the component type (Earning or Deduction) to determine account category

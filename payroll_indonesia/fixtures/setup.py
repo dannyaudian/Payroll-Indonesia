@@ -869,7 +869,15 @@ def setup_company_accounts(doc=None, method=None, company=None, config=None):
 
         # Create expense accounts for standard salary components
         gl_accounts = config.get("gl_accounts", {}).get("expense_accounts", {})
-        for key in ["beban_gaji_pokok", "beban_tunjangan_makan", "beban_tunjangan_transport"]:
+        for key in [
+            "beban_gaji_pokok",
+            "beban_tunjangan_makan",
+            "beban_tunjangan_transport",
+            "beban_tunjangan_jabatan",
+            "beban_tunjangan_lembur",
+            "beban_natura",
+            "beban_fasilitas_kendaraan",
+        ]:
             if key in gl_accounts:
                 map_gl_account(company_name, key, "expense_accounts")
 

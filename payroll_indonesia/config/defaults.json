@@ -837,12 +837,37 @@
                 "account_name": "Beban Bonus",
                 "account_type": "Direct Expense",
                 "root_type": "Expense"
+            },
+            "beban_tunjangan_jabatan": {
+                "account_name": "Beban Tunjangan Jabatan",
+                "account_type": "Direct Expense",
+                "root_type": "Expense"
+            },
+            "beban_tunjangan_lembur": {
+                "account_name": "Beban Tunjangan Lembur",
+                "account_type": "Direct Expense",
+                "root_type": "Expense"
+            },
+            "beban_natura": {
+                "account_name": "Beban Natura",
+                "account_type": "Direct Expense",
+                "root_type": "Expense"
+            },
+            "beban_fasilitas_kendaraan": {
+                "account_name": "Beban Fasilitas Kendaraan",
+                "account_type": "Direct Expense",
+                "root_type": "Expense"
             }
         },
         "payable_accounts": {
             "hutang_pph21": {
                 "account_name": "Hutang PPh 21",
                 "account_type": "Tax",
+                "root_type": "Liability"
+            },
+            "hutang_kasbon": {
+                "account_name": "Hutang Kasbon",
+                "account_type": "Payable",
                 "root_type": "Liability"
             }
         },

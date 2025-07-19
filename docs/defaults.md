@@ -50,6 +50,31 @@ jkm_employer_debit_account
 jkm_employer_credit_account
 ```
 
+### Expense accounts
+
+The `expense_accounts` object defines GL accounts for common salary components:
+
+```
+beban_gaji_pokok
+beban_tunjangan_makan
+beban_tunjangan_transport
+beban_insentif
+beban_bonus
+beban_tunjangan_jabatan
+beban_tunjangan_lembur
+beban_natura
+beban_fasilitas_kendaraan
+```
+
+### Payable accounts
+
+Default liability accounts created during setup:
+
+```
+hutang_pph21
+hutang_kasbon
+```
+
 ### Root account names
 
 The default configuration assumes your site uses the standard English root
