@@ -924,6 +924,16 @@ def setup_company_accounts(
             if key in gl_accounts:
                 map_gl_account(company_name, key, "expense_accounts")
 
+        # Map salary components to their GL accounts for this company
+        salary_components_cfg = config.get("salary_components", {})
+        component_names = [c.get("name") for c in salary_components_cfg.get("earnings", [])]
+        component_names += [c.get("name") for c in salary_components_cfg.get("deductions", [])]
+
+        for component_name in filter(None, component_names):
+            account_name = get_gl_account_for_salary_component(company_name, component_name)
+            if account_name:
+                _map_component_to_account(component_name, company_name, account_name)
+
         logger.info(f"[PAYROLL] GL accounts created for: {company_name}")
         return True
     except Exception as e:
