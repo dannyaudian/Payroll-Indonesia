@@ -246,7 +246,7 @@ def ensure_settings_doctype_exists() -> bool:
         return False
 
 
-def ensure_bpjs_account_mappings() -> bool:
+def ensure_bpjs_account_mappings(transaction_open=False) -> bool:
     """Ensure each company has a BPJS Account Mapping."""
     try:
         from payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping import (
@@ -257,7 +257,7 @@ def ensure_bpjs_account_mappings() -> bool:
         companies = frappe.get_all("Company", pluck="name")
         for company in companies:
             if not frappe.db.exists("BPJS Account Mapping", {"company": company}):
-                create_default_mapping(company)
+                create_default_mapping(company, transaction_open=transaction_open)
                 created = True
 
         return created

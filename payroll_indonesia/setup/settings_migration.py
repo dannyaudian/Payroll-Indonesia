@@ -51,7 +51,9 @@ def migrate_cli():
         print(f"Error during settings migration: {str(e)}")
 
 
-def migrate_all_settings(settings_doc=None, defaults=None, *args, **kwargs) -> Dict[str, bool]:
+def migrate_all_settings(
+    settings_doc=None, defaults=None, transaction_open=False, *args, **kwargs
+) -> Dict[str, bool]:
     """
     Migrate all settings from defaults.json to Payroll Indonesia Settings.
 
@@ -62,7 +64,8 @@ def migrate_all_settings(settings_doc=None, defaults=None, *args, **kwargs) -> D
     Returns:
         Dict[str, bool]: Status of each migration section
     """
-    frappe.db.begin()
+    if not transaction_open:
+        frappe.db.begin()
     try:
         # Load settings document if not provided
         if settings_doc is None:
@@ -118,7 +121,8 @@ def migrate_all_settings(settings_doc=None, defaults=None, *args, **kwargs) -> D
         if not getattr(settings_doc, "_doc_before_save", None):
             settings_doc.save()
 
-        frappe.db.commit()
+        if not transaction_open:
+            frappe.db.commit()
 
         # Log summary
         success_count = sum(1 for result in results.values() if result)
@@ -133,7 +137,8 @@ def migrate_all_settings(settings_doc=None, defaults=None, *args, **kwargs) -> D
 
         return results
     except Exception as e:
-        frappe.db.rollback()
+        if not transaction_open:
+            frappe.db.rollback()
         logger.error(f"Error during settings migration: {str(e)}")
         raise
 
