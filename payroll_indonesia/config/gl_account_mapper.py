@@ -17,26 +17,10 @@ from payroll_indonesia.payroll_indonesia.utils import (
     get_or_create_account,
     find_parent_account,
 )
+from payroll_indonesia.constants import BPJS_ACCOUNT_FIELDS
 
 # Setup logger
 logger = logging.getLogger(__name__)
-
-# Field names used in BPJSAccountMapping DocType
-BPJS_ACCOUNT_FIELDS = [
-    "kesehatan_employee_account",
-    "jht_employee_account",
-    "jp_employee_account",
-    "kesehatan_employer_debit_account",
-    "kesehatan_employer_credit_account",
-    "jht_employer_debit_account",
-    "jht_employer_credit_account",
-    "jp_employer_debit_account",
-    "jp_employer_credit_account",
-    "jkk_employer_debit_account",
-    "jkk_employer_credit_account",
-    "jkm_employer_debit_account",
-    "jkm_employer_credit_account",
-]
 
 
 def map_gl_account(company: str, account_key: str, category: str) -> str:
@@ -160,23 +144,16 @@ def _determine_bpjs_field_name(salary_component: str) -> str:
             else "kesehatan_employee_account"
         )
     elif "jht" in component:
-        return (
-            "jht_employer_debit_account"
-            if "employer" in component
-            else "jht_employee_account"
-        )
+        return "jht_employer_debit_account" if "employer" in component else "jht_employee_account"
     elif "jp" in component:
-        return (
-            "jp_employer_debit_account"
-            if "employer" in component
-            else "jp_employee_account"
-        )
+        return "jp_employer_debit_account" if "employer" in component else "jp_employee_account"
     elif "jkk" in component:
         return "jkk_employer_debit_account"
     elif "jkm" in component:
         return "jkm_employer_debit_account"
 
     return ""
+
 
 def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
     """
@@ -207,6 +184,7 @@ def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
     except Exception as e:
         logger.exception(f"Error getting BPJS account mapping: {e}")
         return ""
+
 
 def get_gl_account_for_salary_component(company: str, salary_component: str) -> str:
     """
