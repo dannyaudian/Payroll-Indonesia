@@ -84,7 +84,8 @@ setup.after_install()
 
 ### 📌 BPJS Account Mapping
 
-* Use the **BPJS Account Mapping** DocType to set up BPJS Employee and Employer accounts.
+* Use the **BPJS Account Mapping** DocType to set up GL accounts for BPJS employee and employer contributions.
+* Each mapping stores fields like `kesehatan_employee_account`, `jht_employee_account`, `jp_employee_account` and the corresponding employer debit/credit accounts.
 * Ensure account configurations align with the company's Chart of Accounts structure.
 * A default mapping is automatically created for each company during installation.
 

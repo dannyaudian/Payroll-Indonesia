@@ -32,6 +32,24 @@ Values used when creating the default salary structure and for related fields in
 ## gl_accounts
 Chart of Accounts templates for payroll. Includes `root_account`, `expense_accounts`, `payable_accounts` and BPJS related accounts. Data is stored as JSON in the settings fields `expense_accounts_json`, `payable_accounts_json`, `parent_accounts_json` and `bpjs_account_mapping_json`.
 
+The `bpjs_account_mapping_json` object mirrors the **BPJS Account Mapping** DocType. It stores the GL account fields used when creating the default mapping for each company. Current field names include:
+
+```
+kesehatan_employee_account
+jht_employee_account
+jp_employee_account
+kesehatan_employer_debit_account
+kesehatan_employer_credit_account
+jht_employer_debit_account
+jht_employer_credit_account
+jp_employer_debit_account
+jp_employer_credit_account
+jkk_employer_debit_account
+jkk_employer_credit_account
+jkm_employer_debit_account
+jkm_employer_credit_account
+```
+
 ### Root account names
 
 The default configuration assumes your site uses the standard English root
