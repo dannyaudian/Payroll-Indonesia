@@ -47,7 +47,7 @@ __all__ = [
 ]
 
 
-def _run_full_install(config=None, skip_existing=True):
+def _run_full_install(config=None, skip_existing=False):
     """
     Centralized function to run the full installation process.
     Creates all required records and configurations.
@@ -75,14 +75,14 @@ def _run_full_install(config=None, skip_existing=True):
         frappe.db.begin()
 
         # Setup accounts
-        results["accounts"] = setup_accounts(config)
+        results["accounts"] = setup_accounts(config, skip_existing=skip_existing)
         ensure_bpjs_account_mappings(transaction_open=True)
         logger.info("Account setup completed")
 
         # Setup suppliers
-        suppliers_ok = create_supplier_group()
+        suppliers_ok = create_supplier_group(skip_existing=skip_existing)
         if suppliers_ok and config.get("suppliers", {}).get("bpjs", {}):
-            suppliers_ok = create_bpjs_supplier(config)
+            suppliers_ok = create_bpjs_supplier(config, skip_existing=skip_existing)
         results["suppliers"] = suppliers_ok
         logger.info("Supplier setup completed")
 
@@ -92,12 +92,12 @@ def _run_full_install(config=None, skip_existing=True):
 
         # Setup salary components
         results["salary_components"] = setup_salary_components(
-            config, transaction_open=True
+            config, transaction_open=True, skip_existing=skip_existing
         )
         logger.info("Salary components setup completed")
 
         # Setup default salary structure
-        results["salary_structure"] = setup_default_salary_structure()
+        results["salary_structure"] = setup_default_salary_structure(skip_existing=skip_existing)
         logger.info("Default salary structure setup completed")
 
         # Setup TER rates if needed and tax calculation method is TER
@@ -145,7 +145,7 @@ def after_install():
     logger.info("Starting Payroll Indonesia after_install process")
 
     try:
-        _run_full_install()
+        _run_full_install(skip_existing=True)
     except Exception as e:
         logger.error(f"Error during installation: {str(e)}", exc_info=True)
         frappe.log_error(
@@ -263,7 +263,7 @@ def setup_payroll_settings(transaction_open=False):
         raise
 
 
-def setup_accounts(config=None, specific_company=None):
+def setup_accounts(config=None, specific_company=None, *, skip_existing=False):
     """
     Set up GL accounts for Indonesian payroll from config.
 
@@ -310,6 +310,17 @@ def setup_accounts(config=None, specific_company=None):
         return results
 
     for company in companies:
+        if skip_existing and frappe.db.exists(
+            "Account",
+            {
+                "company": company.name,
+                "account_name": "PPh 21 Payable",
+            },
+        ):
+            logger.info(f"Accounts for {company.name} already exist, skipping")
+            results["skipped"].append(company.name)
+            continue
+
         try:
             # Create parent accounts
             liability_parent = create_parent_liability_account(company.name)
@@ -361,7 +372,7 @@ def setup_accounts(config=None, specific_company=None):
     return results
 
 
-def create_supplier_group():
+def create_supplier_group(*, skip_existing=False):
     """
     Create Government supplier group for tax and BPJS entities.
 
@@ -374,19 +385,21 @@ def create_supplier_group():
 
     try:
         if frappe.db.exists("Supplier Group", "Government"):
-            logger.info("Government supplier group already exists")
-            return True
+            if skip_existing:
+                logger.info("Government supplier group already exists, skipping")
+                return True
+            group = frappe.get_doc("Supplier Group", "Government")
+        else:
+            if not frappe.db.exists("Supplier Group", "All Supplier Groups"):
+                logger.warning("All Supplier Groups parent group missing")
+                return False
 
-        if not frappe.db.exists("Supplier Group", "All Supplier Groups"):
-            logger.warning("All Supplier Groups parent group missing")
-            return False
-
-        group = frappe.new_doc("Supplier Group")
-        group.supplier_group_name = "Government"
-        group.parent_supplier_group = "All Supplier Groups"
-        group.is_group = 0
-        group.flags.ignore_permissions = True
-        group.insert(ignore_permissions=True)
+            group = frappe.new_doc("Supplier Group")
+            group.supplier_group_name = "Government"
+            group.parent_supplier_group = "All Supplier Groups"
+            group.is_group = 0
+            group.flags.ignore_permissions = True
+            group.insert(ignore_permissions=True)
 
         for subgroup in ["BPJS Provider", "Tax Authority"]:
             if not frappe.db.exists("Supplier Group", subgroup):
@@ -406,7 +419,7 @@ def create_supplier_group():
         raise
 
 
-def create_bpjs_supplier(config):
+def create_bpjs_supplier(config, *, skip_existing=False):
     """
     Create BPJS supplier entity from config.
 
@@ -428,8 +441,15 @@ def create_bpjs_supplier(config):
 
         supplier_name = supplier_config.get("supplier_name", "BPJS")
         if frappe.db.exists("Supplier", supplier_name):
-            logger.info(f"Supplier {supplier_name} already exists")
-            return True
+            if skip_existing:
+                logger.info(f"Supplier {supplier_name} already exists, skipping")
+                return True
+            supplier = frappe.get_doc("Supplier", supplier_name)
+            is_new = False
+        else:
+            supplier = frappe.new_doc("Supplier")
+            supplier.supplier_name = supplier_name
+            is_new = True
 
         supplier_group = supplier_config.get("supplier_group", "Government")
         if not frappe.db.exists("Supplier Group", supplier_group):
@@ -442,16 +462,18 @@ def create_bpjs_supplier(config):
                 logger.warning("No suitable supplier group exists")
                 return False
 
-        supplier = frappe.new_doc("Supplier")
-        supplier.supplier_name = supplier_name
         supplier.supplier_group = supplier_group
         supplier.supplier_type = supplier_config.get("supplier_type", "Government")
         supplier.country = supplier_config.get("country", "Indonesia")
         supplier.default_currency = supplier_config.get("default_currency", "IDR")
         supplier.flags.ignore_permissions = True
-        supplier.insert(ignore_permissions=True)
+        if is_new:
+            supplier.insert(ignore_permissions=True)
+            logger.info(f"Created supplier: {supplier_name}")
+        else:
+            supplier.save(ignore_permissions=True)
+            logger.info(f"Updated supplier: {supplier_name}")
 
-        logger.info(f"Created supplier: {supplier_name}")
         return True
 
     except Exception as e:
@@ -674,7 +696,7 @@ def setup_income_tax_slab(config, force_update=False):
         raise
 
 
-def setup_salary_components(config, transaction_open=False):
+def setup_salary_components(config, transaction_open=False, *, skip_existing=False):
     """
     Create or update salary components using config data.
 
@@ -718,6 +740,11 @@ def setup_salary_components(config, transaction_open=False):
                     continue
 
                 if frappe.db.exists("Salary Component", component_name):
+                    if skip_existing:
+                        logger.info(
+                            f"Salary component {component_name} already exists, skipping"
+                        )
+                        continue
                     component = frappe.get_doc("Salary Component", component_name)
                     is_new = False
                 else:
@@ -791,7 +818,7 @@ def setup_salary_components(config, transaction_open=False):
         raise
 
 
-def setup_default_salary_structure():
+def setup_default_salary_structure(*, skip_existing=False):
     """
     Create default salary structure using the helper from salary_structure module.
 
@@ -810,6 +837,11 @@ def setup_default_salary_structure():
         existing_structure = None
         for name in default_names:
             if frappe.db.exists("Salary Structure", name):
+                if skip_existing:
+                    logger.info(
+                        f"Default salary structure already exists: {name}, skipping"
+                    )
+                    return True
                 logger.info(f"Default salary structure already exists: {name}")
                 existing_structure = name
                 break
@@ -844,7 +876,7 @@ def setup_default_salary_structure():
         raise
 
 
-def setup_company_accounts(doc=None, method=None, company=None, config=None):
+def setup_company_accounts(doc=None, method=None, company=None, config=None, *, skip_existing=False):
     """Create payroll GL accounts for a specific company.
 
     This can be triggered from the ``Company`` DocType hooks or called directly
@@ -871,7 +903,7 @@ def setup_company_accounts(doc=None, method=None, company=None, config=None):
         if config is None:
             config = get_default_config()
 
-        setup_accounts(config=config, specific_company=company_name)
+        setup_accounts(config=config, specific_company=company_name, skip_existing=skip_existing)
 
         # Create expense accounts for standard salary components
         gl_accounts = config.get("gl_accounts", {}).get("expense_accounts", {})
