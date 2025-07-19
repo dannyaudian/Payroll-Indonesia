@@ -172,43 +172,42 @@ class CustomPayrollEntry(BasePayrollEntry):
         except Exception as e:
             logger.exception(f"Error validating TER settings: {str(e)}")
     
-class CustomPayrollEntry(BasePayrollEntry):
-    """
-    Custom Payroll Entry class for Indonesia-specific payroll functionality.
-    """
+class TaxSettingsPropagatorMixin:
+    """Mixin providing tax settings propagation logic."""
 
     def propagate_tax_settings_to_slips(self, slips):
-        """
-        Propagate tax settings from payroll entry to salary slips.
-        
-        Args:
-            slips: List of salary slip documents
-        """
+        """Propagate payroll entry tax settings to the given salary slips."""
         try:
-            if not slips:
+            doc = getattr(self, "doc", self)
+            if not doc or not slips:
                 return
-            
-            # Skip if Indonesia payroll not enabled
-            if cint(getattr(self, "calculate_indonesia_tax", 0)) != 1:
+
+            if cint(getattr(doc, "calculate_indonesia_tax", 0)) != 1:
                 return
-            
-            # Get settings to propagate
+
+            tax_method = getattr(doc, "tax_method", "Progressive")
+            if cint(getattr(doc, "ter_method_enabled", 0)) == 1:
+                tax_method = "TER"
+
             settings = {
                 "calculate_indonesia_tax": 1,
-                "tax_method": getattr(self, "tax_method", "Progressive"),
-                "is_december_override": cint(getattr(self, "is_december_override", 0))
+                "tax_method": tax_method,
+                "is_december_override": cint(getattr(doc, "is_december_override", 0)),
             }
-            
-            # Propagate to each slip
+
             for slip in slips:
                 for field, value in settings.items():
                     if hasattr(slip, field):
                         setattr(slip, field, value)
-            
+
             logger.debug(f"Propagated tax settings to {len(slips)} salary slips")
-        
+
         except Exception as e:
             logger.exception(f"Error propagating tax settings: {str(e)}")
+
+
+class CustomPayrollEntry(TaxSettingsPropagatorMixin, BasePayrollEntry):
+    """Custom Payroll Entry class for Indonesia-specific payroll functionality."""
     
     def create_salary_slips(self):
         """
@@ -420,7 +419,7 @@ class CustomPayrollEntry(BasePayrollEntry):
             logger.exception(f"Error updating tax settings: {str(e)}")
 
 
-class PayrollEntryIndonesia:
+class PayrollEntryIndonesia(TaxSettingsPropagatorMixin):
     """
     Payroll Entry Indonesia class for extending Payroll Entry functionality.
     This is the main integration point for payroll entry customizations.
@@ -496,43 +495,6 @@ class PayrollEntryIndonesia:
         except Exception as e:
             logger.exception(f"Error validating TER settings: {str(e)}")
     
-    def propagate_tax_settings_to_slips(self, slips):
-        """
-        Propagate tax settings from payroll entry to salary slips.
-        
-        Args:
-            slips: List of salary slip documents
-        """
-        try:
-            if not self.doc or not slips:
-                return
-            
-            # Skip if Indonesia payroll not enabled
-            if cint(getattr(self.doc, "calculate_indonesia_tax", 0)) != 1:
-                return
-            
-            # Get settings to propagate
-            tax_method = (
-                "TER"
-                if cint(getattr(self.doc, "ter_method_enabled", 0)) == 1
-                else getattr(self.doc, "tax_method", "Progressive")
-            )
-            settings = {
-                "calculate_indonesia_tax": 1,
-                "tax_method": tax_method,
-                "is_december_override": cint(getattr(self.doc, "is_december_override", 0)),
-            }
-            
-            # Propagate to each slip
-            for slip in slips:
-                for field, value in settings.items():
-                    if hasattr(slip, field):
-                        setattr(slip, field, value)
-            
-            logger.debug(f"Propagated tax settings to {len(slips)} salary slips")
-        
-        except Exception as e:
-            logger.exception(f"Error propagating tax settings: {str(e)}")
     
     def is_december_payroll(self):
         """
