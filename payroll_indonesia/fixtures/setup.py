@@ -327,7 +327,7 @@ def setup_accounts(config=None, specific_company=None, *, skip_existing=False):
             expense_parent = create_parent_expense_account(company.name)
 
             # Create tax payable account
-            tax_payable = get_or_create_account(
+            get_or_create_account(
                 company=company.name,
                 account_name="PPh 21 Payable",
                 account_type="Tax",
