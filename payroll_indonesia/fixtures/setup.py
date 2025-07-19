@@ -75,7 +75,7 @@ def _run_full_install(config=None, skip_existing=True):
 
         # Setup accounts
         results["accounts"] = setup_accounts(config)
-        ensure_bpjs_account_mappings()
+        ensure_bpjs_account_mappings(transaction_open=True)
         logger.info("Account setup completed")
 
         # Setup suppliers
@@ -86,11 +86,13 @@ def _run_full_install(config=None, skip_existing=True):
         logger.info("Supplier setup completed")
 
         # Create and populate Payroll Indonesia Settings
-        results["settings"] = setup_payroll_settings()
+        results["settings"] = setup_payroll_settings(transaction_open=True)
         logger.info("Payroll Indonesia Settings setup completed")
 
         # Setup salary components
-        results["salary_components"] = setup_salary_components(config)
+        results["salary_components"] = setup_salary_components(
+            config, transaction_open=True
+        )
         logger.info("Salary components setup completed")
 
         # Setup default salary structure
@@ -103,7 +105,7 @@ def _run_full_install(config=None, skip_existing=True):
             if settings_doc.tax_calculation_method == "TER" and not frappe.db.exists(
                 "PPh 21 TER Table", {"status_pajak": ["in", ["TER A", "TER B", "TER C"]]}
             ):
-                setup_pph21_ter(config)
+                setup_pph21_ter(config, transaction_open=True)
         except Exception as e:
             logger.warning(f"Error setting up TER rates: {str(e)}")
 
@@ -216,7 +218,7 @@ def check_system_readiness():
     return True
 
 
-def setup_payroll_settings():
+def setup_payroll_settings(transaction_open=False):
     """
     Setup Payroll Indonesia Settings with default values.
 
@@ -245,7 +247,7 @@ def setup_payroll_settings():
             logger.info("Created new Payroll Indonesia Settings document")
 
         # Run migration with zero args
-        results = migrate_all_settings()
+        results = migrate_all_settings(transaction_open=transaction_open)
 
         logger.info("Payroll Indonesia Settings configured successfully")
         return True
@@ -451,7 +453,7 @@ def create_bpjs_supplier(config):
         raise
 
 
-def setup_pph21_ter(defaults=None):
+def setup_pph21_ter(defaults=None, transaction_open=False):
     """
     Setup PPh 21 TER rates and other required tables in Payroll Indonesia Settings.
 
@@ -577,7 +579,8 @@ def setup_pph21_ter(defaults=None):
         # Save settings
         settings.flags.ignore_permissions = True
         settings.save(ignore_permissions=True)
-        frappe.db.commit()
+        if not transaction_open:
+            frappe.db.commit()
 
         logger.info("All required tables in Payroll Indonesia Settings populated successfully")
         return True
@@ -665,7 +668,7 @@ def setup_income_tax_slab(config, force_update=False):
         raise
 
 
-def setup_salary_components(config):
+def setup_salary_components(config, transaction_open=False):
     """
     Create or update salary components using config data.
 
@@ -680,7 +683,8 @@ def setup_salary_components(config):
         return False
 
     try:
-        frappe.db.begin()
+        if not transaction_open:
+            frappe.db.begin()
         components = config.get("salary_components", {})
         if not components:
             logger.warning("No salary components found in configuration")
@@ -769,12 +773,14 @@ def setup_salary_components(config):
         logger.info(
             f"Processed {success_count} of {total_count} salary components successfully"
         )
-        frappe.db.commit()
+        if not transaction_open:
+            frappe.db.commit()
         logger.info("Salary components transaction committed successfully")
         return success_count > 0
 
     except Exception as e:
-        frappe.db.rollback()
+        if not transaction_open:
+            frappe.db.rollback()
         logger.error(f"Error setting up salary components, rolling back: {str(e)}")
         raise
 

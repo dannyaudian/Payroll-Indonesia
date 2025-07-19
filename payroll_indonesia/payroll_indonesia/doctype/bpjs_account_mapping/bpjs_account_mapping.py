@@ -129,7 +129,7 @@ def get_mapping_for_company(company=None):
 
 
 @frappe.whitelist()
-def create_default_mapping(company):
+def create_default_mapping(company, transaction_open=False):
     """
     Create a default BPJS Account Mapping with blank accounts
 
@@ -160,7 +160,8 @@ def create_default_mapping(company):
 
         # Insert with ignore_permissions
         mapping.insert(ignore_permissions=True)
-        frappe.db.commit()
+        if not transaction_open:
+            frappe.db.commit()
 
         # Clear cache for the company
         frappe.cache().delete_value(f"bpjs_mapping_{company}")
@@ -168,7 +169,8 @@ def create_default_mapping(company):
         return mapping.name
 
     except Exception as e:
-        frappe.db.rollback()
+        if not transaction_open:
+            frappe.db.rollback()
         frappe.log_error(
             f"Error creating default BPJS account mapping for {company}: {str(e)}\n\n"
             f"Traceback: {frappe.get_traceback()}",
