@@ -41,28 +41,43 @@ def setup_module() -> bool:
     return success
 
 
-def setup_accounts() -> bool:
+def setup_accounts(config=None, specific_company=None, *, skip_existing=False):
     """
-    Setup tax infrastructure needed for Indonesian payroll.
-    This is a facade function that delegates to appropriate setup functions.
+    Set up GL accounts for Indonesian payroll from config.
 
+    Args:
+        config: Configuration dictionary from defaults.json
+        specific_company: Specific company to set up accounts for
+        skip_existing: If True, skip creation of accounts that already exist
     Returns:
-        bool: Success status
+        dict: Results of account setup
     """
     try:
         from payroll_indonesia.fixtures.setup import setup_company_accounts
 
-        # Load defaults from configuration
-        defaults = _load_defaults()
-        if not defaults:
+        # Use provided config or load defaults from configuration
+        if config is None:
+            config = _load_defaults()
+        if not config:
             logger.warning("Could not load defaults from configuration")
-            return False
+            return {"success": False}
 
-        # Get all companies and create GL accounts
-        companies = frappe.get_all("Company", pluck="name")
+        if specific_company:
+            companies = [specific_company]
+        else:
+            # Get all companies and create GL accounts
+            companies = frappe.get_all("Company", pluck="name")
+
+        results = {}
         for company in companies:
-            setup_company_accounts(company=company, config=defaults)
-        logger.info("Company accounts setup completed")
+            if skip_existing and frappe.db.exists("Account", {"company": company}):
+                logger.info(f"Skipping existing accounts setup for company {company}")
+                result = {"skipped": True}
+            else:
+                result = setup_company_accounts(company=company, config=config)
+            results[company] = result
+
+        logger.info("Company accounts setup completed for all targeted companies")
 
         logger.info("Setting up Payroll Indonesia tax infrastructure")
 
@@ -70,12 +85,12 @@ def setup_accounts() -> bool:
         from payroll_indonesia.utilities.tax_slab import setup_income_tax_slab
         from payroll_indonesia.fixtures.setup import setup_pph21_ter
 
-        results = {"income_tax_slab": False, "pph21_ter": False}
+        tax_results = {"income_tax_slab": False, "pph21_ter": False}
 
         # Setup income tax slab if needed
         try:
-            result = setup_income_tax_slab(defaults)
-            results["income_tax_slab"] = result
+            result = setup_income_tax_slab(config)
+            tax_results["income_tax_slab"] = result
             if result:
                 logger.info("Income Tax Slab setup completed successfully")
             else:
@@ -86,8 +101,8 @@ def setup_accounts() -> bool:
 
         # Let fixtures.setup handle TER setup since it's more specialized
         try:
-            result = setup_pph21_ter(defaults)
-            results["pph21_ter"] = result
+            result = setup_pph21_ter(config)
+            tax_results["pph21_ter"] = result
             if result:
                 logger.info("PPh 21 TER rates setup completed successfully")
             else:
@@ -96,16 +111,15 @@ def setup_accounts() -> bool:
             logger.error(f"Error setting up PPh 21 TER rates: {str(e)}")
             frappe.log_error(f"Error setting up PPh 21 TER rates: {str(e)}", "TER Setup Error")
 
-        success = any(results.values())
+        success = any(tax_results.values())
         if success:
             logger.info("Payroll Indonesia tax infrastructure setup completed")
         else:
             logger.warning("Payroll Indonesia tax infrastructure setup completed with warnings")
-        return success
+        return {"success": success, "results": results, "tax_results": tax_results}
     except Exception as e:
         logger.error(f"Error setting up accounts: {str(e)}")
-        return False
-
+        return {"success": False}
 
 def create_custom_workspace() -> bool:
     """

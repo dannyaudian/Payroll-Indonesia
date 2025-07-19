@@ -425,6 +425,7 @@ def create_bpjs_supplier(config, *, skip_existing=False):
 
     Args:
         config: Configuration dictionary from defaults.json
+        skip_existing: If True, skip creation if supplier already exists
 
     Returns:
         bool: True if successful, False otherwise
@@ -479,7 +480,6 @@ def create_bpjs_supplier(config, *, skip_existing=False):
     except Exception as e:
         logger.error(f"Failed to create BPJS supplier: {str(e)}")
         raise
-
 
 def setup_pph21_ter(defaults=None, transaction_open=False):
     """
@@ -702,6 +702,8 @@ def setup_salary_components(config, transaction_open=False, *, skip_existing=Fal
 
     Args:
         config: Configuration dictionary from defaults.json
+        transaction_open: Whether transaction is already open
+        skip_existing: If True, skip components that already exist
 
     Returns:
         bool: True if successful, False otherwise
@@ -816,11 +818,12 @@ def setup_salary_components(config, transaction_open=False, *, skip_existing=Fal
             frappe.db.rollback()
         logger.error(f"Error setting up salary components, rolling back: {str(e)}")
         raise
-
-
 def setup_default_salary_structure(*, skip_existing=False):
     """
     Create default salary structure using the helper from salary_structure module.
+
+    Args:
+        skip_existing: If True, skip creation if a default structure already exists
 
     Returns:
         bool: True if created or already exists, False otherwise
@@ -880,7 +883,7 @@ def setup_company_accounts(doc=None, method=None, company=None, config=None, *, 
     """Create payroll GL accounts for a specific company.
 
     This can be triggered from the ``Company`` DocType hooks or called directly
-    with a company name.  When executed from hooks ``doc`` will be the Company
+    with a company name. When executed from hooks ``doc`` will be the Company
     document instance.
 
     Args:
@@ -889,6 +892,7 @@ def setup_company_accounts(doc=None, method=None, company=None, config=None, *, 
         company: Company name when invoked programmatically.
         config: Optional configuration dictionary. ``defaults.json`` will be
             loaded when not provided.
+        skip_existing: If True, skip accounts that already exist
 
     Returns:
         bool: ``True`` on success, ``False`` otherwise.
@@ -928,7 +932,6 @@ def setup_company_accounts(doc=None, method=None, company=None, config=None, *, 
             "Payroll Indonesia Setup",
         )
         return False
-
 
 def display_installation_summary(results, config):
     """

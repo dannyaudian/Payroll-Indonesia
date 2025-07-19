@@ -122,6 +122,7 @@ def safe_execute(default_value: Any = None, log_exception: bool = True) -> Calla
 
 
 @safe_execute(default_value=None)
+@safe_execute(default_value=None)
 def get_or_create_account(
     company: str,
     account_name: str,
@@ -158,9 +159,12 @@ def get_or_create_account(
         logger.debug(f"Account {full_name} already exists")
         return full_name
 
+    logger.debug(f"Creating account {full_name} for company {company}")
+
     # Determine root_type if not provided
     if not root_type:
         root_type = determine_root_type(account_type)
+        logger.debug(f"Determined root_type: {root_type} for account_type: {account_type}")
 
     # Find parent account if not provided
     if not parent_account:
@@ -168,6 +172,7 @@ def get_or_create_account(
         if not parent_account:
             logger.error(f"Parent account not found for {account_name}")
             return None
+        logger.debug(f"Found parent account: {parent_account}")
 
     # Create account data
     acc_data = {
@@ -195,7 +200,6 @@ def get_or_create_account(
     except Exception as e:
         logger.error(f"Failed to create account {full_name}: {e}")
         return None
-
 
 def determine_root_type(account_type: str) -> str:
     """
