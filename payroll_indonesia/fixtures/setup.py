@@ -724,6 +724,7 @@ def setup_salary_components(config):
         return False
 
     try:
+        frappe.db.begin()
         components = config.get("salary_components", {})
         if not components:
             logger.warning("No salary components found in configuration")
@@ -809,11 +810,16 @@ def setup_salary_components(config):
 
                 success_count += 1
 
-        logger.info(f"Processed {success_count} of {total_count} salary components successfully")
+        logger.info(
+            f"Processed {success_count} of {total_count} salary components successfully"
+        )
+        frappe.db.commit()
+        logger.info("Salary components transaction committed successfully")
         return success_count > 0
 
     except Exception as e:
-        logger.error(f"Error setting up salary components: {str(e)}")
+        frappe.db.rollback()
+        logger.error(f"Error setting up salary components, rolling back: {str(e)}")
         raise
 
 
