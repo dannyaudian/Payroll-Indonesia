@@ -164,9 +164,6 @@ def after_sync():
         return
 
     try:
-        # Begin transaction
-        frappe.db.begin()
-
         # Load defaults from settings_migration
         defaults = _load_defaults()
         if not defaults:
@@ -198,15 +195,12 @@ def after_sync():
         except Exception as e:
             logger.error(f"Error during full install: {str(e)}")
 
-        # Commit changes
-        frappe.db.commit()
         logger.info("after_sync process completed successfully")
 
         # Mark as run for idempotence
         after_sync.already_run = True
 
     except Exception as e:
-        frappe.db.rollback()
         logger.error(f"Error during after_sync: {str(e)}", exc_info=True)
         frappe.log_error(
             f"Error during after_sync: {str(e)}\n\n{frappe.get_traceback()}",
