@@ -30,3 +30,32 @@ class TestGLAccountMapper(unittest.TestCase):
         gl_account = get_gl_account_for_salary_component(self.company, comp_name)
         self.assertTrue(frappe.db.exists("Account", gl_account))
         self.assertTrue(gl_account.endswith(f" - {self.company_abbr}"))
+
+    def test_bpjs_alternate_employer_keyword(self):
+        from payroll_indonesia.payroll_indonesia.doctype.bpjs_account_mapping import create_default_mapping
+        from payroll_indonesia.payroll_indonesia.utils import get_or_create_account
+
+        if not frappe.db.exists("BPJS Account Mapping", {"company": self.company}):
+            create_default_mapping(self.company)
+            frappe.db.commit()
+
+        mapping_name = frappe.db.get_value("BPJS Account Mapping", {"company": self.company}, "name")
+        mapping = frappe.get_doc("BPJS Account Mapping", mapping_name)
+
+        mapping.jht_employer_debit_account = get_or_create_account(
+            self.company,
+            "BPJS JHT Employer Expense",
+            "Expense Account",
+            root_type="Expense",
+        )
+        mapping.jht_employee_account = get_or_create_account(
+            self.company,
+            "BPJS JHT Employee Expense",
+            "Expense Account",
+            root_type="Expense",
+        )
+        mapping.save(ignore_permissions=True)
+        frappe.db.commit()
+
+        account = get_gl_account_for_salary_component(self.company, "BPJS JHT Perusahaan")
+        self.assertEqual(account, mapping.jht_employer_debit_account)

@@ -160,21 +160,26 @@ def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
         str: Account name or empty string if not found
     """
     try:
-        mapping = frappe.get_all("BPJS Account Mapping", filters={"company": company}, fields=["*"])
+        mapping_name = frappe.db.get_value("BPJS Account Mapping", {"company": company}, "name")
 
-        if not mapping:
+        if not mapping_name:
             return ""
 
-        row = mapping[0]
-        component = salary_component.lower()
+        row = frappe.get_cached_doc("BPJS Account Mapping", mapping_name)
+
+        import re
+        component = re.sub(r"[^\w\s]", "", salary_component).lower()
+        employer_keywords = ["employer", "company", "perusahaan"]
         field_name = ""
 
+        is_employer = any(keyword in component for keyword in employer_keywords)
+
         if "kesehatan" in component:
-            field_name = "kesehatan_employer_debit_account" if "employer" in component else "kesehatan_employee_account"
+            field_name = "kesehatan_employer_debit_account" if is_employer else "kesehatan_employee_account"
         elif "jht" in component:
-            field_name = "jht_employer_debit_account" if "employer" in component else "jht_employee_account"
+            field_name = "jht_employer_debit_account" if is_employer else "jht_employee_account"
         elif "jp" in component:
-            field_name = "jp_employer_debit_account" if "employer" in component else "jp_employee_account"
+            field_name = "jp_employer_debit_account" if is_employer else "jp_employee_account"
         elif "jkk" in component:
             field_name = "jkk_employer_debit_account"
         elif "jkm" in component:
