@@ -34,6 +34,7 @@ __all__ = [
     "before_install",
     "after_install",
     "after_sync",
+    "perform_essential_setup",
     "check_system_readiness",
     "setup_accounts",
     "create_supplier_group",
@@ -127,6 +128,11 @@ def _run_full_install(config=None, skip_existing=True):
 
     display_installation_summary(results, config)
     return results
+
+
+def perform_essential_setup(config=None):
+    """Run minimal setup tasks required post-migration."""
+    return _run_full_install(config=config, skip_existing=True)
 
 
 def after_install():
