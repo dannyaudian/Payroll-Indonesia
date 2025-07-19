@@ -674,6 +674,17 @@
     {
         "doctype": "Custom Field",
         "dt": "Salary Slip",
+        "fieldname": "calculate_indonesia_tax",
+        "fieldtype": "Check",
+        "insert_after": "is_december_override",
+        "label": "Calculate Indonesia Tax",
+        "module": "Payroll Indonesia",
+        "name": "Salary Slip-calculate_indonesia_tax",
+        "default": "1"
+    },
+    {
+        "doctype": "Custom Field",
+        "dt": "Salary Slip",
         "fieldname": "indo_base_gross_pay",
         "fieldtype": "Currency",
         "insert_after": "gross_pay",
