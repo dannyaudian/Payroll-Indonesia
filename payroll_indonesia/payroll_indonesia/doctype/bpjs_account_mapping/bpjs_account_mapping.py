@@ -10,8 +10,6 @@ from payroll_indonesia.frappe_helpers import logger
 
 __all__ = [
     "BPJSAccountMapping",
-    "validate",
-    "on_update",
     "get_mapping_for_company",
     "create_default_mapping",
     "get_bpjs_accounts",
@@ -36,36 +34,8 @@ ACCOUNT_FIELDS = [
 ]
 
 # ---------------------------------------------------------------------------
-# Module level functions
+# Helper Functions
 # ---------------------------------------------------------------------------
-
-
-def validate(doc, method=None):
-    """
-    Global validation hook for BPJS Account Mapping document.
-    Called by background jobs and setup processes.
-
-    Args:
-        doc: The document being validated
-        method: The method that triggered this hook (optional)
-    """
-    doc.validate()
-
-
-def on_update(doc, method=None):
-    """
-    Global on_update hook for BPJS Account Mapping document.
-    Called by hooks after document is updated.
-
-    Args:
-        doc: The document being updated
-        method: The method that triggered this hook (optional)
-    """
-    doc.on_update()
-
-    # Optionally sync to settings
-    sync_to_settings(doc)
-
 
 def sync_to_settings(doc, method=None):
     """
@@ -323,3 +293,5 @@ class BPJSAccountMapping(Document):
                 f"Creation timestamp mismatch for {self.name}. Resetting to original value"
             )
             self.creation = original_creation
+        # keep settings in sync after update
+        sync_to_settings(self)
