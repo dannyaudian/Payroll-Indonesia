@@ -147,57 +147,19 @@ def after_install():
 
 
 def after_sync():
-    """
-    Hook after app sync. Ensures Payroll Indonesia Settings exists and is populated.
-
-    This function ensures all configuration data from defaults.json is properly
-    migrated to Payroll Indonesia Settings and its child tables.
-
-    Returns:
-        None
-    """
+    """Run installation routines after Frappe sync."""
     logger.info("Starting after_sync process for Payroll Indonesia")
 
-    # Check if function already ran in this session (idempotent)
     if hasattr(after_sync, "already_run") and after_sync.already_run:
         logger.info("after_sync already ran in this session, skipping")
         return
 
     try:
-        # Load defaults from settings_migration
-        defaults = _load_defaults()
-        if not defaults:
-            logger.warning("Failed to load configuration from defaults.json")
-            return
-
-        # Run migration with zero args - it will automatically load the settings doc
-        logger.info("Running migrate_all_settings()")
-        results = migrate_all_settings()
-
-        # Log summary of results
-        if results:
-            success_count = sum(1 for result in results.values() if result)
-            total_count = len(results)
-            logger.info(
-                f"Settings migration results: {success_count}/{total_count} sections updated"
-            )
-
-            # Log individual results for debugging
-            for section, success in results.items():
-                status = "updated" if success else "skipped"
-                logger.debug(f"Section '{section}': {status}")
-        else:
-            logger.warning("migrate_all_settings() returned no results")
-
-        # Run simplified installation to ensure components exist
-        try:
-            _run_full_install(defaults, skip_existing=True)
-        except Exception as e:
-            logger.error(f"Error during full install: {str(e)}")
+        # Run full installation but skip existing records so it's idempotent
+        _run_full_install(skip_existing=True)
 
         logger.info("after_sync process completed successfully")
 
-        # Mark as run for idempotence
         after_sync.already_run = True
 
     except Exception as e:

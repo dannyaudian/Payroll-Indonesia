@@ -48,15 +48,21 @@ bench --site your_site.local migrate
    This step now also creates default expense accounts such as **Beban Gaji Pokok**,
    **Beban Tunjangan Makan**, and **Beban Tunjangan Transport** for each company.
 
-2. **🔄 After Sync:** During `bench migrate` the app's `after_sync` hook automatically
-   populates **Payroll Indonesia Settings** and ensures required fixtures exist. You
-   can rerun this step manually with:
+2. **🔄 After Sync (Installation Tasks):** During `bench migrate` the app's
+   `after_sync` hook runs installation routines such as creating default
+   accounts, suppliers, and salary structures. You can rerun this step
+   manually with:
 
 ```bash
 bench --site your_site.local execute payroll_indonesia.fixtures.setup.after_sync
 ```
 
-3. **⚙ Manual Setup After Installation:**
+3. **🛠 After Migrate (Data Updates):** Frappe triggers the `after_migrate`
+   hook after `after_sync`. This step migrates existing
+   **Payroll Indonesia Settings** and ensures each company has a BPJS Account
+   Mapping.
+
+4. **⚙ Manual Setup After Installation:**
 
 ```bash
 bench --site your_site.local execute payroll_indonesia.fixtures.setup.after_install
