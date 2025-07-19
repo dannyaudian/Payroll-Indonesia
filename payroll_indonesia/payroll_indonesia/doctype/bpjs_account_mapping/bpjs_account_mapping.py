@@ -230,7 +230,6 @@ class BPJSAccountMapping(Document):
         """Validate required fields and account types"""
         self.validate_duplicate_mapping()
         self.validate_accounts_belong_to_company()
-        self.validate_amount_fields()
 
     def validate_duplicate_mapping(self):
         """Ensure no duplicate mapping exists for the same company"""
@@ -266,23 +265,6 @@ class BPJSAccountMapping(Document):
                         )
                     )
 
-    def validate_amount_fields(self):
-        """Validate that all amount fields are positive"""
-        amount_fields = [
-            "bpjs_kesehatan_employee_rate",
-            "bpjs_kesehatan_employer_rate",
-            "bpjs_jht_employee_rate",
-            "bpjs_jht_employer_rate",
-            "bpjs_jp_employee_rate",
-            "bpjs_jp_employer_rate",
-            "bpjs_jkk_rate",
-            "bpjs_jkm_rate",
-        ]
-
-        for field in amount_fields:
-            if hasattr(self, field) and self.get(field) is not None:
-                if self.get(field) < 0:
-                    frappe.throw(_("{0} must be a positive value").format(frappe.unscrub(field)))
 
     def on_update(self):
         """Clear cache after update"""
