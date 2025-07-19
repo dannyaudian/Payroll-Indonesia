@@ -143,9 +143,7 @@ def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
         str: Account name or empty string if not found
     """
     try:
-        mapping = frappe.get_all(
-            "BPJS Account Mapping", filters={"company": company}, fields=["*"]
-        )
+        mapping = frappe.get_all("BPJS Account Mapping", filters={"company": company}, fields=["*"])
 
         if not mapping:
             return ""
@@ -254,3 +252,46 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
 
     # Return the mapped GL account
     return map_gl_account(company, account_key, category)
+
+
+def _map_component_to_account(component_name: str, company: str, account_name: str) -> None:
+    """Update a salary component's account mapping for a company.
+
+    This helper ensures the **Salary Component Account** table or the
+    legacy ``default_account`` field is populated with ``account_name`` for
+    ``company``. It gracefully handles both the table and direct field
+    structures used by different ERPNext versions.
+
+    Args:
+        component_name: Salary Component name to update
+        company: Company to map the account for
+        account_name: GL Account name to assign
+    """
+
+    try:
+        component = frappe.get_doc("Salary Component", component_name)
+
+        if hasattr(component, "accounts") and isinstance(component.accounts, list):
+            row = next((a for a in component.accounts if a.get("company") == company), None)
+            if row:
+                if not row.get("default_account"):
+                    row.default_account = account_name
+            else:
+                component.append(
+                    "accounts",
+                    {
+                        "company": company,
+                        "default_account": account_name,
+                    },
+                )
+        elif hasattr(component, "default_account") and not getattr(
+            component, "default_account", None
+        ):
+            component.default_account = account_name
+        elif hasattr(component, "account") and not getattr(component, "account", None):
+            component.account = account_name
+
+        component.flags.ignore_permissions = True
+        component.save(ignore_permissions=True)
+    except Exception as e:  # pragma: no cover - defensive
+        logger.exception(f"Error mapping component {component_name} to account {account_name}: {e}")

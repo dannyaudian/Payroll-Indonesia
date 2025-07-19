@@ -23,6 +23,7 @@ from payroll_indonesia.config.config import doctype_defined, get_tax_effect_type
 from payroll_indonesia.config.gl_account_mapper import (
     get_gl_account_for_salary_component,
     map_gl_account,
+    _map_component_to_account,
 )
 from payroll_indonesia.setup.settings_migration import migrate_all_settings, _load_defaults
 from payroll_indonesia.setup.setup_module import ensure_bpjs_account_mappings
@@ -776,34 +777,10 @@ def setup_salary_components(config):
 
                 component.round_to_the_nearest_integer = 1
 
-                # Map GL account if available and field empty
+                # Determine GL account for mapping
+                account_name = None
                 if company:
                     account_name = get_gl_account_for_salary_component(company, component_name)
-                    if account_name:
-                        if hasattr(component, "accounts") and isinstance(component.accounts, list):
-                            row = next(
-                                (a for a in component.accounts if a.get("company") == company),
-                                None,
-                            )
-                            if row:
-                                if not row.get("default_account"):
-                                    row.default_account = account_name
-                            else:
-                                component.append(
-                                    "accounts",
-                                    {
-                                        "company": company,
-                                        "default_account": account_name,
-                                    },
-                                )
-                        elif hasattr(component, "default_account") and not getattr(
-                            component, "default_account", None
-                        ):
-                            component.default_account = account_name
-                        elif hasattr(component, "account") and not getattr(
-                            component, "account", None
-                        ):
-                            component.account = account_name
 
                 # Set tax effect type if mapping provided
                 if "tax_effect_by_type" in comp_data:
@@ -826,6 +803,9 @@ def setup_salary_components(config):
                 else:
                     component.save(ignore_permissions=True)
                     logger.info(f"Updated salary component: {component_name}")
+
+                if company and account_name:
+                    _map_component_to_account(component_name, company, account_name)
 
                 success_count += 1
 
