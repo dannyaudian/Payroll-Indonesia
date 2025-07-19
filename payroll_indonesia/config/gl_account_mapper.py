@@ -21,6 +21,23 @@ from payroll_indonesia.payroll_indonesia.utils import (
 # Setup logger
 logger = logging.getLogger(__name__)
 
+# Field names used in BPJSAccountMapping DocType
+BPJS_ACCOUNT_FIELDS = [
+    "kesehatan_employee_account",
+    "jht_employee_account",
+    "jp_employee_account",
+    "kesehatan_employer_debit_account",
+    "kesehatan_employer_credit_account",
+    "jht_employer_debit_account",
+    "jht_employer_credit_account",
+    "jp_employer_debit_account",
+    "jp_employer_credit_account",
+    "jkk_employer_debit_account",
+    "jkk_employer_credit_account",
+    "jkm_employer_debit_account",
+    "jkm_employer_credit_account",
+]
+
 
 def map_gl_account(company: str, account_key: str, category: str) -> str:
     """
@@ -150,23 +167,21 @@ def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
 
         row = mapping[0]
         component = salary_component.lower()
+        field_name = ""
 
         if "kesehatan" in component:
-            if "employer" in component:
-                return row.get("kesehatan_employer_debit_account", "")
-            return row.get("kesehatan_employee_account", "")
-        if "jht" in component:
-            if "employer" in component:
-                return row.get("jht_employer_debit_account", "")
-            return row.get("jht_employee_account", "")
-        if "jp" in component:
-            if "employer" in component:
-                return row.get("jp_employer_debit_account", "")
-            return row.get("jp_employee_account", "")
-        if "jkk" in component:
-            return row.get("jkk_employer_debit_account", "")
-        if "jkm" in component:
-            return row.get("jkm_employer_debit_account", "")
+            field_name = "kesehatan_employer_debit_account" if "employer" in component else "kesehatan_employee_account"
+        elif "jht" in component:
+            field_name = "jht_employer_debit_account" if "employer" in component else "jht_employee_account"
+        elif "jp" in component:
+            field_name = "jp_employer_debit_account" if "employer" in component else "jp_employee_account"
+        elif "jkk" in component:
+            field_name = "jkk_employer_debit_account"
+        elif "jkm" in component:
+            field_name = "jkm_employer_debit_account"
+
+        if field_name and field_name in BPJS_ACCOUNT_FIELDS:
+            return row.get(field_name, "")
 
         return ""
     except Exception as e:  # pragma: no cover - defensive
