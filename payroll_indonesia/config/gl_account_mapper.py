@@ -7,6 +7,7 @@ import frappe
 import logging
 import re
 from frappe.exceptions import ValidationError
+from typing import Optional
 
 # FIXED: Use correct import path for get_default_config
 from payroll_indonesia.config.config import (
@@ -186,6 +187,40 @@ def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
     except Exception as e:
         logger.exception(f"Error getting BPJS account mapping: {e}")
         return ""
+
+
+def get_expense_account_for_component(component_name: str) -> Optional[str]:
+    """Return base expense account name for a given salary component.
+
+    Looks up ``defaults.json -> gl_accounts.expense_accounts`` using either the
+    Indonesian or English component name. Returns ``None`` if not found.
+    """
+    mapping = {
+        "Gaji Pokok": "beban_gaji_pokok",
+        "Basic Salary": "beban_gaji_pokok",
+        "Bonus": "beban_bonus",
+        "Tunjangan Jabatan": "beban_tunjangan_jabatan",
+        "Position Allowance": "beban_tunjangan_jabatan",
+        "Fasilitas Kendaraan": "beban_fasilitas_kendaraan",
+        "Vehicle Allowance": "beban_fasilitas_kendaraan",
+    }
+
+    try:
+        config = get_default_config()
+        expense_accounts = config.get("gl_accounts", {}).get("expense_accounts", {})
+
+        account_key = mapping.get(component_name)
+        if not account_key:
+            return None
+
+        account_info = expense_accounts.get(account_key)
+        if not account_info or "account_name" not in account_info:
+            return None
+
+        return account_info["account_name"]
+    except Exception as e:  # pragma: no cover - defensive
+        logger.exception(f"Error getting expense account for {component_name}: {e}")
+        return None
 
 
 def get_gl_account_for_salary_component(company: str, salary_component: str) -> str:
