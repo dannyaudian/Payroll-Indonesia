@@ -6,6 +6,7 @@ frappe = pytest.importorskip("frappe")
 from payroll_indonesia.config.gl_account_mapper import (
     map_gl_account,
     get_gl_account_for_salary_component,
+    get_expense_account_for_component,
 )
 
 
@@ -46,3 +47,14 @@ class TestGLAccountMapper(unittest.TestCase):
                 self.company, english
             )
             self.assertEqual(account_indo, account_eng)
+
+    def test_get_expense_account_helper(self):
+        self.assertEqual(
+            get_expense_account_for_component("Gaji Pokok"),
+            "Beban Gaji Pokok",
+        )
+        self.assertEqual(
+            get_expense_account_for_component("Basic Salary"),
+            "Beban Gaji Pokok",
+        )
+        self.assertIsNone(get_expense_account_for_component("Unknown"))
