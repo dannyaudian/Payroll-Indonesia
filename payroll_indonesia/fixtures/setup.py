@@ -42,6 +42,7 @@ __all__ = [
     "create_supplier_group",
     "create_bpjs_supplier",
     "setup_salary_components",
+    "map_salary_component_to_gl",
     "setup_default_salary_structure",
     "display_installation_summary",
     "setup_pph21_ter",
@@ -437,6 +438,54 @@ def create_non_bpjs_expense_accounts(company: str, config: dict) -> list[str]:
 
     logger.debug(f"Created non-BPJS expense accounts for {company}: {created}")
     return created
+
+
+def map_salary_component_to_gl(company: str, gl_defaults: dict) -> list[str]:
+    """Map default salary components to their GL expense accounts.
+
+    The mapping supports Indonesian and English component names and is safe to
+    run multiple times.
+
+    Args:
+        company: Company name for which to map accounts.
+        gl_defaults: ``defaults.json`` configuration dictionary.
+
+    Returns:
+        list[str]: Salary component names that were mapped.
+    """
+
+    expense_defs = gl_defaults.get("gl_accounts", {}).get("expense_accounts", {})
+    if not expense_defs:
+        logger.debug("No expense account definitions found in defaults")
+        return []
+
+    component_map = {
+        ("Gaji Pokok", "Basic Salary"): "beban_gaji_pokok",
+        ("Bonus",): "beban_bonus",
+        ("Tunjangan Makan", "Meal Allowance"): "beban_tunjangan_makan",
+        ("Insentif", "Incentive"): "beban_insentif",
+    }
+
+    mapped: list[str] = []
+    for names, key in component_map.items():
+        if key not in expense_defs:
+            continue
+
+        for name in names:
+            component = frappe.db.get_value(
+                "Salary Component", {"salary_component": name}, "name"
+            )
+            if not component:
+                continue
+
+            account_name = map_gl_account(company, key, "expense_accounts")
+            if account_name:
+                _map_component_to_account(component, company, account_name)
+                mapped.append(component)
+            break
+
+    logger.debug(f"Mapped salary components to GL for {company}: {mapped}")
+    return mapped
 
 
 def create_supplier_group(*, skip_existing=False):
