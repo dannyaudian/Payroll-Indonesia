@@ -18,12 +18,30 @@ from payroll_indonesia.config.config import (
 from payroll_indonesia.payroll_indonesia.utils import (
     debug_log,
     get_or_create_account,
-    find_parent_account,
 )
-from payroll_indonesia.constants import BPJS_ACCOUNT_FIELDS
+from payroll_indonesia.config.gl_mapper_core import (
+    _map_component_to_account as core_map_component_to_account,
+    _determine_bpjs_field_name as core_determine_bpjs_field_name,
+    _get_bpjs_account_mapping as core_get_bpjs_account_mapping,
+)
 
 # Setup logger
 logger = logging.getLogger(__name__)
+
+
+def _determine_bpjs_field_name(salary_component: str) -> str:
+    """Wrapper for :func:`gl_mapper_core._determine_bpjs_field_name`."""
+    return core_determine_bpjs_field_name(salary_component)
+
+
+def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
+    """Wrapper for :func:`gl_mapper_core._get_bpjs_account_mapping`."""
+    return core_get_bpjs_account_mapping(company, salary_component)
+
+
+def _map_component_to_account(component_name: str, company: str, account_name: str) -> None:
+    """Wrapper for :func:`gl_mapper_core._map_component_to_account`."""
+    return core_map_component_to_account(component_name, company, account_name)
 
 
 def map_gl_account(company: str, account_key: str, category: str) -> str:
@@ -136,57 +154,6 @@ def map_gl_account(company: str, account_key: str, category: str) -> str:
         return f"{account_key} - {company}"
 
 
-def _determine_bpjs_field_name(salary_component: str) -> str:
-    """Determine the correct field name in BPJS Account Mapping based on component name."""
-
-    component = salary_component.lower()
-    if "kesehatan" in component:
-        return (
-            "kesehatan_employer_debit_account"
-            if "employer" in component
-            else "kesehatan_employee_account"
-        )
-    elif "jht" in component:
-        return "jht_employer_debit_account" if "employer" in component else "jht_employee_account"
-    elif "jp" in component:
-        return "jp_employer_debit_account" if "employer" in component else "jp_employee_account"
-    elif "jkk" in component:
-        return "jkk_employer_debit_account"
-    elif "jkm" in component:
-        return "jkm_employer_debit_account"
-
-    return ""
-
-
-def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
-    """
-    Get BPJS account for a specific company and salary component.
-
-    Args:
-        company: Company name
-        salary_component: Salary component name
-
-    Returns:
-        str: Account name or empty string if not found
-    """
-    try:
-        # Determine which field to retrieve
-        field_name = _determine_bpjs_field_name(salary_component)
-        if not field_name or field_name not in BPJS_ACCOUNT_FIELDS:
-            return ""
-
-        # Get mapping for this company
-        mapping = frappe.get_all(
-            "BPJS Account Mapping", filters={"company": company}, fields=[field_name]
-        )
-
-        if not mapping:
-            return ""
-
-        return mapping[0].get(field_name, "")
-    except Exception as e:
-        logger.exception(f"Error getting BPJS account mapping: {e}")
-        return ""
 
 
 def get_expense_account_for_component(component_name: str) -> Optional[str]:
@@ -325,44 +292,3 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
     return map_gl_account(company, account_key, category)
 
 
-def _map_component_to_account(component_name: str, company: str, account_name: str) -> None:
-    """Update a salary component's account mapping for a company.
-
-    This helper ensures the **Salary Component Account** table or the
-    legacy ``default_account`` field is populated with ``account_name`` for
-    ``company``. It gracefully handles both the table and direct field
-    structures used by different ERPNext versions.
-
-    Args:
-        component_name: Salary Component name to update
-        company: Company to map the account for
-        account_name: GL Account name to assign
-    """
-
-    try:
-        component = frappe.get_doc("Salary Component", component_name)
-
-        if hasattr(component, "accounts") and isinstance(component.accounts, list):
-            row = next((a for a in component.accounts if a.get("company") == company), None)
-            if row:
-                if not row.get("default_account"):
-                    row.default_account = account_name
-            else:
-                component.append(
-                    "accounts",
-                    {
-                        "company": company,
-                        "default_account": account_name,
-                    },
-                )
-        elif hasattr(component, "default_account") and not getattr(
-            component, "default_account", None
-        ):
-            component.default_account = account_name
-        elif hasattr(component, "account") and not getattr(component, "account", None):
-            component.account = account_name
-
-        component.flags.ignore_permissions = True
-        component.save(ignore_permissions=True)
-    except Exception as e:  # pragma: no cover - defensive
-        logger.exception(f"Error mapping component {component_name} to account {account_name}: {e}")
