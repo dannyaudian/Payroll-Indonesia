@@ -37,7 +37,7 @@ __all__ = [
     "after_sync",
     "perform_essential_setup",
     "check_system_readiness",
-    "setup_accounts",
+    "setup_chart_of_accounts",
     "create_non_bpjs_expense_accounts",
     "create_supplier_group",
     "create_bpjs_supplier",
@@ -78,7 +78,7 @@ def _run_full_install(config=None, skip_existing=False):
         frappe.db.begin()
 
         # Setup accounts
-        results["accounts"] = setup_accounts(config, skip_existing=skip_existing)
+        results["accounts"] = setup_chart_of_accounts(config, skip_existing=skip_existing)
         ensure_bpjs_account_mappings(transaction_open=True)
         logger.info("Account setup completed")
 
@@ -266,7 +266,7 @@ def setup_payroll_settings(transaction_open=False):
         raise
 
 
-def setup_accounts(config=None, specific_company=None, *, skip_existing=False):
+def setup_chart_of_accounts(config=None, specific_company=None, *, skip_existing=False):
     """
     Set up GL accounts for Indonesian payroll from config.
 
@@ -472,9 +472,7 @@ def map_salary_component_to_gl(company: str, gl_defaults: dict) -> list[str]:
             continue
 
         for name in names:
-            component = frappe.db.get_value(
-                "Salary Component", {"salary_component": name}, "name"
-            )
+            component = frappe.db.get_value("Salary Component", {"salary_component": name}, "name")
             if not component:
                 continue
 
@@ -1022,7 +1020,7 @@ def setup_company_accounts(
         if config is None:
             config = get_default_config()
 
-        setup_accounts(
+        setup_chart_of_accounts(
             config=config, specific_company=company_name, skip_existing=skip_existing
         )
 
