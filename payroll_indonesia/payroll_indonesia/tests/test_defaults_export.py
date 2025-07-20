@@ -61,6 +61,7 @@ class TestWriteDefaults(unittest.TestCase):
             parent_accounts_json=json.dumps({"root": {"account_name": "Payroll"}}),
             parent_account_candidates_expense="Expenses",
             parent_account_candidates_liability="Liabilities",
+            expense_account_prefix="Beban",
         )
 
         result = utils.write_json_file_if_enabled(doc)
@@ -78,6 +79,7 @@ class TestWriteDefaults(unittest.TestCase):
         self.assertEqual(data["tax"]["umr_default"], 5000000.0)
         self.assertIn("gl_accounts", data)
         self.assertIn("gaji", data["gl_accounts"]["expense_accounts"])
+        self.assertEqual(data["settings"]["expense_account_prefix"], "Beban")
 
 
 if __name__ == "__main__":

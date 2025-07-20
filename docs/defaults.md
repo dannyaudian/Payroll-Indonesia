@@ -66,6 +66,11 @@ beban_natura
 beban_fasilitas_kendaraan
 ```
 
+When an earning component is not explicitly mapped, the module will create a new
+expense account automatically using the `expense_account_prefix`. The bundled
+defaults provide both Indonesian and English options (`"Beban"` and
+`"Expense"`).
+
 ### Payable accounts
 
 Default liability accounts created during setup:
@@ -98,7 +103,7 @@ With these values the module can create accounts like "Hutang PPh 21" under the
 "Kewajiban" group if no matching English parent exists.
 
 ## settings
-Miscellaneous behaviour flags such as `sync_to_defaults` and parent account candidates. Stored on **Payroll Indonesia Settings**.
+Miscellaneous behaviour flags such as `sync_to_defaults`, `expense_account_prefix` and parent account candidates. `expense_account_prefix` controls the prefix used when generating new expense accounts and falls back to "Expense" if left blank. Stored on **Payroll Indonesia Settings**.
 
 ## bpjs_settings
 Extra configuration for BPJS validation. Includes percentage ranges and mappings of component names to config fields. Used internally by validation helpers.

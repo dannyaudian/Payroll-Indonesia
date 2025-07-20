@@ -621,6 +621,7 @@ def write_json_file_if_enabled(doc) -> bool:
         "parent_account_candidates_liability": getattr(
             doc, "parent_account_candidates_liability", ""
         ),
+        "expense_account_prefix": getattr(doc, "expense_account_prefix", ""),
     }
 
     try:

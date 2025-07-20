@@ -637,6 +637,10 @@ def _seed_gl_account_mappings(settings: "frappe.Document", defaults: Dict[str, A
                 "parent_account_candidates_liability",
                 settings_cfg.get("parent_account_candidates_liability"),
             ),
+            (
+                "expense_account_prefix",
+                settings_cfg.get("expense_account_prefix"),
+            ),
         ]
 
         for field, value in candidate_fields:
