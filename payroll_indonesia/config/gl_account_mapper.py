@@ -228,6 +228,15 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
         "Tunjangan Lembur": ("beban_tunjangan_lembur", "expense_accounts"),
         "Uang Makan": ("beban_natura", "expense_accounts"),
         "Fasilitas Kendaraan": ("beban_fasilitas_kendaraan", "expense_accounts"),
+        # English equivalents
+        "Basic Salary": ("beban_gaji_pokok", "expense_accounts"),
+        "Meal Allowance": ("beban_tunjangan_makan", "expense_accounts"),
+        "Transport Allowance": ("beban_tunjangan_transport", "expense_accounts"),
+        "Incentive": ("beban_insentif", "expense_accounts"),
+        "Position Allowance": ("beban_tunjangan_jabatan", "expense_accounts"),
+        "Overtime Allowance": ("beban_tunjangan_lembur", "expense_accounts"),
+        "Meal Money": ("beban_natura", "expense_accounts"),
+        "Vehicle Facility": ("beban_fasilitas_kendaraan", "expense_accounts"),
         # Deductions
         "PPh 21": ("hutang_pph21", "payable_accounts"),
         "Potongan Kasbon": ("hutang_kasbon", "payable_accounts"),
