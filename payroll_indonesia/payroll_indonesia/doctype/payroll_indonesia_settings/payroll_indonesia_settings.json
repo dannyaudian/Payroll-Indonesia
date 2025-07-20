@@ -339,6 +339,13 @@
       "description": "Alternatif fallback akun liability, contoh: Duties and Taxes"
     },
     {
+      "fieldname": "expense_account_prefix",
+      "fieldtype": "Data",
+      "label": "Expense Account Prefix",
+      "default": "Beban",
+      "description": "Prefix used when auto-creating expense accounts"
+    },
+    {
       "fieldname": "company_section",
       "fieldtype": "Section Break",
       "label": "Company Settings",

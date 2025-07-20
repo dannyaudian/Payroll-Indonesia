@@ -5,12 +5,14 @@
 
 import frappe
 import logging
+import re
 from frappe.exceptions import ValidationError
 
 # FIXED: Use correct import path for get_default_config
 from payroll_indonesia.config.config import (
     get_config as get_default_config,
     get_component_tax_effect,
+    get_live_config,
 )
 from payroll_indonesia.payroll_indonesia.utils import (
     debug_log,
@@ -258,15 +260,23 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
 
     # For components not in the explicit mapping, generate and create the account
     if salary_component not in component_mapping:
+        cfg = get_live_config()
+        prefix_val = cfg.get("expense_account_prefix") or "Beban"
+        if isinstance(prefix_val, str):
+            parts = [p.strip() for p in re.split(r",|\n", prefix_val) if p.strip()]
+            prefix = parts[0] if parts else "Expense"
+        else:
+            prefix = str(prefix_val)
+
         # Map tax effect to base account name
         if tax_effect == "Penambah Bruto/Objek Pajak":
-            base_name = f"Beban {salary_component}"
+            base_name = f"{prefix} {salary_component}"
         elif tax_effect == "Pengurang Netto/Tax Deduction":
-            base_name = f"Beban {salary_component}"
+            base_name = f"{prefix} {salary_component}"
         elif tax_effect == "Natura/Fasilitas (Objek Pajak)":
-            base_name = f"Beban Natura {salary_component}"
+            base_name = f"{prefix} Natura {salary_component}"
         elif tax_effect == "Natura/Fasilitas (Non-Objek Pajak)":
-            base_name = f"Beban Fasilitas {salary_component}"
+            base_name = f"{prefix} Fasilitas {salary_component}"
         else:  # Tidak Berpengaruh ke Pajak
             base_name = f"{salary_component} Account"
 

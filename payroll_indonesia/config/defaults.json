@@ -929,7 +929,8 @@
     "settings": {
         "sync_to_defaults": false,
         "parent_account_candidates_expense": "Direct Expenses, Beban",
-        "parent_account_candidates_liability": "Duties and Taxes, Kewajiban"
+        "parent_account_candidates_liability": "Duties and Taxes, Kewajiban",
+        "expense_account_prefix": "Beban, Expense"
     },
     "bpjs_settings": {
         "validation_rules": {
