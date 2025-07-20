@@ -572,16 +572,21 @@ def _update_bpjs_settings(settings: "frappe.Document", defaults: Dict[str, Any])
                     setattr(settings, field, value)
                     changes_made = True
 
-        # JSON/code field mappings
+        # JSON/code field mappings loaded from the ``gl_accounts`` section of
+        # the BPJS config
         json_fields = [
-            ("bpjs_account_mapping_json", "account_mapping", {}),
+            ("bpjs_account_mapping_json", "gl_accounts", {}),
             ("expense_accounts_json", "expense_accounts", {}),
             ("payable_accounts_json", "payable_accounts", {}),
             ("parent_accounts_json", "parent_accounts", {}),
         ]
 
         for field, config_key, default_value in json_fields:
-            if hasattr(settings, field) and not getattr(settings, field):
+            if (
+                hasattr(settings, field)
+                and not getattr(settings, field)
+                and config_key in bpjs_config
+            ):
                 value = bpjs_config.get(config_key, default_value)
                 # Convert dicts/lists to JSON strings for Code fields
                 if isinstance(value, (dict, list)):
