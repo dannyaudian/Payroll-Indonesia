@@ -18,10 +18,16 @@ class TestSetupCompanyAccounts(unittest.TestCase):
         config = get_default_config()
         expected_keys = list(config.get("gl_accounts", {}).get("expense_accounts", {}).keys())
 
-        salary_components = [c["name"] for c in config.get("salary_components", {}).get("earnings", [])]
-        salary_components += [c["name"] for c in config.get("salary_components", {}).get("deductions", [])]
+        salary_components = [
+            c["name"] for c in config.get("salary_components", {}).get("earnings", [])
+        ]
+        salary_components += [
+            c["name"] for c in config.get("salary_components", {}).get("deductions", [])
+        ]
 
-        with unittest.mock.patch.object(setup_module, "setup_accounts"), unittest.mock.patch.object(
+        with unittest.mock.patch.object(
+            setup_module, "setup_chart_of_accounts"
+        ), unittest.mock.patch.object(
             setup_module, "map_gl_account"
         ) as mock_map, unittest.mock.patch.object(
             setup_module, "_map_component_to_account"
