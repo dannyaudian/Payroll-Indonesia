@@ -27,6 +27,7 @@ from payroll_indonesia.config.gl_account_mapper import (
 )
 from payroll_indonesia.setup.settings_migration import migrate_all_settings, _load_defaults
 from payroll_indonesia.setup.bpjs import ensure_bpjs_account_mappings
+from payroll_indonesia.payroll_indonesia.utils import get_or_create_account, find_parent_account
 
 
 # Define exported functions
@@ -37,6 +38,7 @@ __all__ = [
     "perform_essential_setup",
     "check_system_readiness",
     "setup_accounts",
+    "create_non_bpjs_expense_accounts",
     "create_supplier_group",
     "create_bpjs_supplier",
     "setup_salary_components",
@@ -370,6 +372,71 @@ def setup_accounts(config=None, specific_company=None, *, skip_existing=False):
     )
 
     return results
+
+
+def create_non_bpjs_expense_accounts(company: str, config: dict) -> list[str]:
+    """Create non-BPJS expense accounts from ``defaults.json``.
+
+    Accounts are created under the **Direct Expenses** group when it exists,
+    otherwise the function falls back to the company's root **Expenses** account.
+
+    Args:
+        company: Company name for which accounts will be created.
+        config: Loaded configuration dictionary.
+
+    Returns:
+        list[str]: Names of accounts created.
+    """
+
+    expense_defs = config.get("gl_accounts", {}).get("expense_accounts", {})
+    if not expense_defs:
+        logger.debug("No expense_accounts definitions found in config")
+        return []
+
+    parent = frappe.db.get_value(
+        "Account",
+        {
+            "account_name": "Direct Expenses",
+            "company": company,
+            "is_group": 1,
+        },
+        "name",
+    )
+    if not parent:
+        abbr = frappe.get_cached_value("Company", company, "abbr")
+        root_name = f"Expenses - {abbr}" if abbr else None
+        parent = root_name if root_name and frappe.db.exists("Account", root_name) else None
+        if not parent:
+            parent = find_parent_account(company, "Expense Account", "Expense")
+
+    created = []
+    for key, acc in expense_defs.items():
+        if "bpjs" in key.lower():
+            continue
+        acc_name = acc.get("account_name")
+        if not acc_name:
+            continue
+        if frappe.db.exists("Account", {"account_name": acc_name, "company": company}):
+            continue
+
+        account_type = acc.get("account_type", "Direct Expense")
+        root_type = acc.get("root_type", "Expense")
+        is_group = cint(acc.get("is_group", 0))
+
+        new_acc = get_or_create_account(
+            company=company,
+            account_name=acc_name,
+            account_type=account_type,
+            is_group=is_group,
+            root_type=root_type,
+            parent_account=parent,
+        )
+
+        if new_acc:
+            created.append(new_acc)
+
+    logger.debug(f"Created non-BPJS expense accounts for {company}: {created}")
+    return created
 
 
 def create_supplier_group(*, skip_existing=False):
@@ -906,7 +973,12 @@ def setup_company_accounts(
         if config is None:
             config = get_default_config()
 
-        setup_accounts(config=config, specific_company=company_name, skip_existing=skip_existing)
+        setup_accounts(
+            config=config, specific_company=company_name, skip_existing=skip_existing
+        )
+
+        # Create non-BPJS expense accounts defined in defaults.json
+        create_non_bpjs_expense_accounts(company_name, config)
 
         # Create expense accounts for standard salary components
         gl_accounts = config.get("gl_accounts", {}).get("expense_accounts", {})
