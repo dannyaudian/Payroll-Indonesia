@@ -13,7 +13,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Penambah Bruto/Objek Pajak"
+    "tax_effect_type": "Penambah Bruto/Objek Pajak",
+    "expense_account": "Beban Gaji Pokok"
   },
   {
     "doctype": "Salary Component",
@@ -29,7 +30,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Penambah Bruto/Objek Pajak"
+    "tax_effect_type": "Penambah Bruto/Objek Pajak",
+    "expense_account": "Beban Tunjangan Makan"
   },
   {
     "doctype": "Salary Component",
@@ -45,7 +47,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Penambah Bruto/Objek Pajak"
+    "tax_effect_type": "Penambah Bruto/Objek Pajak",
+    "expense_account": "Beban Tunjangan Transport"
   },
   {
     "doctype": "Salary Component",
@@ -61,7 +64,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Penambah Bruto/Objek Pajak"
+    "tax_effect_type": "Penambah Bruto/Objek Pajak",
+    "expense_account": "Beban Insentif"
   },
   {
     "doctype": "Salary Component",
@@ -77,7 +81,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Penambah Bruto/Objek Pajak"
+    "tax_effect_type": "Penambah Bruto/Objek Pajak",
+    "expense_account": "Beban Bonus"
   },
   {
     "doctype": "Salary Component",
@@ -94,7 +99,8 @@
     "custom_attributes": {
       "supports_ter": 1
     },
-    "tax_effect_type": "Tidak Berpengaruh ke Pajak"
+    "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+    "expense_account": null
   },
   {
     "doctype": "Salary Component",
@@ -107,7 +113,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Pengurang Netto/Tax Deduction"
+    "tax_effect_type": "Pengurang Netto/Tax Deduction",
+    "expense_account": null
   },
   {
     "doctype": "Salary Component",
@@ -120,7 +127,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Pengurang Netto/Tax Deduction"
+    "tax_effect_type": "Pengurang Netto/Tax Deduction",
+    "expense_account": null
   },
   {
     "doctype": "Salary Component",
@@ -133,7 +141,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Tidak Berpengaruh ke Pajak"
+    "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+    "expense_account": null
   },
   {
     "doctype": "Salary Component",
@@ -146,7 +155,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Tidak Berpengaruh ke Pajak"
+    "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+    "expense_account": null
   },
   {
     "doctype": "Salary Component",
@@ -159,7 +169,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Tidak Berpengaruh ke Pajak"
+    "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+    "expense_account": null
   },
   {
     "doctype": "Salary Component",
@@ -172,7 +183,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Penambah Bruto/Objek Pajak"
+    "tax_effect_type": "Penambah Bruto/Objek Pajak",
+    "expense_account": null
   },
   {
     "doctype": "Salary Component",
@@ -185,7 +197,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Penambah Bruto/Objek Pajak"
+    "tax_effect_type": "Penambah Bruto/Objek Pajak",
+    "expense_account": null
   },
   {
     "doctype": "Salary Component",
@@ -198,7 +211,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Penambah Bruto/Objek Pajak"
+    "tax_effect_type": "Penambah Bruto/Objek Pajak",
+    "expense_account": null
   },
   {
     "doctype": "Salary Component",
@@ -214,7 +228,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Natura/Fasilitas (Objek Pajak)"
+    "tax_effect_type": "Natura/Fasilitas (Objek Pajak)",
+    "expense_account": "Beban Natura"
   },
   {
     "doctype": "Salary Component",
@@ -230,7 +245,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Penambah Bruto/Objek Pajak"
+    "tax_effect_type": "Penambah Bruto/Objek Pajak",
+    "expense_account": "Beban Tunjangan Jabatan"
   },
   {
     "doctype": "Salary Component",
@@ -246,7 +262,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Penambah Bruto/Objek Pajak"
+    "tax_effect_type": "Penambah Bruto/Objek Pajak",
+    "expense_account": "Beban Tunjangan Lembur"
   },
   {
     "doctype": "Salary Component",
@@ -262,7 +279,8 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Natura/Fasilitas (Non-Objek Pajak)"
+    "tax_effect_type": "Natura/Fasilitas (Non-Objek Pajak)",
+    "expense_account": "Beban Fasilitas Kendaraan"
   },
   {
     "doctype": "Salary Component",
@@ -276,6 +294,7 @@
     "modified": "2025-05-24 04:57:55",
     "modified_by": "dannyaudian",
     "owner": "Administrator",
-    "tax_effect_type": "Tidak Berpengaruh ke Pajak"
+    "tax_effect_type": "Tidak Berpengaruh ke Pajak",
+    "expense_account": null
   }
 ]
