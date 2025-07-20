@@ -30,3 +30,19 @@ class TestGLAccountMapper(unittest.TestCase):
         gl_account = get_gl_account_for_salary_component(self.company, comp_name)
         self.assertTrue(frappe.db.exists("Account", gl_account))
         self.assertTrue(gl_account.endswith(f" - {self.company_abbr}"))
+
+    def test_english_component_names_map_correctly(self):
+        """Ensure English salary component names map to the same accounts."""
+
+        pairs = [
+            ("Gaji Pokok", "Basic Salary"),
+            ("Tunjangan Makan", "Meal Allowance"),
+            ("Tunjangan Transport", "Transport Allowance"),
+        ]
+
+        for indo, english in pairs:
+            account_indo = get_gl_account_for_salary_component(self.company, indo)
+            account_eng = get_gl_account_for_salary_component(
+                self.company, english
+            )
+            self.assertEqual(account_indo, account_eng)
