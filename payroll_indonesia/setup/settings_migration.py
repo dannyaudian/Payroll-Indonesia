@@ -19,6 +19,7 @@ from frappe import _
 from frappe.utils import flt, cint, now_datetime
 
 from payroll_indonesia.frappe_helpers import logger
+from payroll_indonesia.config.gl_mapper_core import _seed_gl_account_mappings
 
 
 def migrate_cli():
@@ -601,62 +602,3 @@ def _update_bpjs_settings(settings: "frappe.Document", defaults: Dict[str, Any])
         raise
 
 
-def _seed_gl_account_mappings(settings: "frappe.Document", defaults: Dict[str, Any]) -> bool:
-    """
-    Populate GL account mapping fields from defaults.json.
-
-    Args:
-        settings: Payroll Indonesia Settings document
-        defaults: Configuration from defaults.json
-
-    Returns:
-        bool: True if settings were updated, False otherwise
-    """
-    try:
-        changes_made = False
-
-        gl_accounts = defaults.get("gl_accounts", {})
-        bpjs_gl_accounts = defaults.get("bpjs", {}).get("gl_accounts", {})
-
-        mappings = [
-            ("bpjs_account_mapping_json", bpjs_gl_accounts),
-            ("expense_accounts_json", gl_accounts.get("expense_accounts", {})),
-            ("payable_accounts_json", gl_accounts.get("payable_accounts", {})),
-            ("parent_accounts_json", gl_accounts.get("root_account", {})),
-        ]
-
-        for field, value in mappings:
-            if hasattr(settings, field) and not getattr(settings, field) and value:
-                if isinstance(value, (dict, list)):
-                    value = json.dumps(value, indent=2)
-                setattr(settings, field, value)
-                changes_made = True
-
-        settings_cfg = defaults.get("settings", {})
-        candidate_fields = [
-            (
-                "parent_account_candidates_expense",
-                settings_cfg.get("parent_account_candidates_expense"),
-            ),
-            (
-                "parent_account_candidates_liability",
-                settings_cfg.get("parent_account_candidates_liability"),
-            ),
-            (
-                "expense_account_prefix",
-                settings_cfg.get("expense_account_prefix"),
-            ),
-        ]
-
-        for field, value in candidate_fields:
-            if hasattr(settings, field) and not getattr(settings, field) and value is not None:
-                if isinstance(value, (dict, list)):
-                    value = json.dumps(value, indent=2)
-                setattr(settings, field, value)
-                changes_made = True
-
-        return changes_made
-
-    except Exception as e:
-        logger.error(f"Error updating GL account mappings: {str(e)}")
-        raise
