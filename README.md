@@ -161,6 +161,14 @@ python scripts/audit_defaults.py --path payroll_indonesia/config/defaults.json
 * Modular design featuring specialized utilities for BPJS, PPh21, YTD calculations, and field validations.
 * See [docs/defaults.md](docs/defaults.md) for a breakdown of configuration defaults.
 
+## 🗄 GL Mapping Helpers
+
+Salary-related GL mapping utilities live in
+`payroll_indonesia/config/gl_mapper_core.py`. This module provides internal
+helpers that resolve the correct BPJS account field and apply account mappings to
+Salary Components. Other modules import these helpers to keep GL logic
+centralized.
+
 ## 🧑‍💻 Contributing
 
 For instructions on setting up Frappe/ERPNext so that `pytest` can run locally, see
