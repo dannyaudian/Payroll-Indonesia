@@ -81,18 +81,6 @@ def _run_full_install(config=None, skip_existing=False):
         # Create a transaction to ensure all or nothing
         frappe.db.begin()
 
-        # Setup accounts
-        results["accounts"] = setup_chart_of_accounts(config, skip_existing=skip_existing)
-        ensure_bpjs_account_mappings(transaction_open=True)
-        logger.info("Account setup completed")
-
-        # Setup suppliers
-        suppliers_ok = create_supplier_group(skip_existing=skip_existing)
-        if suppliers_ok and config.get("suppliers", {}).get("bpjs", {}):
-            suppliers_ok = create_bpjs_supplier(config, skip_existing=skip_existing)
-        results["suppliers"] = suppliers_ok
-        logger.info("Supplier setup completed")
-
         # Create and populate Payroll Indonesia Settings
         results["settings"] = setup_payroll_settings(transaction_open=True)
         logger.info("Payroll Indonesia Settings setup completed")
@@ -102,6 +90,31 @@ def _run_full_install(config=None, skip_existing=False):
             config, transaction_open=True, skip_existing=skip_existing
         )
         logger.info("Salary components setup completed")
+
+        # Setup accounts
+        results["accounts"] = setup_chart_of_accounts(config, skip_existing=skip_existing)
+        ensure_bpjs_account_mappings(transaction_open=True)
+        logger.info("Account setup completed")
+
+        # Map salary components to GL accounts now that accounts exist
+        try:
+            if (
+                frappe.db.table_exists("Company")
+                and frappe.db.table_exists("Salary Component")
+                and frappe.db.table_exists("Account")
+            ):
+                companies = frappe.get_all("Company", pluck="name")
+                for comp in companies:
+                    map_salary_component_to_gl(comp, config)
+        except Exception as e:
+            logger.warning(f"Error mapping salary components to GL: {str(e)}")
+
+        # Setup suppliers
+        suppliers_ok = create_supplier_group(skip_existing=skip_existing)
+        if suppliers_ok and config.get("suppliers", {}).get("bpjs", {}):
+            suppliers_ok = create_bpjs_supplier(config, skip_existing=skip_existing)
+        results["suppliers"] = suppliers_ok
+        logger.info("Supplier setup completed")
 
         # Setup default salary structure
         results["salary_structure"] = setup_default_salary_structure(skip_existing=skip_existing)
@@ -249,6 +262,10 @@ def setup_payroll_settings(transaction_open=False):
         bool: True if successful, False otherwise
     """
     try:
+        if not frappe.db.table_exists("Payroll Indonesia Settings"):
+            logger.warning("Payroll Indonesia Settings table does not exist")
+            return False
+
         # Ensure the settings document exists
         if not doctype_defined("Payroll Indonesia Settings"):
             logger.warning("Payroll Indonesia Settings doctype not found")
@@ -403,6 +420,10 @@ def create_non_bpjs_expense_accounts(company: str, config: dict) -> list[str]:
         list[str]: Names of accounts created.
     """
 
+    if not frappe.db.table_exists("Account"):
+        logger.warning("Account table does not exist")
+        return []
+
     expense_defs = config.get("gl_accounts", {}).get("expense_accounts", {})
     if not expense_defs:
         logger.debug("No expense_accounts definitions found in config")
@@ -467,6 +488,10 @@ def map_salary_component_to_gl(company: str, gl_defaults: dict) -> list[str]:
     Returns:
         list[str]: Salary component names that were mapped.
     """
+
+    if not frappe.db.table_exists("Salary Component") or not frappe.db.table_exists("Account"):
+        logger.warning("Required tables for salary component mapping do not exist")
+        return []
 
     expense_defs = gl_defaults.get("gl_accounts", {}).get("expense_accounts", {})
     if not expense_defs:
@@ -621,6 +646,10 @@ def setup_pph21_ter(defaults=None, transaction_open=False):
         bool: True if setup was successful, False otherwise
     """
     try:
+        if not frappe.db.table_exists("Payroll Indonesia Settings"):
+            logger.warning("Payroll Indonesia Settings table does not exist")
+            return False
+
         # Load defaults if not provided
         if defaults is None:
             from payroll_indonesia.setup.settings_migration import _load_defaults
@@ -927,9 +956,6 @@ def setup_salary_components(config, transaction_open=False, *, skip_existing=Fal
                     component.save(ignore_permissions=True)
                     logger.info(f"Updated salary component: {component_name}")
 
-                if company and account_name:
-                    _map_component_to_account(component_name, company, account_name)
-
                 success_count += 1
 
         logger.info(f"Processed {success_count} of {total_count} salary components successfully")
@@ -956,6 +982,10 @@ def setup_default_salary_structure(*, skip_existing=False):
         bool: True if created or already exists, False otherwise
     """
     try:
+        if not frappe.db.table_exists("Salary Structure"):
+            logger.warning("Salary Structure table does not exist")
+            return False
+
         # First check if a default structure already exists using the standard names
         default_names = [
             "Default Salary Structure",
@@ -1026,6 +1056,10 @@ def setup_company_accounts(
     """
 
     try:
+        if not frappe.db.table_exists("Account"):
+            logger.warning("Account table does not exist")
+            return False
+
         company_name = company or getattr(doc, "name", None)
         if not company_name:
             logger.warning("setup_company_accounts called without company name")
