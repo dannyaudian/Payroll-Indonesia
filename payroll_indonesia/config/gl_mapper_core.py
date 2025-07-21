@@ -16,7 +16,14 @@ logger = logging.getLogger(__name__)
 
 
 def _determine_bpjs_field_name(salary_component: str) -> str:
-    """Return the BPJS Account Mapping field matching the component name."""
+    """Return the field name on **BPJS Account Mapping** for a component.
+
+    The helper normalizes ``salary_component`` to lowercase and searches for
+    keywords that identify each BPJS benefit (Kesehatan, JHT, JP, JKK, JKM). It
+    also checks whether the component represents an employer contribution. The
+    matching field name is returned so that the correct GL account can be looked
+    up. If the component cannot be mapped, an empty string is returned.
+    """
     component = salary_component.lower()
     if "kesehatan" in component:
         return (
@@ -36,7 +43,14 @@ def _determine_bpjs_field_name(salary_component: str) -> str:
 
 
 def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
-    """Fetch BPJS account for ``company`` and ``salary_component``."""
+    """Return the GL account mapped to a BPJS component for a company.
+
+    The function relies on :func:`_determine_bpjs_field_name` to translate the
+    ``salary_component`` to a specific field in the **BPJS Account Mapping**
+    DocType. It then fetches that field for ``company`` using ``frappe.get_all``.
+    If no mapping or field is found, an empty string is returned to signal that
+    the component has no configured account.
+    """
     try:
         field_name = _determine_bpjs_field_name(salary_component)
         if not field_name or field_name not in BPJS_ACCOUNT_FIELDS:
@@ -54,7 +68,14 @@ def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
 
 
 def _map_component_to_account(component_name: str, company: str, account_name: str) -> None:
-    """Update a salary component's account mapping for a company."""
+    """Persist a default account on a salary component for ``company``.
+
+    The helper loads the ``Salary Component`` document and ensures that the
+    provided ``account_name`` is set either on the component's child table entry
+    for the given company or on its default fields. Any missing mapping rows are
+    created automatically. The document is then saved with permissions ignored to
+    allow updates during automated setup.
+    """
     try:
         component = frappe.get_doc("Salary Component", component_name)
 
@@ -71,7 +92,9 @@ def _map_component_to_account(component_name: str, company: str, account_name: s
                         "default_account": account_name,
                     },
                 )
-        elif hasattr(component, "default_account") and not getattr(component, "default_account", None):
+        elif hasattr(component, "default_account") and not getattr(
+            component, "default_account", None
+        ):
             component.default_account = account_name
         elif hasattr(component, "account") and not getattr(component, "account", None):
             component.account = account_name
