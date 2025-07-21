@@ -309,24 +309,6 @@
       "options": "GL Account Mapping Entry"
     },
     {
-      "fieldname": "expense_accounts_json",
-      "fieldtype": "Code",
-      "label": "Expense Accounts (JSON)",
-      "options": "JSON"
-    },
-    {
-      "fieldname": "payable_accounts_json",
-      "fieldtype": "Code",
-      "label": "Payable Accounts (JSON)",
-      "options": "JSON"
-    },
-    {
-      "fieldname": "parent_accounts_json",
-      "fieldtype": "Code",
-      "label": "Parent Accounts (JSON)",
-      "options": "JSON"
-    },
-    {
       "fieldname": "fallback_parent_accounts_section",
       "fieldtype": "Section Break",
       "label": "Fallback Parent Accounts",

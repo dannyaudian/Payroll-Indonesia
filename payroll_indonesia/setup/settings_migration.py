@@ -577,9 +577,6 @@ def _update_bpjs_settings(settings: "frappe.Document", defaults: Dict[str, Any])
         # the BPJS config
         json_fields = [
             ("bpjs_account_mapping_json", "gl_accounts", {}),
-            ("expense_accounts_json", "expense_accounts", {}),
-            ("payable_accounts_json", "payable_accounts", {}),
-            ("parent_accounts_json", "parent_accounts", {}),
         ]
 
         for field, config_key, default_value in json_fields:

@@ -138,9 +138,6 @@ def _seed_gl_account_mappings(settings: "frappe.Document", defaults: Dict[str, A
 
         mappings = [
             ("bpjs_account_mapping_json", bpjs_gl_accounts),
-            ("expense_accounts_json", gl_accounts.get("expense_accounts", {})),
-            ("payable_accounts_json", gl_accounts.get("payable_accounts", {})),
-            ("parent_accounts_json", gl_accounts.get("root_account", {})),
         ]
 
         for field, value in mappings:
