@@ -298,39 +298,61 @@ def map_salary_component_to_gl(company: str, gl_defaults: Optional[dict] | None 
 
         expense_defs = gl_defaults.get("gl_accounts", {}).get("expense_accounts", {})
         if not expense_defs:
+            logger.warning(f"No expense_accounts definitions found in gl_defaults for {company}")
             return []
 
         mapping = core_get_account_mapping()
         if not mapping:
+            logger.warning(f"No account mapping found for {company}")
             return []
 
         components = frappe.get_all("Salary Component", filters={"disabled": 0}, pluck="name")
         mapped: list[str] = []
+
         for comp in components:
+            # Try to get account name from mapping
             account_base = mapping.get(comp)
             if not account_base:
+                # Fallback to lowercase + strip version of component name
+                key = re.sub(r"[^a-z0-9]+", "_", comp.lower()).strip("_")
+                logger.debug(f"Component {comp} not found in mapping, using fallback key: {key}")
                 continue
 
+            # Get key for expense_defs lookup
             key = re.sub(r"[^a-z0-9]+", "_", account_base.lower()).strip("_")
             info = expense_defs.get(key, {})
+
+            # Get account type and root type with defaults
             account_type = info.get("account_type", "Expense Account")
             root_type = info.get("root_type", "Expense")
 
+            # Create or get the account
             full_name = get_or_create_account(
                 company,
                 account_base,
                 account_type=account_type,
                 root_type=root_type,
             )
+
             if not full_name:
+                logger.warning(f"Failed to create/get account for component {comp} in {company}")
                 continue
 
+            # Map component to account
             _map_component_to_account(comp, company, full_name)
             mapped.append(comp)
+            logger.info(f"Successfully mapped {comp} to {full_name} in {company}")
 
+        if not mapped:
+            logger.warning(f"No salary components were mapped for {company}")
+        else:
+            logger.info(f"Mapped {len(mapped)} salary components for {company}")
         return mapped
     except Exception as e:  # pragma: no cover - defensive
         logger.exception(f"Error mapping salary components for {company}: {e}")
+        frappe.log_error(
+            f"Error mapping salary components for {company}: {e}",
+            "Salary Component Mapping Error"
+        )
         return []
-
 

@@ -1258,7 +1258,10 @@ def setup_company(company: str) -> bool:
     create_non_bpjs_expense_accounts(company, defaults)
     create_bpjs_supplier(defaults)
     ensure_bpjs_account_mappings(doc=frappe.get_doc("Company", company))
+
+    # Make sure we pass defaults to the mapping function
     map_salary_component_to_gl(company, defaults)
+
     setup_default_salary_structure(skip_existing=True)
 
     logger.info(f"Completed setup for company {company}")
