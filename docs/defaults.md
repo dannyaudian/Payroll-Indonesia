@@ -6,7 +6,7 @@ The `payroll_indonesia/config/defaults.json` file seeds initial data and provide
 Metadata about the module. Values populate the fields `app_version`, `app_last_updated` and `app_updated_by` of **Payroll Indonesia Settings**.
 
 ## bpjs
-Default BPJS percentages and salary caps. Nested `gl_accounts` contains default account names. Values are written to the BPJS fields of **Payroll Indonesia Settings** and to JSON account mapping fields.
+Default BPJS percentages and salary caps. Nested `gl_accounts` contains default account names. Values are written to the BPJS fields of **Payroll Indonesia Settings** and to the BPJS account mapping table.
 
 ## tax
 General tax configuration such as `umr_default`, `biaya_jabatan_percent` and method flags. Populates matching fields on **Payroll Indonesia Settings**.
@@ -51,8 +51,7 @@ jkm_employer_debit_account
 jkm_employer_credit_account
 ```
 
-If you are upgrading from an older version that stored accounts in JSON fields,
-you can migrate them into `gl_account_mappings` by running:
+If you need to seed the table manually, you can populate `gl_account_mappings` by running:
 
 ```bash
 bench --site your_site.local execute payroll_indonesia.setup.settings_migration.migrate_cli

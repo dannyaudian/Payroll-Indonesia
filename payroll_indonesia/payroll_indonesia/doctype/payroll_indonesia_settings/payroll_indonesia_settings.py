@@ -497,14 +497,10 @@ class PayrollIndonesiaSettings(Document):
 
 @frappe.whitelist()
 def migrate_json_to_child_table() -> int:
-    """Migrate legacy GL account JSON fields to child table entries.
+    """Populate :pydata:`gl_account_mappings` from ``defaults.json`` if empty.
 
-    The function reads ``expense_accounts_json`` and ``payable_accounts_json``
-    from the single *Payroll Indonesia Settings* document and populates the
-    ``gl_account_mappings`` child table when it is empty. Each JSON object is
-    expected to map an ``account_key`` to an object containing at least an
-    ``account_name``.  Basic defaults are applied for ``account_type`` and
-    ``root_type`` based on the source field.
+    This helper is kept for backward compatibility and simply seeds the child
+    table using the values defined in the bundled configuration file.
 
     Returns:
         int: Number of rows inserted into the child table.
@@ -515,53 +511,17 @@ def migrate_json_to_child_table() -> int:
     if getattr(settings, "gl_account_mappings", []):
         return 0
 
-    field_map = [
-        ("expense_accounts_json", "expense_accounts", "Direct Expense", "Expense"),
-        ("payable_accounts_json", "payable_accounts", "Payable", "Liability"),
-    ]
+    from payroll_indonesia.config import config
+    from payroll_indonesia.config.gl_mapper_core import _seed_gl_account_mappings
 
-    created = 0
+    defaults = config.get_config()
 
-    for field, category, default_type, default_root in field_map:
-        raw = getattr(settings, field, None)
-        if not raw:
-            continue
+    before = len(getattr(settings, "gl_account_mappings", []))
+    _seed_gl_account_mappings(settings, defaults)
+    after = len(getattr(settings, "gl_account_mappings", []))
 
-        try:
-            accounts = json.loads(raw)
-        except Exception:
-            continue
-
-        for key, info in accounts.items():
-            if isinstance(info, dict):
-                account_name = info.get("account_name") or info.get("name")
-                account_type = info.get("account_type", default_type)
-                root_type = info.get("root_type", default_root)
-                is_group = cint(info.get("is_group", 0))
-            else:
-                account_name = str(info)
-                account_type = default_type
-                root_type = default_root
-                is_group = 0
-
-            if not account_name:
-                continue
-
-            settings.append(
-                "gl_account_mappings",
-                {
-                    "account_key": key,
-                    "category": category,
-                    "account_name": account_name,
-                    "account_type": account_type,
-                    "root_type": root_type,
-                    "is_group": is_group,
-                },
-            )
-            created += 1
-
-    if created:
+    if after > before:
         settings.save(ignore_permissions=True)
 
-    return created
+    return after - before
 
