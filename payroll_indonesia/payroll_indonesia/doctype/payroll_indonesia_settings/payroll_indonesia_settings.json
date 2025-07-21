@@ -354,12 +354,6 @@
       "reqd": 1
     },
     {
-      "fieldname": "attendance_based_on_timesheet",
-      "fieldtype": "Check",
-      "label": "Attendance Based on Timesheet",
-      "default": 0
-    },
-    {
       "fieldname": "column_break_defaults",
       "fieldtype": "Column Break"
     },

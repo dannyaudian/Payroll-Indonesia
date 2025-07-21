@@ -790,7 +790,6 @@
     },
     "defaults": {
         "currency": "IDR",
-        "attendance_based_on_timesheet": 0,
         "payroll_frequency": "Monthly",
         "salary_slip_based_on": "Leave Policy",
         "max_working_days_per_month": 22,
