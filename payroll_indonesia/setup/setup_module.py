@@ -288,6 +288,13 @@ def after_migrate():
     try:
         logger.info("========== RUNNING PAYROLL INDONESIA AFTER_MIGRATE ==========")
 
+        if not frappe.db.table_exists("Salary Component"):
+            logger.warning("Skipping after_migrate: Salary Component table missing")
+            return
+        if not frappe.db.table_exists("Account"):
+            logger.warning("Skipping after_migrate: Account table missing")
+            return
+
         # Core setup that must always run
         ensure_settings_doctype_exists()
 
