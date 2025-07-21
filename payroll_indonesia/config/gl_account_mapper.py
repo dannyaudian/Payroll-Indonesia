@@ -60,10 +60,10 @@ def map_gl_account(company: str, account_key: str, category: str) -> str:
 
                     if not frappe.db.exists("Account", formatted_account_name):
                         get_or_create_account(
-                            company,
-                            account_info["account_name"],
-                            account_info.get("account_type", "Expense Account"),
-                            account_info.get("root_type", "Expense"),
+                            company=company,
+                            account_name=account_info["account_name"],
+                            account_type=account_info.get("account_type", "Expense Account"),
+                            root_type=account_info.get("root_type", "Expense"),
                             is_group=account_info.get("is_group", 0),
                         )
 
@@ -123,7 +123,13 @@ def map_gl_account(company: str, account_key: str, category: str) -> str:
             elif root_type == "Asset":
                 default_parent = "Assets - " + company_abbr
 
-            get_or_create_account(company, account_name, account_type, root_type, default_parent)
+            get_or_create_account(
+                company=company,
+                account_name=account_name,
+                account_type=account_type,
+                root_type=root_type,
+                parent_account=default_parent,
+            )
 
         return formatted_account_name
 
@@ -214,7 +220,12 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
         else:
             base_name = f"{salary_component} Account"
 
-        return get_or_create_account(company, base_name, "Expense Account", "Expense")
+        return get_or_create_account(
+            company=company,
+            account_name=base_name,
+            account_type="Expense Account",
+            root_type="Expense",
+        )
 
     account_key, category = component_mapping[salary_component]
     return map_gl_account(company, account_key, category)
@@ -251,8 +262,8 @@ def map_salary_component_to_gl(company: str, gl_defaults: Optional[dict] | None 
             root_type = info.get("root_type", "Expense")
 
             full_name = get_or_create_account(
-                company,
-                account_base,
+                company=company,
+                account_name=account_base,
                 account_type=account_type,
                 root_type=root_type,
             )
