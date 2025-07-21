@@ -126,7 +126,6 @@ def safe_execute(default_value: Any = None, log_exception: bool = True) -> Calla
 
 
 @safe_execute(default_value=None)
-@safe_execute(default_value=None)
 def get_or_create_account(
     company: str,
     account_name: str,
