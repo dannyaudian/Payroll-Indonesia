@@ -3,12 +3,12 @@ import pytest
 
 pytest.importorskip("frappe")
 
-from payroll_indonesia.payroll_indonesia import utils
+from payroll_indonesia.config.gl_mapper_core import get_account_mapping_from_defaults
 
 
 class TestAccountMappingFromDefaults(unittest.TestCase):
     def test_bilingual_mapping(self):
-        mapping = utils.get_account_mapping_from_defaults()
+        mapping = get_account_mapping_from_defaults()
         self.assertEqual(mapping.get("Gaji Pokok"), "Beban Gaji Pokok")
         self.assertEqual(mapping.get("Basic Salary"), "Beban Gaji Pokok")
         self.assertEqual(mapping.get("Bonus"), "Beban Bonus")
@@ -16,6 +16,6 @@ class TestAccountMappingFromDefaults(unittest.TestCase):
         self.assertEqual(mapping.get("Meal Allowance"), "Beban Tunjangan Makan")
 
     def test_non_bilingual_option(self):
-        mapping = utils.get_account_mapping_from_defaults(bilingual=False)
+        mapping = get_account_mapping_from_defaults(bilingual=False)
         self.assertIn("Gaji Pokok", mapping)
         self.assertNotIn("Basic Salary", mapping)
