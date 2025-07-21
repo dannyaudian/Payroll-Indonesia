@@ -6,7 +6,6 @@
 import frappe
 import logging
 import re
-from frappe.exceptions import ValidationError
 from typing import Optional
 
 from payroll_indonesia.config.config import (
