@@ -33,6 +33,8 @@ from payroll_indonesia.utilities.install_flag import (
     mark_installation_complete,
 )
 
+from frappe.installer import update_site_config
+
 
 # Define exported functions
 __all__ = [
@@ -52,6 +54,26 @@ __all__ = [
     "setup_pph21_ter",
     "setup_income_tax_slab",
 ]
+
+
+AFTER_SYNC_FLAG_KEY = "payroll_indonesia_after_sync_completed"
+
+
+def is_after_sync_completed() -> bool:
+    """Check site config to see if after_sync has completed."""
+    try:
+        conf = frappe.get_site_config()
+        return bool(conf.get(AFTER_SYNC_FLAG_KEY))
+    except Exception:
+        return False
+
+
+def mark_after_sync_completed() -> None:
+    """Record in site config that after_sync has completed."""
+    try:
+        update_site_config(AFTER_SYNC_FLAG_KEY, 1)
+    except Exception:
+        pass
 
 
 def _run_full_install(config=None, skip_existing=False):
@@ -183,12 +205,13 @@ def after_sync():
     """Run installation routines after Frappe sync."""
     logger.info("Starting after_sync process for Payroll Indonesia")
 
-    if is_installation_complete():
-        logger.info("Installation flag detected, skipping full install")
+    if is_after_sync_completed():
+        logger.info("after_sync already completed, skipping")
         return
 
-    if hasattr(after_sync, "already_run") and after_sync.already_run:
-        logger.info("after_sync already ran in this session, skipping")
+    if is_installation_complete():
+        logger.info("Installation flag detected, skipping full install")
+        mark_after_sync_completed()
         return
 
     try:
@@ -197,8 +220,8 @@ def after_sync():
 
         logger.info("after_sync process completed successfully")
 
-        after_sync.already_run = True
         mark_installation_complete()
+        mark_after_sync_completed()
 
     except Exception as e:
         logger.error(f"Error during after_sync: {str(e)}", exc_info=True)
