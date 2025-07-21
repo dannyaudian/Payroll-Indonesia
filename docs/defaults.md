@@ -60,6 +60,10 @@ bench --site your_site.local execute payroll_indonesia.setup.settings_migration.
 
 The command reads `defaults.json` and populates the table when it is empty.
 
+BPJS account mappings defined in the legacy `bpjs_account_mapping_json` field are
+now migrated automatically to the **BPJS Account Mapping** DocType when running
+the module's `after_migrate` routine.
+
 ### Expense accounts
 
 The `expense_accounts` object defines GL accounts for common salary components:
