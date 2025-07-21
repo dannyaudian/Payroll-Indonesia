@@ -1,2 +1,0 @@
-
-payroll_indonesia.patches.expense_account_prefix_setting
