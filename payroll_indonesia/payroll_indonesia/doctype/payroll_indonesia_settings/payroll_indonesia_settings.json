@@ -256,12 +256,6 @@
       "reqd": 1
     },
     {
-      "fieldname": "ter_rates_section",
-      "fieldtype": "Section Break",
-      "label": "TER Rates",
-      "collapsible": 1
-    },
-    {
       "fieldname": "ter_metadata_section",
       "fieldtype": "Section Break",
       "label": "TER Metadata",
