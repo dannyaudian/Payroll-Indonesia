@@ -190,6 +190,14 @@ def after_install():
         logger.info("Installation flag detected, skipping full install")
         return
 
+    # Ensure required tables exist before running setup
+    if not frappe.db.table_exists("Salary Component"):
+        logger.warning("Skipping after_install: Salary Component table missing")
+        return
+    if not frappe.db.table_exists("Account"):
+        logger.warning("Skipping after_install: Account table missing")
+        return
+
     try:
         _run_full_install(skip_existing=True)
         mark_installation_complete()
@@ -212,6 +220,14 @@ def after_sync():
     if is_installation_complete():
         logger.info("Installation flag detected, skipping full install")
         mark_after_sync_completed()
+        return
+
+    # Ensure required tables exist before running setup
+    if not frappe.db.table_exists("Salary Component"):
+        logger.warning("Skipping after_sync: Salary Component table missing")
+        return
+    if not frappe.db.table_exists("Account"):
+        logger.warning("Skipping after_sync: Account table missing")
         return
 
     try:
