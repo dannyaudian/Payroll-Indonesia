@@ -169,6 +169,14 @@ helpers that resolve the correct BPJS account field and apply account mappings t
 Salary Components. Other modules import these helpers to keep GL logic
 centralized.
 
+## 🔗 Relink Salary Accounts
+
+Reapply default GL accounts to core salary components:
+
+```bash
+bench --site your_site.local execute payroll_indonesia.setup.relink_accounts_cli
+```
+
 ## 🧑‍💻 Contributing
 
 For instructions on setting up Frappe/ERPNext so that `pytest` can run locally, see
