@@ -189,6 +189,9 @@ def after_install():
     """
     logger.info("Starting Payroll Indonesia after_install process")
 
+    if getattr(frappe.flags, "_payroll_initialized", False):
+        return
+
     if is_installation_complete():
         logger.info("Installation flag detected, skipping full install")
         return
@@ -203,6 +206,7 @@ def after_install():
 
     try:
         _run_full_install(skip_existing=True)
+        frappe.flags._payroll_initialized = True
         mark_installation_complete()
     except Exception as e:
         logger.error(f"Error during installation: {str(e)}", exc_info=True)
@@ -215,6 +219,9 @@ def after_install():
 def after_sync():
     """Run installation routines after Frappe sync."""
     logger.info("Starting after_sync process for Payroll Indonesia")
+
+    if getattr(frappe.flags, "_payroll_initialized", False):
+        return
 
     if is_after_sync_completed():
         logger.info("after_sync already completed, skipping")
@@ -237,6 +244,7 @@ def after_sync():
         # Run full installation but skip existing records so it's idempotent
         _run_full_install(skip_existing=True)
 
+        frappe.flags._payroll_initialized = True
         logger.info("after_sync process completed successfully")
 
         mark_installation_complete()
