@@ -15,6 +15,10 @@ from frappe.utils import now_datetime
 from payroll_indonesia.config.config import doctype_defined
 from payroll_indonesia.setup.settings_migration import migrate_all_settings, _load_defaults
 from payroll_indonesia.frappe_helpers import get_logger
+from payroll_indonesia.utilities.install_flag import (
+    is_installation_complete,
+    mark_installation_complete,
+)
 
 logger = get_logger("setup")
 
@@ -287,9 +291,14 @@ def after_migrate():
         # Core setup that must always run
         ensure_settings_doctype_exists()
 
+        if is_installation_complete():
+            logger.info("Installation flag detected, skipping full install")
+            return
+
         # Delegate to fixtures.setup for the main installation
         from payroll_indonesia.fixtures.setup import perform_essential_setup
         perform_essential_setup()
+        mark_installation_complete()
         logger.info("Post-migration setup completed successfully")
     except Exception as e:
         logger.error(f"Error in after_migrate: {str(e)}")
