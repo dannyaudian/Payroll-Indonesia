@@ -261,11 +261,11 @@ def setup_payroll_settings(transaction_open=False):
     Returns:
         bool: True if successful, False otherwise
     """
-    try:
-        if not frappe.db.table_exists("Payroll Indonesia Settings"):
-            logger.warning("Payroll Indonesia Settings table does not exist")
-            return False
+    if not frappe.db.table_exists("Payroll Indonesia Settings"):
+        logger.warning("Payroll Indonesia Settings table does not exist")
+        return False
 
+    try:
         # Ensure the settings document exists
         if not doctype_defined("Payroll Indonesia Settings"):
             logger.warning("Payroll Indonesia Settings doctype not found")
@@ -645,11 +645,11 @@ def setup_pph21_ter(defaults=None, transaction_open=False):
     Returns:
         bool: True if setup was successful, False otherwise
     """
-    try:
-        if not frappe.db.table_exists("Payroll Indonesia Settings"):
-            logger.warning("Payroll Indonesia Settings table does not exist")
-            return False
+    if not frappe.db.table_exists("Payroll Indonesia Settings"):
+        logger.warning("Payroll Indonesia Settings table does not exist")
+        return False
 
+    try:
         # Load defaults if not provided
         if defaults is None:
             from payroll_indonesia.setup.settings_migration import _load_defaults
@@ -981,11 +981,11 @@ def setup_default_salary_structure(*, skip_existing=False):
     Returns:
         bool: True if created or already exists, False otherwise
     """
-    try:
-        if not frappe.db.table_exists("Salary Structure"):
-            logger.warning("Salary Structure table does not exist")
-            return False
+    if not frappe.db.table_exists("Salary Structure"):
+        logger.warning("Salary Structure table does not exist")
+        return False
 
+    try:
         # First check if a default structure already exists using the standard names
         default_names = [
             "Default Salary Structure",
@@ -1055,11 +1055,11 @@ def setup_company_accounts(
         bool: ``True`` on success, ``False`` otherwise.
     """
 
-    try:
-        if not frappe.db.table_exists("Account"):
-            logger.warning("Account table does not exist")
-            return False
+    if not frappe.db.table_exists("Account"):
+        logger.warning("Account table does not exist")
+        return False
 
+    try:
         company_name = company or getattr(doc, "name", None)
         if not company_name:
             logger.warning("setup_company_accounts called without company name")
