@@ -53,19 +53,20 @@ def map_gl_account(company: str, account_key: str, category: str) -> str:
                         "account_name": mapping.account_name,
                         "account_type": mapping.account_type,
                         "root_type": mapping.root_type,
-                        "is_group": mapping.is_group
+                        "is_group": mapping.is_group,
                     }
-        company_abbr = frappe.get_cached_value("Company", company, "abbr")
+
+                    company_abbr = frappe.get_cached_value("Company", company, "abbr")
                     formatted_account_name = f"{account_info['account_name']} - {company_abbr}"
 
-        if not frappe.db.exists("Account", formatted_account_name):
+                    if not frappe.db.exists("Account", formatted_account_name):
                         get_or_create_account(
-                company,
+                            company,
                             account_info["account_name"],
                             account_info.get("account_type", "Expense Account"),
                             account_info.get("root_type", "Expense"),
-                            is_group=account_info.get("is_group", 0)
-            )
+                            is_group=account_info.get("is_group", 0),
+                        )
 
                     return formatted_account_name
 
