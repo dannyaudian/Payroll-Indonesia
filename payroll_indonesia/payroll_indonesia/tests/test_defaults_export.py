@@ -56,9 +56,6 @@ class TestWriteDefaults(unittest.TestCase):
             ter_rate_table=[
                 DummyRow(status_pajak="TER A", income_from=0, income_to=5400000, rate=0)
             ],
-            expense_accounts_json=json.dumps({"gaji": {"account_name": "Gaji"}}),
-            payable_accounts_json=json.dumps({"pph": {"account_name": "Hutang"}}),
-            parent_accounts_json=json.dumps({"root": {"account_name": "Payroll"}}),
             parent_account_candidates_expense="Expenses",
             parent_account_candidates_liability="Liabilities",
             expense_account_prefix="Beban",
@@ -77,8 +74,6 @@ class TestWriteDefaults(unittest.TestCase):
         self.assertEqual(data["bpjs"]["kesehatan_employee_percent"], 1.0)
         self.assertIn("tax", data)
         self.assertEqual(data["tax"]["umr_default"], 5000000.0)
-        self.assertIn("gl_accounts", data)
-        self.assertIn("gaji", data["gl_accounts"]["expense_accounts"])
         self.assertEqual(data["settings"]["expense_account_prefix"], "Beban")
 
 

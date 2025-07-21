@@ -30,7 +30,7 @@ Global payroll defaults like currency, working days and payroll frequency. Value
 Values used when creating the default salary structure and for related fields in **Payroll Indonesia Settings** (e.g. `basic_salary_percent`, `meal_allowance`).
 
 ## gl_accounts
-Chart of Accounts templates for payroll. Includes `root_account`, `expense_accounts`, `payable_accounts` and BPJS related accounts. Values are inserted into the **GL Account Mapping Entry** table on **Payroll Indonesia Settings** and also stored as JSON in the legacy fields `expense_accounts_json`, `payable_accounts_json`, `parent_accounts_json` and `bpjs_account_mapping_json`.
+Chart of Accounts templates for payroll. Includes `root_account`, `expense_accounts`, `payable_accounts` and BPJS related accounts. Values are inserted into the **GL Account Mapping Entry** table on **Payroll Indonesia Settings**. The `bpjs_account_mapping_json` field stores BPJS‑specific mappings for backward compatibility.
 Each mapping row contains `account_key`, `category`, `account_name`, `account_type`, `root_type` and an `is_group` flag.
 
 The `bpjs_account_mapping_json` object mirrors the **BPJS Account Mapping** DocType. It stores the GL account fields used when creating the default mapping for each company. Current field names include:
@@ -51,15 +51,14 @@ jkm_employer_debit_account
 jkm_employer_credit_account
 ```
 
-Existing setups that still use the JSON fields can migrate the values to
-`gl_account_mappings` by running:
+If you are upgrading from an older version that stored accounts in JSON fields,
+you can migrate them into `gl_account_mappings` by running:
 
 ```bash
 bench --site your_site.local execute payroll_indonesia.setup.settings_migration.migrate_cli
 ```
 
-The command reads `defaults.json` and populates the table along with the legacy
-fields when they are empty.
+The command reads `defaults.json` and populates the table when it is empty.
 
 ### Expense accounts
 

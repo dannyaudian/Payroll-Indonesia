@@ -604,19 +604,6 @@ def write_json_file_if_enabled(doc) -> bool:
     if tax_effect_mappings:
         export_data["component_tax_effects"] = tax_effect_mappings
 
-    # --- GL accounts ---
-    gl_accounts: Dict[str, Any] = {}
-    try:
-        if getattr(doc, "expense_accounts_json", None):
-            gl_accounts["expense_accounts"] = json.loads(doc.expense_accounts_json)
-        if getattr(doc, "payable_accounts_json", None):
-            gl_accounts["payable_accounts"] = json.loads(doc.payable_accounts_json)
-        if getattr(doc, "parent_accounts_json", None):
-            gl_accounts["parent_accounts"] = json.loads(doc.parent_accounts_json)
-    except Exception:
-        logger.warning("Invalid GL account JSON in settings")
-    if gl_accounts:
-        export_data["gl_accounts"] = gl_accounts
 
     # --- other settings section ---
     export_data["settings"] = {
