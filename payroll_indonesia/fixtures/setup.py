@@ -28,6 +28,10 @@ from payroll_indonesia.config.gl_account_mapper import (
 from payroll_indonesia.setup.settings_migration import migrate_all_settings, _load_defaults
 from payroll_indonesia.setup.bpjs import ensure_bpjs_account_mappings
 from payroll_indonesia.payroll_indonesia.utils import get_or_create_account, find_parent_account
+from payroll_indonesia.utilities.install_flag import (
+    is_installation_complete,
+    mark_installation_complete,
+)
 
 
 # Define exported functions
@@ -147,8 +151,13 @@ def after_install():
     """
     logger.info("Starting Payroll Indonesia after_install process")
 
+    if is_installation_complete():
+        logger.info("Installation flag detected, skipping full install")
+        return
+
     try:
         _run_full_install(skip_existing=True)
+        mark_installation_complete()
     except Exception as e:
         logger.error(f"Error during installation: {str(e)}", exc_info=True)
         frappe.log_error(
@@ -161,6 +170,10 @@ def after_sync():
     """Run installation routines after Frappe sync."""
     logger.info("Starting after_sync process for Payroll Indonesia")
 
+    if is_installation_complete():
+        logger.info("Installation flag detected, skipping full install")
+        return
+
     if hasattr(after_sync, "already_run") and after_sync.already_run:
         logger.info("after_sync already ran in this session, skipping")
         return
@@ -172,6 +185,7 @@ def after_sync():
         logger.info("after_sync process completed successfully")
 
         after_sync.already_run = True
+        mark_installation_complete()
 
     except Exception as e:
         logger.error(f"Error during after_sync: {str(e)}", exc_info=True)
