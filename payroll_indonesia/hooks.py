@@ -55,7 +55,7 @@ doc_events = {
         "on_cancel": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.on_cancel",
     },
     "Company": {
-        "after_insert": "payroll_indonesia.fixtures.setup.setup_company",
+        # on_update is triggered on both insert and update events
         "on_update": "payroll_indonesia.fixtures.setup.setup_company",
     },
     "Payment Entry": {
