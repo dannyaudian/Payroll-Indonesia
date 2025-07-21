@@ -77,7 +77,7 @@ setup.after_install()
 ```
 
 5. **📥 Migrate GL Account Mappings:** Populate the new `gl_account_mappings` table
-   from the JSON fields:
+   using the bundled defaults:
 
 ```bash
 bench --site your_site.local execute payroll_indonesia.setup.settings_migration.migrate_cli
