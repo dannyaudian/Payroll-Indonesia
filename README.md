@@ -76,7 +76,14 @@ from payroll_indonesia.fixtures import setup
 setup.after_install()
 ```
 
-5. Salary Slips now include a `calculate_indonesia_tax` checkbox (default enabled).
+5. **📥 Migrate GL Account Mappings:** Populate the new `gl_account_mappings` table
+   from the JSON fields:
+
+```bash
+bench --site your_site.local execute payroll_indonesia.setup.settings_migration.migrate_cli
+```
+
+6. Salary Slips now include a `calculate_indonesia_tax` checkbox (default enabled).
    When upgrading, slips generated from a Payroll Entry with this flag checked
    will still calculate Indonesian tax even if the custom field has not been
    created yet.
