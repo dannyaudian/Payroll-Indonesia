@@ -308,13 +308,23 @@ def map_salary_component_to_gl(company: str, gl_defaults: Optional[dict] | None 
         mapped: list[str] = []
         for comp in components:
             account_base = mapping.get(comp)
+            info = None
             if not account_base:
-                continue
+                slug = re.sub(r"[^a-z0-9]+", "_", comp.lower()).strip("_")
+                info = expense_defs.get(slug)
+                if info:
+                    account_base = info.get("account_name")
+                if not account_base:
+                    warn = f"No expense account mapping found for salary component '{comp}'"
+                    logger.warning(warn)
+                    frappe.log_error(warn, "Salary Component GL Mapping")
+                    continue
+            else:
+                key = re.sub(r"[^a-z0-9]+", "_", account_base.lower()).strip("_")
+                info = expense_defs.get(key, {})
 
-            key = re.sub(r"[^a-z0-9]+", "_", account_base.lower()).strip("_")
-            info = expense_defs.get(key, {})
-            account_type = info.get("account_type", "Expense Account")
-            root_type = info.get("root_type", "Expense")
+            account_type = info.get("account_type", "Expense Account") if info else "Expense Account"
+            root_type = info.get("root_type", "Expense") if info else "Expense"
 
             full_name = get_or_create_account(
                 company,

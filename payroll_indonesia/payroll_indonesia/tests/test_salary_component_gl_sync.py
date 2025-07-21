@@ -58,3 +58,31 @@ class TestSalaryComponentGLSync(unittest.TestCase):
             filters={"parent": component, "company": self.company},
         )
         self.assertEqual(len(before), len(after))
+
+    def test_unmapped_component_logs_warning(self, monkeypatch):
+        component = "Komisi Spesial"
+        self.ensure_component(component)
+
+        import types
+        import payroll_indonesia.config.gl_account_mapper as mapper
+
+        logs = []
+        monkeypatch.setattr(
+            mapper,
+            "logger",
+            types.SimpleNamespace(
+                info=lambda *a, **k: None,
+                warning=lambda msg: logs.append(msg),
+                debug=lambda *a, **k: None,
+                exception=lambda *a, **k: None,
+            ),
+        )
+        errors = []
+        monkeypatch.setattr(mapper.frappe, "log_error", lambda msg, title=None: errors.append(msg))
+
+        defaults = get_default_config()
+        mapped = map_salary_component_to_gl(self.company, defaults)
+
+        self.assertNotIn(component, mapped)
+        self.assertTrue(logs)
+        self.assertTrue(errors)
