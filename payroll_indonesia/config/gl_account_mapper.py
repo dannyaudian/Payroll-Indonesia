@@ -274,3 +274,63 @@ def get_gl_account_for_salary_component(company: str, salary_component: str) -> 
     return map_gl_account(company, account_key, category)
 
 
+def map_salary_component_to_gl(company: str, gl_defaults: Optional[dict] | None = None) -> list[str]:
+    """Synchronize Salary Component accounts from defaults.
+
+    For each active salary component, look up the corresponding expense account
+    name using :func:`gl_mapper_core.get_account_mapping_from_defaults`. The
+    account will be created if missing and a row will be inserted into the
+    component's **Accounts** child table for ``company`` when one does not
+    already exist.
+
+    Args:
+        company: Company to map accounts for.
+        gl_defaults: Optional ``defaults.json`` configuration. When omitted the
+            defaults will be loaded automatically.
+
+    Returns:
+        list[str]: Names of salary components that were mapped.
+    """
+
+    try:
+        if gl_defaults is None:
+            gl_defaults = get_default_config() or {}
+
+        expense_defs = gl_defaults.get("gl_accounts", {}).get("expense_accounts", {})
+        if not expense_defs:
+            return []
+
+        mapping = core_get_account_mapping()
+        if not mapping:
+            return []
+
+        components = frappe.get_all("Salary Component", filters={"disabled": 0}, pluck="name")
+        mapped: list[str] = []
+        for comp in components:
+            account_base = mapping.get(comp)
+            if not account_base:
+                continue
+
+            key = re.sub(r"[^a-z0-9]+", "_", account_base.lower()).strip("_")
+            info = expense_defs.get(key, {})
+            account_type = info.get("account_type", "Expense Account")
+            root_type = info.get("root_type", "Expense")
+
+            full_name = get_or_create_account(
+                company,
+                account_base,
+                account_type=account_type,
+                root_type=root_type,
+            )
+            if not full_name:
+                continue
+
+            _map_component_to_account(comp, company, full_name)
+            mapped.append(comp)
+
+        return mapped
+    except Exception as e:  # pragma: no cover - defensive
+        logger.exception(f"Error mapping salary components for {company}: {e}")
+        return []
+
+
