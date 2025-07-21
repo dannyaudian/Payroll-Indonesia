@@ -303,6 +303,12 @@
       "collapsible": 1
     },
     {
+      "fieldname": "gl_account_mappings",
+      "fieldtype": "Table",
+      "label": "GL Account Mappings",
+      "options": "GL Account Mapping Entry"
+    },
+    {
       "fieldname": "expense_accounts_json",
       "fieldtype": "Code",
       "label": "Expense Accounts (JSON)",

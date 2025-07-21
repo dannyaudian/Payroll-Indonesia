@@ -17,14 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 def _determine_bpjs_field_name(salary_component: str) -> str:
-    """Return the field name on **BPJS Account Mapping** for a component.
-
-    The helper normalizes ``salary_component`` to lowercase and searches for
-    keywords that identify each BPJS benefit (Kesehatan, JHT, JP, JKK, JKM). It
-    also checks whether the component represents an employer contribution. The
-    matching field name is returned so that the correct GL account can be looked
-    up. If the component cannot be mapped, an empty string is returned.
-    """
     component = salary_component.lower()
     if "kesehatan" in component:
         return (
@@ -44,14 +36,6 @@ def _determine_bpjs_field_name(salary_component: str) -> str:
 
 
 def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
-    """Return the GL account mapped to a BPJS component for a company.
-
-    The function relies on :func:`_determine_bpjs_field_name` to translate the
-    ``salary_component`` to a specific field in the **BPJS Account Mapping**
-    DocType. It then fetches that field for ``company`` using ``frappe.get_all``.
-    If no mapping or field is found, an empty string is returned to signal that
-    the component has no configured account.
-    """
     try:
         field_name = _determine_bpjs_field_name(salary_component)
         if not field_name or field_name not in BPJS_ACCOUNT_FIELDS:
@@ -69,14 +53,6 @@ def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
 
 
 def _map_component_to_account(component_name: str, company: str, account_name: str) -> None:
-    """Persist a default account on a salary component for ``company``.
-
-    The helper loads the ``Salary Component`` document and ensures that the
-    provided ``account_name`` is set either on the component's child table entry
-    for the given company or on its default fields. Any missing mapping rows are
-    created automatically. The document is then saved with permissions ignored to
-    allow updates during automated setup.
-    """
     try:
         component = frappe.get_doc("Salary Component", component_name)
 
@@ -108,11 +84,6 @@ def _map_component_to_account(component_name: str, company: str, account_name: s
 
 @lru_cache(maxsize=1)
 def get_account_mapping_from_defaults(bilingual: bool = True) -> Dict[str, str]:
-    """Return salary component to expense account mapping from ``defaults.json``.
-
-    If ``bilingual`` is ``True`` English component names are included as keys so
-    lookups work with either language.
-    """
     try:
         config = get_default_config()
         expense_defs = config.get("gl_accounts", {}).get("expense_accounts", {})
@@ -159,7 +130,6 @@ def get_account_mapping_from_defaults(bilingual: bool = True) -> Dict[str, str]:
 
 
 def _seed_gl_account_mappings(settings: "frappe.Document", defaults: Dict[str, Any]) -> bool:
-    """Populate GL account mapping fields from defaults.json."""
     try:
         changes_made = False
 
@@ -203,9 +173,62 @@ def _seed_gl_account_mappings(settings: "frappe.Document", defaults: Dict[str, A
                 setattr(settings, field, value)
                 changes_made = True
 
+        if hasattr(settings, "gl_account_mappings"):
+            if not settings.gl_account_mappings:
+                expense_accounts = gl_accounts.get("expense_accounts", {})
+                for key, info in expense_accounts.items():
+                    if isinstance(info, dict) and "account_name" in info:
+                        settings.append("gl_account_mappings", {
+                            "account_key": key,
+                            "category": "expense_accounts",
+                            "account_name": info.get("account_name"),
+                            "account_type": info.get("account_type", "Direct Expense"),
+                            "root_type": info.get("root_type", "Expense"),
+                            "is_group": info.get("is_group", 0)
+                        })
+                        changes_made = True
+
+                payable_accounts = gl_accounts.get("payable_accounts", {})
+                for key, info in payable_accounts.items():
+                    if isinstance(info, dict) and "account_name" in info:
+                        settings.append("gl_account_mappings", {
+                            "account_key": key,
+                            "category": "payable_accounts",
+                            "account_name": info.get("account_name"),
+                            "account_type": info.get("account_type", "Payable"),
+                            "root_type": info.get("root_type", "Liability"),
+                            "is_group": info.get("is_group", 0)
+                        })
+                        changes_made = True
+
+                bpjs_expense = gl_accounts.get("bpjs_expense_accounts", {})
+                for key, info in bpjs_expense.items():
+                    if isinstance(info, dict) and "account_name" in info:
+                        settings.append("gl_account_mappings", {
+                            "account_key": key,
+                            "category": "bpjs_expense_accounts",
+                            "account_name": info.get("account_name"),
+                            "account_type": info.get("account_type", "Direct Expense"),
+                            "root_type": info.get("root_type", "Expense"),
+                            "is_group": info.get("is_group", 0)
+                        })
+                        changes_made = True
+
+                bpjs_payable = gl_accounts.get("bpjs_payable_accounts", {})
+                for key, info in bpjs_payable.items():
+                    if isinstance(info, dict) and "account_name" in info:
+                        settings.append("gl_account_mappings", {
+                            "account_key": key,
+                            "category": "bpjs_payable_accounts",
+                            "account_name": info.get("account_name"),
+                            "account_type": info.get("account_type", "Payable"),
+                            "root_type": info.get("root_type", "Liability"),
+                            "is_group": info.get("is_group", 0)
+                        })
+                        changes_made = True
+
         return changes_made
 
     except Exception as e:
         logger.error(f"Error updating GL account mappings: {str(e)}")
         raise
-
