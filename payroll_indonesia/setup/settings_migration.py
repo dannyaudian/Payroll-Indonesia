@@ -504,7 +504,7 @@ def _update_general_settings(settings: "frappe.Document", defaults: Dict[str, An
                 ("basic_salary_percent", "basic_salary_percent", 75),
                 ("meal_allowance", "meal_allowance", 750000.0),
                 ("transport_allowance", "transport_allowance", 900000.0),
-                ("struktur_gaji_umr_default", "umr_default", 4900000.0),
+                ("umr_default", "umr_default", 4900000.0),
                 ("position_allowance_percent", "position_allowance_percent", 7.5),
                 ("hari_kerja_default", "hari_kerja_default", 22),
             ]

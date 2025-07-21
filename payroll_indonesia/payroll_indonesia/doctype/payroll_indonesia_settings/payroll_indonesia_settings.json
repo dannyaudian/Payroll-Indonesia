@@ -456,13 +456,6 @@
       "reqd": 1
     },
     {
-      "fieldname": "struktur_gaji_umr_default",
-      "fieldtype": "Currency",
-      "label": "Default UMR (Salary Structure)",
-      "default": 4900000.0,
-      "reqd": 1
-    },
-    {
       "fieldname": "tipe_karyawan_section",
       "fieldtype": "Section Break",
       "label": "Employee Types",
