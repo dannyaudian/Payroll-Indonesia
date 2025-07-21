@@ -55,11 +55,8 @@ doc_events = {
         "on_cancel": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.bpjs_payment_summary.on_cancel",
     },
     "Company": {
-        "after_insert": [
-            "payroll_indonesia.fixtures.setup.setup_company_accounts",
-            "payroll_indonesia.setup.bpjs.ensure_bpjs_account_mappings",
-        ],
-        "on_update": "payroll_indonesia.fixtures.setup.setup_company_accounts",
+        "after_insert": "payroll_indonesia.fixtures.setup.setup_company",
+        "on_update": "payroll_indonesia.fixtures.setup.setup_company",
     },
     "Payment Entry": {
         "on_submit": "payroll_indonesia.payroll_indonesia.doctype.bpjs_payment_summary.payment_hooks.on_payment_entry_submit",

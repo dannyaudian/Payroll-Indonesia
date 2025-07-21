@@ -53,6 +53,9 @@ __all__ = [
     "display_installation_summary",
     "setup_pph21_ter",
     "setup_income_tax_slab",
+    "setup_company",
+    "load_gl_defaults",
+    "create_bpjs_accounts",
 ]
 
 
@@ -1173,3 +1176,82 @@ def display_installation_summary(results, config):
 
     logger.info(summary)
     print(summary)
+
+
+def load_gl_defaults() -> dict:
+    """Load GL account defaults from ``defaults.json``."""
+    defaults = _load_defaults()
+    return defaults.get("gl_accounts", {}) if defaults else {}
+
+
+def create_bpjs_accounts(company: str, gl_defaults: dict) -> list[str]:
+    """Create BPJS payable and expense accounts for ``company``."""
+    if not frappe.db.table_exists("Account"):
+        logger.warning("Account table does not exist")
+        return []
+
+    from payroll_indonesia.payroll_indonesia.utils import (
+        get_or_create_account,
+        create_parent_liability_account,
+        create_parent_expense_account,
+    )
+
+    create_parent_liability_account(company)
+    create_parent_expense_account(company)
+
+    created: list[str] = []
+
+    for defs, is_expense in [
+        (gl_defaults.get("bpjs_expense_accounts", {}), True),
+        (gl_defaults.get("bpjs_payable_accounts", {}), False),
+    ]:
+        for info in defs.values():
+            name = info.get("account_name")
+            if not name:
+                continue
+            if frappe.db.exists("Account", {"account_name": name, "company": company}):
+                continue
+
+            account_type = info.get(
+                "account_type", "Expense Account" if is_expense else "Payable"
+            )
+            root_type = info.get("root_type", "Expense" if is_expense else "Liability")
+
+            acc = get_or_create_account(
+                company=company,
+                account_name=name,
+                account_type=account_type,
+                is_group=0,
+                root_type=root_type,
+            )
+            if acc:
+                created.append(acc)
+
+    logger.debug(f"Created BPJS accounts for {company}: {created}")
+    return created
+
+
+def setup_company(company: str) -> bool:
+    """Run essential setup steps for a new company."""
+
+    required = ["Account", "Salary Component", "Supplier", "Salary Structure"]
+    if not all(frappe.db.table_exists(dt) for dt in required):
+        logger.warning("Skipping setup_company: required tables missing")
+        return False
+
+    defaults = _load_defaults()
+    if not defaults:
+        logger.warning("Could not load defaults.json for company setup")
+        return False
+
+    gl_defaults = defaults.get("gl_accounts", {})
+
+    create_bpjs_accounts(company, gl_defaults)
+    create_non_bpjs_expense_accounts(company, defaults)
+    create_bpjs_supplier(defaults)
+    ensure_bpjs_account_mappings(doc=frappe.get_doc("Company", company))
+    map_salary_component_to_gl(company, defaults)
+    setup_default_salary_structure(skip_existing=True)
+
+    logger.info(f"Completed setup for company {company}")
+    return True
