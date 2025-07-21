@@ -19,6 +19,10 @@ from payroll_indonesia.utilities.install_flag import (
     is_installation_complete,
     mark_installation_complete,
 )
+from payroll_indonesia.setup.bpjs import (
+    ensure_bpjs_account_mappings,
+    migrate_bpjs_account_mapping_json,
+)
 
 logger = get_logger("setup")
 
@@ -121,6 +125,7 @@ def setup_accounts(config=None, specific_company=None, *, skip_existing=False):
         # Setup BPJS account mappings
         try:
             from payroll_indonesia.setup.bpjs import ensure_bpjs_account_mappings
+
             bpjs_created = ensure_bpjs_account_mappings()
             tax_results["bpjs_mappings"] = bpjs_created
             if bpjs_created:
@@ -297,6 +302,8 @@ def after_migrate():
 
         # Core setup that must always run
         ensure_settings_doctype_exists()
+        ensure_bpjs_account_mappings()
+        migrate_bpjs_account_mapping_json()
 
         if is_installation_complete():
             logger.info("Installation flag detected, skipping full install")
@@ -304,6 +311,7 @@ def after_migrate():
 
         # Delegate to fixtures.setup for the main installation
         from payroll_indonesia.fixtures.setup import perform_essential_setup
+
         perform_essential_setup()
         mark_installation_complete()
         logger.info("Post-migration setup completed successfully")
