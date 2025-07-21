@@ -50,8 +50,9 @@ bench --site your_site.local migrate
 
 2. **🔄 After Sync (Installation Tasks):** During `bench migrate` the app's
    `after_sync` hook runs installation routines such as creating default
-   accounts, suppliers, and salary structures. You can rerun this step
-   manually with:
+   accounts, suppliers, and salary structures. Use this for development or when
+   reinstalling the app. The routine sets a process flag to avoid running
+   twice if called repeatedly. You can rerun this step manually with:
 
 ```bash
 bench --site your_site.local execute payroll_indonesia.fixtures.setup.after_sync
