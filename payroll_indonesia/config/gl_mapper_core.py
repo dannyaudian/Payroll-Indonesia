@@ -41,6 +41,50 @@ def _get_bpjs_account_mapping(company: str, salary_component: str) -> str:
         if not field_name or field_name not in BPJS_ACCOUNT_FIELDS:
             return ""
 
+        field_to_key = {
+            "kesehatan_employee_account": ("bpjs_kesehatan_payable", "bpjs_payable_accounts"),
+            "jht_employee_account": ("bpjs_jht_payable", "bpjs_payable_accounts"),
+            "jp_employee_account": ("bpjs_jp_payable", "bpjs_payable_accounts"),
+            "kesehatan_employer_debit_account": (
+                "bpjs_kesehatan_employer_expense",
+                "bpjs_expense_accounts",
+            ),
+            "kesehatan_employer_credit_account": (
+                "bpjs_kesehatan_payable",
+                "bpjs_payable_accounts",
+            ),
+            "jht_employer_debit_account": (
+                "bpjs_jht_employer_expense",
+                "bpjs_expense_accounts",
+            ),
+            "jht_employer_credit_account": ("bpjs_jht_payable", "bpjs_payable_accounts"),
+            "jp_employer_debit_account": (
+                "bpjs_jp_employer_expense",
+                "bpjs_expense_accounts",
+            ),
+            "jp_employer_credit_account": ("bpjs_jp_payable", "bpjs_payable_accounts"),
+            "jkk_employer_debit_account": (
+                "bpjs_jkk_employer_expense",
+                "bpjs_expense_accounts",
+            ),
+            "jkk_employer_credit_account": ("bpjs_jkk_payable", "bpjs_payable_accounts"),
+            "jkm_employer_debit_account": (
+                "bpjs_jkm_employer_expense",
+                "bpjs_expense_accounts",
+            ),
+            "jkm_employer_credit_account": ("bpjs_jkm_payable", "bpjs_payable_accounts"),
+        }
+
+        account_key, category = field_to_key.get(field_name, (None, None))
+        if account_key and frappe.db.exists(
+            "Payroll Indonesia Settings", "Payroll Indonesia Settings"
+        ):
+            settings = frappe.get_cached_doc("Payroll Indonesia Settings")
+            for row in getattr(settings, "gl_account_mappings", []):
+                if row.account_key == account_key and row.category == category:
+                    company_abbr = frappe.get_cached_value("Company", company, "abbr")
+                    return f"{row.account_name} - {company_abbr}"
+
         mapping = frappe.get_all(
             "BPJS Account Mapping", filters={"company": company}, fields=[field_name]
         )
@@ -175,53 +219,65 @@ def _seed_gl_account_mappings(settings: "frappe.Document", defaults: Dict[str, A
                 expense_accounts = gl_accounts.get("expense_accounts", {})
                 for key, info in expense_accounts.items():
                     if isinstance(info, dict) and "account_name" in info:
-                        settings.append("gl_account_mappings", {
-                            "account_key": key,
-                            "category": "expense_accounts",
-                            "account_name": info.get("account_name"),
-                            "account_type": info.get("account_type", "Direct Expense"),
-                            "root_type": info.get("root_type", "Expense"),
-                            "is_group": info.get("is_group", 0)
-                        })
+                        settings.append(
+                            "gl_account_mappings",
+                            {
+                                "account_key": key,
+                                "category": "expense_accounts",
+                                "account_name": info.get("account_name"),
+                                "account_type": info.get("account_type", "Direct Expense"),
+                                "root_type": info.get("root_type", "Expense"),
+                                "is_group": info.get("is_group", 0),
+                            },
+                        )
                         changes_made = True
 
                 payable_accounts = gl_accounts.get("payable_accounts", {})
                 for key, info in payable_accounts.items():
                     if isinstance(info, dict) and "account_name" in info:
-                        settings.append("gl_account_mappings", {
-                            "account_key": key,
-                            "category": "payable_accounts",
-                            "account_name": info.get("account_name"),
-                            "account_type": info.get("account_type", "Payable"),
-                            "root_type": info.get("root_type", "Liability"),
-                            "is_group": info.get("is_group", 0)
-                        })
+                        settings.append(
+                            "gl_account_mappings",
+                            {
+                                "account_key": key,
+                                "category": "payable_accounts",
+                                "account_name": info.get("account_name"),
+                                "account_type": info.get("account_type", "Payable"),
+                                "root_type": info.get("root_type", "Liability"),
+                                "is_group": info.get("is_group", 0),
+                            },
+                        )
                         changes_made = True
 
                 bpjs_expense = gl_accounts.get("bpjs_expense_accounts", {})
                 for key, info in bpjs_expense.items():
                     if isinstance(info, dict) and "account_name" in info:
-                        settings.append("gl_account_mappings", {
-                            "account_key": key,
-                            "category": "bpjs_expense_accounts",
-                            "account_name": info.get("account_name"),
-                            "account_type": info.get("account_type", "Direct Expense"),
-                            "root_type": info.get("root_type", "Expense"),
-                            "is_group": info.get("is_group", 0)
-                        })
+                        settings.append(
+                            "gl_account_mappings",
+                            {
+                                "account_key": key,
+                                "category": "bpjs_expense_accounts",
+                                "account_name": info.get("account_name"),
+                                "account_type": info.get("account_type", "Direct Expense"),
+                                "root_type": info.get("root_type", "Expense"),
+                                "is_group": info.get("is_group", 0),
+                            },
+                        )
                         changes_made = True
 
                 bpjs_payable = gl_accounts.get("bpjs_payable_accounts", {})
                 for key, info in bpjs_payable.items():
                     if isinstance(info, dict) and "account_name" in info:
-                        settings.append("gl_account_mappings", {
-                            "account_key": key,
-                            "category": "bpjs_payable_accounts",
-                            "account_name": info.get("account_name"),
-                            "account_type": info.get("account_type", "Payable"),
-                            "root_type": info.get("root_type", "Liability"),
-                            "is_group": info.get("is_group", 0)
-                        })
+                        settings.append(
+                            "gl_account_mappings",
+                            {
+                                "account_key": key,
+                                "category": "bpjs_payable_accounts",
+                                "account_name": info.get("account_name"),
+                                "account_type": info.get("account_type", "Payable"),
+                                "root_type": info.get("root_type", "Liability"),
+                                "is_group": info.get("is_group", 0),
+                            },
+                        )
                         changes_made = True
 
         return changes_made
