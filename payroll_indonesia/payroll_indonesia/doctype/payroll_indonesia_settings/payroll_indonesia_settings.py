@@ -493,3 +493,75 @@ class PayrollIndonesiaSettings(Document):
         for row in self.tipe_karyawan:
             types.append(row.tipe_karyawan)
         return types
+
+
+@frappe.whitelist()
+def migrate_json_to_child_table() -> int:
+    """Migrate legacy GL account JSON fields to child table entries.
+
+    The function reads ``expense_accounts_json`` and ``payable_accounts_json``
+    from the single *Payroll Indonesia Settings* document and populates the
+    ``gl_account_mappings`` child table when it is empty. Each JSON object is
+    expected to map an ``account_key`` to an object containing at least an
+    ``account_name``.  Basic defaults are applied for ``account_type`` and
+    ``root_type`` based on the source field.
+
+    Returns:
+        int: Number of rows inserted into the child table.
+    """
+
+    settings = frappe.get_single("Payroll Indonesia Settings")
+
+    if getattr(settings, "gl_account_mappings", []):
+        return 0
+
+    field_map = [
+        ("expense_accounts_json", "expense_accounts", "Direct Expense", "Expense"),
+        ("payable_accounts_json", "payable_accounts", "Payable", "Liability"),
+    ]
+
+    created = 0
+
+    for field, category, default_type, default_root in field_map:
+        raw = getattr(settings, field, None)
+        if not raw:
+            continue
+
+        try:
+            accounts = json.loads(raw)
+        except Exception:
+            continue
+
+        for key, info in accounts.items():
+            if isinstance(info, dict):
+                account_name = info.get("account_name") or info.get("name")
+                account_type = info.get("account_type", default_type)
+                root_type = info.get("root_type", default_root)
+                is_group = cint(info.get("is_group", 0))
+            else:
+                account_name = str(info)
+                account_type = default_type
+                root_type = default_root
+                is_group = 0
+
+            if not account_name:
+                continue
+
+            settings.append(
+                "gl_account_mappings",
+                {
+                    "account_key": key,
+                    "category": category,
+                    "account_name": account_name,
+                    "account_type": account_type,
+                    "root_type": root_type,
+                    "is_group": is_group,
+                },
+            )
+            created += 1
+
+    if created:
+        settings.save(ignore_permissions=True)
+
+    return created
+

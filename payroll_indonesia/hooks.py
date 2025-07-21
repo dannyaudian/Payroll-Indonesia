@@ -31,6 +31,10 @@ doctype_list_js = {
     "BPJS Account Mapping": "payroll_indonesia/doctype/bpjs_account_mapping/bpjs_account_mapping_list.js",
 }
 
+doctype_js = {
+    "Payroll Indonesia Settings": "payroll_indonesia/doctype/payroll_indonesia_settings/payroll_indonesia_settings.js",
+}
+
 # ❹ Document Events - primary hooks for document lifecycle
 doc_events = {
     "Employee": {
