@@ -15,14 +15,15 @@ from payroll_indonesia.config.config import (
     get_component_tax_effect,
     get_live_config,
 )
-from payroll_indonesia.payroll_indonesia.utils import (
-    debug_log,
-    get_or_create_account,
-)
 from payroll_indonesia.config.gl_mapper_core import (
     _map_component_to_account as core_map_component_to_account,
     _determine_bpjs_field_name as core_determine_bpjs_field_name,
     _get_bpjs_account_mapping as core_get_bpjs_account_mapping,
+    get_account_mapping_from_defaults as core_get_account_mapping,
+)
+from payroll_indonesia.payroll_indonesia.utils import (
+    debug_log,
+    get_or_create_account,
 )
 
 # Setup logger
@@ -159,32 +160,13 @@ def map_gl_account(company: str, account_key: str, category: str) -> str:
 def get_expense_account_for_component(component_name: str) -> Optional[str]:
     """Return base expense account name for a given salary component.
 
-    Looks up ``defaults.json -> gl_accounts.expense_accounts`` using either the
-    Indonesian or English component name. Returns ``None`` if not found.
+    Uses :func:`gl_mapper_core.get_account_mapping_from_defaults` to look up the
+    component mapping in ``defaults.json``. Returns ``None`` if not found.
     """
-    mapping = {
-        "Gaji Pokok": "beban_gaji_pokok",
-        "Basic Salary": "beban_gaji_pokok",
-        "Bonus": "beban_bonus",
-        "Tunjangan Jabatan": "beban_tunjangan_jabatan",
-        "Position Allowance": "beban_tunjangan_jabatan",
-        "Fasilitas Kendaraan": "beban_fasilitas_kendaraan",
-        "Vehicle Allowance": "beban_fasilitas_kendaraan",
-    }
 
     try:
-        config = get_default_config()
-        expense_accounts = config.get("gl_accounts", {}).get("expense_accounts", {})
-
-        account_key = mapping.get(component_name)
-        if not account_key:
-            return None
-
-        account_info = expense_accounts.get(account_key)
-        if not account_info or "account_name" not in account_info:
-            return None
-
-        return account_info["account_name"]
+        mapping = core_get_account_mapping()
+        return mapping.get(component_name)
     except Exception as e:  # pragma: no cover - defensive
         logger.exception(f"Error getting expense account for {component_name}: {e}")
         return None

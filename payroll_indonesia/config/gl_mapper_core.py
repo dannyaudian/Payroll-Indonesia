@@ -8,6 +8,9 @@ import logging
 import frappe
 
 from payroll_indonesia.constants import BPJS_ACCOUNT_FIELDS
+from payroll_indonesia.config.config import get_config as get_default_config
+from functools import lru_cache
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -77,3 +80,55 @@ def _map_component_to_account(component_name: str, company: str, account_name: s
         component.save(ignore_permissions=True)
     except Exception as e:  # pragma: no cover - defensive
         logger.exception(f"Error mapping component {component_name} to account {account_name}: {e}")
+
+
+@lru_cache(maxsize=1)
+def get_account_mapping_from_defaults(bilingual: bool = True) -> Dict[str, str]:
+    """Return salary component to expense account mapping from ``defaults.json``.
+
+    If ``bilingual`` is ``True`` English component names are included as keys so
+    lookups work with either language.
+    """
+    try:
+        config = get_default_config()
+        expense_defs = config.get("gl_accounts", {}).get("expense_accounts", {})
+    except Exception as e:  # pragma: no cover - defensive
+        logger.exception(f"Error loading defaults for account mapping: {e}")
+        return {}
+
+    base_map = {
+        "Gaji Pokok": "beban_gaji_pokok",
+        "Tunjangan Makan": "beban_tunjangan_makan",
+        "Tunjangan Transport": "beban_tunjangan_transport",
+        "Insentif": "beban_insentif",
+        "Bonus": "beban_bonus",
+        "Tunjangan Jabatan": "beban_tunjangan_jabatan",
+        "Tunjangan Lembur": "beban_tunjangan_lembur",
+        "Uang Makan": "beban_natura",
+        "Fasilitas Kendaraan": "beban_fasilitas_kendaraan",
+    }
+
+    english_equiv = {
+        "Basic Salary": "Gaji Pokok",
+        "Meal Allowance": "Tunjangan Makan",
+        "Transport Allowance": "Tunjangan Transport",
+        "Incentive": "Insentif",
+        "Position Allowance": "Tunjangan Jabatan",
+        "Overtime Allowance": "Tunjangan Lembur",
+        "Meal Money": "Uang Makan",
+        "Vehicle Facility": "Fasilitas Kendaraan",
+    }
+
+    mapping: Dict[str, str] = {}
+    for indo_name, key in base_map.items():
+        info = expense_defs.get(key) or {}
+        account_name = info.get("account_name")
+        if not account_name:
+            continue
+        mapping[indo_name] = account_name
+        if bilingual:
+            for eng, indo in english_equiv.items():
+                if indo == indo_name:
+                    mapping[eng] = account_name
+
+    return mapping
