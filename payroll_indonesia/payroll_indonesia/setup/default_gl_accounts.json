@@ -1,0 +1,114 @@
+[
+  {
+    "account_name": "Salary Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "THR Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "Bonus Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "Transport Allowance",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "Meal Allowance",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "BPJS Kesehatan Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "BPJS JHT Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "BPJS JKK Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "BPJS JKM Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "BPJS JP Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "BPJS Kesehatan Payable",
+    "root_type": "Liability",
+    "account_type": "Payable",
+    "is_group": 0,
+    "category": "liability"
+  },
+  {
+    "account_name": "BPJS JHT Payable",
+    "root_type": "Liability",
+    "account_type": "Payable",
+    "is_group": 0,
+    "category": "liability"
+  },
+  {
+    "account_name": "BPJS JKK Payable",
+    "root_type": "Liability",
+    "account_type": "Payable",
+    "is_group": 0,
+    "category": "liability"
+  },
+  {
+    "account_name": "BPJS JKM Payable",
+    "root_type": "Liability",
+    "account_type": "Payable",
+    "is_group": 0,
+    "category": "liability"
+  },
+  {
+    "account_name": "BPJS JP Payable",
+    "root_type": "Liability",
+    "account_type": "Payable",
+    "is_group": 0,
+    "category": "liability"
+  },
+  {
+    "account_name": "PPh 21 Payable",
+    "root_type": "Liability",
+    "account_type": "Tax",
+    "is_group": 0,
+    "category": "liability"
+  }
+]

@@ -1,35 +1,32 @@
-# -*- coding: utf-8 -*-
-# Last modified: 2025-05-11 11:41:35 by dannyaudian
-# Source URL: https://github.com/dannyaudian/Payroll-Indonesia/blob/main/pyproject.toml
-
 [build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
 
 [project]
 name = "payroll_indonesia"
-version = "0.0.1"
-description = "Payroll module for Indonesian companies with local regulatory features"
-authors = [
-    {name = "PT. Innovasi Terbaik Bangsa", email = "danny.a.pratama@cao-group.co.id"}
-]
+authors = [{name = "IMOGI", email = "hello@imogi.tech"}]
+description = "Payroll Indonesia - Modul Perhitungan BPJS & PPh 21 untuk ERPNext Indonesia"
 requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+dependencies = [
+    "frappe>=15.0.0",
+    "erpnext>=15.0.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "pre-commit"
+]
 
 [tool.black]
-line-length = 100
-target-version = ['py38']
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-  | migrations
-)/
-'''
+line-length = 99
+
+[tool.isort]
+profile = "black"
+line_length = 99
+
+[tool.pytest.ini_options]
+testpaths = ["payroll_indonesia"]
