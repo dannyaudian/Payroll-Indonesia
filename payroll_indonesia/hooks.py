@@ -207,6 +207,6 @@ after_sync = "payroll_indonesia.setup.setup_module.after_sync"
 # --------
 # Fixtures are data that should be auto-imported when the app is installed
 fixtures = [
-    {"dt": "Salary Component", "filters": [["name", "in", ["BPJS Kesehatan", "BPJS Ketenagakerjaan", "PPh 21"]]]},
-    "Salary Structure"
+    "Custom Field",
+    "Salary Component"
 ]

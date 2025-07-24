@@ -1,0 +1,149 @@
+[
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Basic Salary",
+    "company": "",
+    "account": "Salary Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Gaji Pokok",
+    "company": "",
+    "account": "Salary Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Tunjangan Transport",
+    "company": "",
+    "account": "Transport Allowance",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Tunjangan Makan",
+    "company": "",
+    "account": "Meal Allowance",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "THR",
+    "company": "",
+    "account": "THR Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Bonus",
+    "company": "",
+    "account": "Bonus Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Makan di Kantor",
+    "company": "",
+    "account": "Office Meals Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Seragam Kerja",
+    "company": "",
+    "account": "Work Uniform Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Bingkisan Hari Raya",
+    "company": "",
+    "account": "Holiday Gift Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Asuransi Tambahan",
+    "company": "",
+    "account": "Additional Insurance Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Kendaraan Dinas",
+    "company": "",
+    "account": "Company Vehicle Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "BPJS Kesehatan Karyawan",
+    "company": "",
+    "account": "BPJS Kesehatan Payable",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "BPJS JHT Karyawan",
+    "company": "",
+    "account": "BPJS JHT Payable",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "BPJS JP Karyawan",
+    "company": "",
+    "account": "BPJS JP Payable",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "BPJS Kesehatan Perusahaan",
+    "company": "",
+    "account": "BPJS Kesehatan Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "BPJS JHT Perusahaan",
+    "company": "",
+    "account": "BPJS JHT Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "BPJS JP Perusahaan",
+    "company": "",
+    "account": "BPJS JP Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "BPJS JKK Perusahaan",
+    "company": "",
+    "account": "BPJS JKK Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "BPJS JKM Perusahaan",
+    "company": "",
+    "account": "BPJS JKM Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "PPh 21",
+    "company": "",
+    "account": "PPh 21 Payable",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Biaya Jabatan",
+    "company": "",
+    "account": "Salary Expense",
+    "default_account": 1
+  }
+]

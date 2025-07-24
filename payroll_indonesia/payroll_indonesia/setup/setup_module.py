@@ -3,6 +3,7 @@ import os
 from typing import List, Optional
 
 import frappe
+from payroll_indonesia.setup.gl_account_mapper import assign_gl_accounts_to_salary_components
 
 
 def get_parent_account(possible_names: List[str], company_abbr: str) -> Optional[str]:
@@ -140,7 +141,7 @@ def create_default_accounts(company_name: str, company_abbr: str) -> None:
 def after_sync() -> None:
     """
     Setup function that runs after app sync.
-    Creates default GL accounts for all companies.
+    Creates default GL accounts for all companies and maps them to salary components.
     """
     try:
         # Get all companies
@@ -149,8 +150,18 @@ def after_sync() -> None:
         # Create default accounts for each company
         for company in companies:
             create_default_accounts(company.name, company.abbr)
+            
+            # Map GL accounts to salary components
+            try:
+                assign_gl_accounts_to_salary_components(company.name, company.abbr)
+                frappe.logger().info(f"Mapped salary components to GL accounts for company: {company.name}")
+            except Exception as e:
+                frappe.log_error(
+                    f"Error mapping salary components to GL accounts for company {company.name}: {str(e)}",
+                    "Payroll Indonesia Setup"
+                )
         
-        frappe.msgprint("Payroll Indonesia: Default GL accounts setup completed")
+        frappe.msgprint("Payroll Indonesia: Default GL accounts setup and mapping completed")
     
     except Exception as e:
         frappe.log_error(

@@ -35,6 +35,41 @@
     "category": "expense"
   },
   {
+    "account_name": "Office Meals Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "Work Uniform Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "Holiday Gift Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "Additional Insurance Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "Company Vehicle Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
     "account_name": "BPJS Kesehatan Expense",
     "root_type": "Expense",
     "account_type": "Expense Account",
@@ -108,6 +143,13 @@
     "account_name": "PPh 21 Payable",
     "root_type": "Liability",
     "account_type": "Tax",
+    "is_group": 0,
+    "category": "liability"
+  },
+  {
+    "account_name": "Employee Salary Payable",
+    "root_type": "Liability",
+    "account_type": "Payable",
     "is_group": 0,
     "category": "liability"
   }
