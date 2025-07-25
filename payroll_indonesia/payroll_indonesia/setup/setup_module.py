@@ -3,8 +3,8 @@ import os
 from typing import List, Optional
 
 import frappe
-from payroll_indonesia.setup.gl_account_mapper import assign_gl_accounts_to_salary_components
-from payroll_indonesia.setup.settings_migration import setup_default_settings
+from payroll_indonesia.payroll_indonesia.setup.gl_account_mapper import assign_gl_accounts_to_salary_components
+from payroll_indonesia.payroll_indonesia.setup.settings_migration import setup_default_settings
 
 def get_parent_account(possible_names: List[str], company_abbr: str) -> Optional[str]:
     """
