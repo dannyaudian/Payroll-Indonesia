@@ -29,9 +29,20 @@ def create_default_accounts(company_name: str, company_abbr: str) -> None:
         gl_accounts = json.load(f)
 
     parent_account_options = {
-        "expense": ["Direct Expenses", "Pengeluaran Langsung", "Expenses", "Biaya"],
-        "liability": ["Payables", "Utang Usaha", "Current Liabilities", "Kewajiban Lancar"],
-        "tax": ["Duties and Taxes", "Utang Pajak"]
+        "expense": [
+            "Direct Expenses",
+            "Pengeluaran Langsung",
+            "Expenses",
+            "Biaya",
+        ],
+        "liability": [
+            "Payables",
+            "Utang Usaha",
+            "Current Liabilities",
+            "Kewajiban Lancar",
+            "Liabilities",
+        ],
+        "tax": ["Duties and Taxes", "Utang Pajak"],
     }
 
     for account in gl_accounts:
@@ -56,7 +67,6 @@ def create_default_accounts(company_name: str, company_abbr: str) -> None:
                     "company": company_name,
                     "root_type": "Expense",
                     "is_group": 1,
-                    "account_type": "Expense Account"
                 },
                 fields=["name"]
             )
@@ -71,7 +81,6 @@ def create_default_accounts(company_name: str, company_abbr: str) -> None:
                     "company": company_name,
                     "root_type": "Liability",
                     "is_group": 1,
-                    "account_type": "Payable"
                 },
                 fields=["name"]
             )
@@ -81,11 +90,12 @@ def create_default_accounts(company_name: str, company_abbr: str) -> None:
                 parent_account = get_parent_account(parent_account_options["liability"], company_abbr)
 
         if not parent_account:
-            frappe.log_error(
-                f"Cannot create account {account_name_with_abbr}: No suitable parent account found",
-                "Payroll Indonesia Setup"
+            message = (
+                f"Cannot create account {account_name_with_abbr}: "
+                "No suitable parent account found"
             )
-            continue
+            frappe.log_error(message, "Payroll Indonesia Setup")
+            raise frappe.ValidationError(message)
 
         try:
             new_account = frappe.get_doc({
