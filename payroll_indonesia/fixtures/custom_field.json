@@ -1,6 +1,7 @@
 [
   {
     "doctype": "Custom Field",
+    "name": "Employee-tax_section",
     "dt": "Employee",
     "fieldname": "tax_section",
     "label": "Informasi Perpajakan",
@@ -19,6 +20,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Employee-tax_status",
     "dt": "Employee",
     "fieldname": "tax_status",
     "label": "Status Pajak",
@@ -36,6 +38,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Employee-id_section",
     "dt": "Employee",
     "fieldname": "id_section",
     "label": "Dokumen Identitas",
@@ -54,6 +57,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Employee-ktp_no",
     "dt": "Employee",
     "fieldname": "ktp_no",
     "label": "Nomor KTP",
@@ -73,6 +77,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Employee-npwp_no",
     "dt": "Employee",
     "fieldname": "npwp_no",
     "label": "Nomor NPWP",
@@ -91,6 +96,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Employee-column_break_id",
     "dt": "Employee",
     "fieldname": "column_break_id",
     "label": "",
@@ -108,6 +114,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Employee-ktp_attachment",
     "dt": "Employee",
     "fieldname": "ktp_attachment",
     "label": "Dokumen KTP",
@@ -125,6 +132,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Employee-npwp_attachment",
     "dt": "Employee",
     "fieldname": "npwp_attachment",
     "label": "Dokumen NPWP",
@@ -142,6 +150,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Salary Slip-run_payroll_indonesia",
     "dt": "Salary Slip",
     "fieldname": "run_payroll_indonesia",
     "label": "Run Payroll Indonesia",
@@ -160,6 +169,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Salary Slip-run_payroll_indonesia_december",
     "dt": "Salary Slip",
     "fieldname": "run_payroll_indonesia_december",
     "label": "Run Payroll Indonesia December",
