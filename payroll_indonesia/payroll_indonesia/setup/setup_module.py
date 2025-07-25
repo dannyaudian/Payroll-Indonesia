@@ -1,8 +1,9 @@
-import os
 import json
+import os
 import traceback
 
 import frappe
+
 from payroll_indonesia.payroll_indonesia.setup.gl_account_mapper import (
     assign_gl_accounts_to_salary_components,
 )
@@ -15,6 +16,7 @@ def resolve_template_fields(data: dict, company: str, abbr: str) -> dict:
     """
     Replace {{company}} and {{company_abbr}} in all string fields of a dict.
     """
+
     def render_val(val):
         if isinstance(val, str):
             val = val.replace("{{company}}", company).replace("{{company_abbr}}", abbr)
@@ -24,51 +26,38 @@ def resolve_template_fields(data: dict, company: str, abbr: str) -> dict:
 
 
 def create_account_if_not_exists(account_data: dict) -> None:
-    """
-    Create an Account if it does not exist. Idempotent logic.
-    """
+    """Create account if missing and log outcome."""
     company = account_data["company"]
     account_name = account_data["account_name"]
+
+    frappe.logger().info(f"Attempting to create account {account_name} for {company}")
+
+    existing = frappe.db.exists("Account", {"account_name": account_name, "company": company})
+    if existing:
+        frappe.logger().info(f"Account {account_name} already exists for {company}. Skipping.")
+        return
+
     parent_account = account_data.get("parent_account")
-    root_type = account_data.get("root_type")
-    account_type = account_data.get("account_type", "")
-    is_group = account_data.get("is_group", 0)
-    report_type = account_data.get("report_type", "Profit and Loss")
-
-    account_doc_name = f"{account_name} - {account_data['company_abbr']}" if "company_abbr" in account_data else account_name
-
-    # Check existence by name and company (ERPNext convention: account_name - abbr)
-    if frappe.db.exists("Account", account_doc_name):
-        frappe.logger().info(f"Account {account_doc_name} already exists for {company}. Skipping.")
-        return
-
-    # Defensive: parent must exist unless root
     if parent_account and not frappe.db.exists("Account", parent_account):
-        frappe.logger().error(
-            f"Parent account {parent_account} missing for child {account_name} in company {company}. Skipping."
+        frappe.logger().warning(
+            f"Parent account {parent_account} missing when creating {account_name} for {company}."
         )
         return
 
-    try:
-        doc = frappe.get_doc(
-            {
-                "doctype": "Account",
-                "account_name": account_name,
-                "parent_account": parent_account,
-                "company": company,
-                "root_type": root_type,
-                "account_type": account_type,
-                "is_group": is_group,
-                "report_type": report_type,
-            }
-        )
-        doc.insert(ignore_permissions=True)
-        frappe.db.commit()
-        frappe.logger().info(f"Created account {account_doc_name} for {company}")
-    except Exception as e:
-        frappe.logger().error(
-            f"Error creating account {account_doc_name} for {company}: {str(e)}\n{traceback.format_exc()}"
-        )
+    doc = frappe.get_doc(
+        {
+            "doctype": "Account",
+            "account_name": account_name,
+            "parent_account": parent_account,
+            "company": company,
+            "root_type": account_data.get("root_type"),
+            "account_type": account_data.get("account_type", ""),
+            "is_group": account_data.get("is_group", 0),
+            "report_type": account_data.get("report_type", "Profit and Loss"),
+        }
+    )
+    doc.insert(ignore_permissions=True)
+    frappe.logger().info(f"Created account {doc.name} for {company}")
 
 
 def get_active_companies():
@@ -77,15 +66,10 @@ def get_active_companies():
 
 
 def setup_accounts_from_json():
-    """
-    Load and create GL accounts from JSON, rendering template fields for each company.
-    """
-    json_path = os.path.join(
-        frappe.get_app_path("payroll_indonesia"),
-        "payroll_indonesia",
-        "data",
-        "default_gl_accounts.json",
-    )
+    """Create GL accounts for all companies from template JSON."""
+    json_path = os.path.join(os.path.dirname(__file__), "..", "default_gl_accounts.json")
+    json_path = os.path.abspath(json_path)
+
     if not os.path.exists(json_path):
         frappe.logger().error(f"GL Accounts file not found: {json_path}")
         return
@@ -99,13 +83,27 @@ def setup_accounts_from_json():
         )
         return
 
+    if not isinstance(gl_accounts, list):
+        frappe.logger().error("default_gl_accounts.json must contain a list of records")
+        return
+
+    # Ensure parent accounts first
+    gl_accounts.sort(key=lambda x: 0 if x.get("is_group") else 1)
+
     companies = get_active_companies()
+
     for company in companies:
         company_name = company["name"]
         company_abbr = company["abbr"]
+        frappe.logger().info(f"Setting up GL Accounts for {company_name}")
         for acc in gl_accounts:
             rendered = resolve_template_fields(acc, company_name, company_abbr)
-            # Add abbr to account_data for naming logic
+
+            required = ["company", "account_name", "parent_account", "root_type"]
+            if not all(rendered.get(r) for r in required):
+                frappe.logger().warning(f"Incomplete account definition skipped: {acc}")
+                continue
+
             rendered["company_abbr"] = company_abbr
             create_account_if_not_exists(rendered)
 
@@ -164,9 +162,7 @@ def create_salary_structure_for_company(company_name):
         try:
             doc.insert(ignore_permissions=True)
             frappe.db.commit()
-            frappe.logger().info(
-                f"Created Salary Structure '{structure_name}' for {company_name}"
-            )
+            frappe.logger().info(f"Created Salary Structure '{structure_name}' for {company_name}")
             frappe.msgprint(f"Created Salary Structure: {structure_name} for {company_name}")
         except Exception as e:
             frappe.logger().error(
