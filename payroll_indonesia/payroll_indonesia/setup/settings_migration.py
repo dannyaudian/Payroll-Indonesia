@@ -3,6 +3,7 @@ import os
 from typing import Any, Optional
 
 import frappe
+from frappe.model.document import Document
 
 def load_json(filename: str) -> Any:
     """
@@ -97,7 +98,7 @@ def import_ter_brackets() -> None:
     settings.save()
     frappe.logger().info("Imported default TER brackets")
 
-def get_or_create_settings() -> Optional[frappe.Document]:
+def get_or_create_settings() -> Optional[Document]:
     """Get or create Payroll Indonesia Settings document"""
     if not frappe.db.exists("Payroll Indonesia Settings", "Payroll Indonesia Settings"):
         settings = frappe.new_doc("Payroll Indonesia Settings")
