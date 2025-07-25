@@ -1,170 +1,236 @@
 [
   {
+    "account_name": "Employee Expense",
+    "parent_account": "Expenses - {{company_abbr}}",
+    "company": "{{company}}",
+    "root_type": "Expense",
+    "account_type": "Direct Expense",
+    "is_group": 1,
+    "report_type": "Profit and Loss"
+  },
+  {
+    "account_name": "BPJS Payable",
+    "parent_account": "Current Liability - {{company_abbr}}",
+    "company": "{{company}}",
+    "root_type": "Liability",
+    "account_type": "Current Liability",
+    "is_group": 1,
+    "report_type": "Balance Sheet"
+  },
+  {
     "account_name": "Salary Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Expense Account",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "THR Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Expense Account",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "Bonus Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Expense Account",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "Transport Allowance",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Expense Account",
+    "account_type": "Direct Expense",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "Meal Allowance",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Expense Account",
+    "account_type": "Direct Expense",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "Office Meals Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Expense Account",
+    "account_type": "Indirect Expense",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "Work Uniform Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Expense Account",
+    "account_type": "Indirect Expense",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "Holiday Gift Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Expense Account",
+    "account_type": "Indirect Expense",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "Additional Insurance Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Expense Account",
+    "account_type": "Indirect Expense",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "Company Vehicle Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Expense Account",
+    "account_type": "Indirect Expense",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "Sales Incentive Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Expense Account",
+    "account_type": "Direct Expense",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "Tax Allowance Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Expense Account",
+    "account_type": "Indirect Expense",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "BPJS Kesehatan Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Expense Account",
+    "account_type": "Direct Expense",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "BPJS JHT Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Expense Account",
+    "account_type": "Direct Expense",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "BPJS JKK Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Expense Account",
+    "account_type": "Direct Expense",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "BPJS JKM Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Expense Account",
+    "account_type": "Direct Expense",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "BPJS JP Expense",
+    "parent_account": "Employee Expense - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Expense Account",
+    "account_type": "Direct Expense",
     "is_group": 0,
-    "category": "expense"
+    "report_type": "Profit and Loss"
   },
   {
     "account_name": "BPJS Kesehatan Payable",
+    "parent_account": "BPJS Payable - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Payable",
     "is_group": 0,
-    "category": "liability"
+    "report_type": "Balance Sheet"
   },
   {
     "account_name": "BPJS JHT Payable",
+    "parent_account": "BPJS Payable - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Payable",
     "is_group": 0,
-    "category": "liability"
+    "report_type": "Balance Sheet"
   },
   {
     "account_name": "BPJS JKK Payable",
+    "parent_account": "BPJS Payable - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Payable",
     "is_group": 0,
-    "category": "liability"
+    "report_type": "Balance Sheet"
   },
   {
     "account_name": "BPJS JKM Payable",
+    "parent_account": "BPJS Payable - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Payable",
     "is_group": 0,
-    "category": "liability"
+    "report_type": "Balance Sheet"
   },
   {
     "account_name": "BPJS JP Payable",
+    "parent_account": "BPJS Payable - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Payable",
     "is_group": 0,
-    "category": "liability"
+    "report_type": "Balance Sheet"
   },
   {
     "account_name": "PPh 21 Payable",
+    "parent_account": "Duties and Taxes - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Tax",
     "is_group": 0,
-    "category": "liability"
+    "report_type": "Balance Sheet"
   },
   {
     "account_name": "Employee Salary Payable",
+    "parent_account": "Current Liability - {{company_abbr}}",
+    "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Payable",
     "is_group": 0,
-    "category": "liability"
+    "report_type": "Balance Sheet"
   }
 ]
