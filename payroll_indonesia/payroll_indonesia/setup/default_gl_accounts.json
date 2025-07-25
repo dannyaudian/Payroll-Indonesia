@@ -70,6 +70,20 @@
     "category": "expense"
   },
   {
+    "account_name": "Sales Incentive Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
+    "account_name": "Tax Allowance Expense",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 0,
+    "category": "expense"
+  },
+  {
     "account_name": "BPJS Kesehatan Expense",
     "root_type": "Expense",
     "account_type": "Expense Account",

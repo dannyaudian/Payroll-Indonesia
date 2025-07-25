@@ -1,23 +1,6 @@
 [
   {
     "doctype": "Custom Field",
-    "dt": "Salary Component",
-    "fieldname": "tax_effect_type",
-    "label": "Pengaruh Pajak",
-    "fieldtype": "Select",
-    "insert_after": "type",
-    "options": "Penambah Bruto Pajak\nPengurang Penghasilan Netto\nTidak Mempengaruhi Pajak",
-    "reqd": 0,
-    "default": "",
-    "depends_on": "",
-    "hidden": 0,
-    "no_copy": 0,
-    "print_hide": 0,
-    "in_filter": 1,
-    "in_list_view": 0
-  },
-  {
-    "doctype": "Custom Field",
     "dt": "Employee",
     "fieldname": "tax_section",
     "label": "Informasi Perpajakan",

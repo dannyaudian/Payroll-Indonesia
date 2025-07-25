@@ -78,58 +78,107 @@
   },
   {
     "doctype": "Salary Component Account",
-    "salary_component": "BPJS Kesehatan Karyawan",
+    "salary_component": "Insentif Penjualan",
+    "company": "",
+    "account": "Sales Incentive Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Tunjangan Pajak atas Insentif",
+    "company": "",
+    "account": "Tax Allowance Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "BPJS Kesehatan Employee",
     "company": "",
     "account": "BPJS Kesehatan Payable",
     "default_account": 1
   },
   {
     "doctype": "Salary Component Account",
-    "salary_component": "BPJS JHT Karyawan",
+    "salary_component": "BPJS JHT Employee",
     "company": "",
     "account": "BPJS JHT Payable",
     "default_account": 1
   },
   {
     "doctype": "Salary Component Account",
-    "salary_component": "BPJS JP Karyawan",
+    "salary_component": "BPJS JP Employee",
     "company": "",
     "account": "BPJS JP Payable",
     "default_account": 1
   },
   {
     "doctype": "Salary Component Account",
-    "salary_component": "BPJS Kesehatan Perusahaan",
+    "salary_component": "BPJS Kesehatan Employer",
     "company": "",
     "account": "BPJS Kesehatan Expense",
     "default_account": 1
   },
   {
     "doctype": "Salary Component Account",
-    "salary_component": "BPJS JHT Perusahaan",
+    "salary_component": "BPJS JHT Employer",
     "company": "",
     "account": "BPJS JHT Expense",
     "default_account": 1
   },
   {
     "doctype": "Salary Component Account",
-    "salary_component": "BPJS JP Perusahaan",
+    "salary_component": "BPJS JP Employer",
     "company": "",
     "account": "BPJS JP Expense",
     "default_account": 1
   },
   {
     "doctype": "Salary Component Account",
-    "salary_component": "BPJS JKK Perusahaan",
+    "salary_component": "BPJS JKK Employer",
     "company": "",
     "account": "BPJS JKK Expense",
     "default_account": 1
   },
   {
     "doctype": "Salary Component Account",
-    "salary_component": "BPJS JKM Perusahaan",
+    "salary_component": "BPJS JKM Employer",
     "company": "",
     "account": "BPJS JKM Expense",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Contra BPJS Kesehatan Employer",
+    "company": "",
+    "account": "BPJS Kesehatan Payable",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Contra BPJS JHT Employer",
+    "company": "",
+    "account": "BPJS JHT Payable",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Contra BPJS JP Employer",
+    "company": "",
+    "account": "BPJS JP Payable",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Contra BPJS JKK Employer",
+    "company": "",
+    "account": "BPJS JKK Payable",
+    "default_account": 1
+  },
+  {
+    "doctype": "Salary Component Account",
+    "salary_component": "Contra BPJS JKM Employer",
+    "company": "",
+    "account": "BPJS JKM Payable",
     "default_account": 1
   },
   {

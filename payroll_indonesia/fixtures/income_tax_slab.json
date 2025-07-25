@@ -1,0 +1,45 @@
+[
+  {
+    "doctype": "Income Tax Slab",
+    "name": "Indonesia 2025 Progressive",
+    "disabled": 0,
+    "effective_from": "2025-01-01",
+    "currency": "IDR",
+    "company": "",
+    "allow_tax_exemption": 0,
+    "standard_tax_exemption_amount": 0,
+    "slabs": [
+      {
+        "from_amount": 0,
+        "to_amount": 60000000,
+        "percent_deduction": 5,
+        "condition": ""
+      },
+      {
+        "from_amount": 60000001,
+        "to_amount": 250000000,
+        "percent_deduction": 15,
+        "condition": ""
+      },
+      {
+        "from_amount": 250000001,
+        "to_amount": 500000000,
+        "percent_deduction": 25,
+        "condition": ""
+      },
+      {
+        "from_amount": 500000001,
+        "to_amount": 5000000000,
+        "percent_deduction": 30,
+        "condition": ""
+      },
+      {
+        "from_amount": 5000000001,
+        "to_amount": 0,
+        "percent_deduction": 35,
+        "condition": ""
+      }
+    ],
+    "taxable_income_relief_threshold_limit": 0
+  }
+]
