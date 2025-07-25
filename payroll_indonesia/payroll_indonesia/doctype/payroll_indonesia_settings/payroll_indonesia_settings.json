@@ -1,0 +1,286 @@
+{
+  "doctype": "DocType",
+  "name": "Payroll Indonesia Settings",
+  "module": "Payroll Indonesia",
+  "custom": 0,
+  "issingle": 1,
+  "editable_grid": 1,
+  "track_changes": 1,
+  "naming_rule": "Set by user",
+  "autoname": "field:name",
+  "allow_rename": 0,
+  "fields": [
+    {
+      "fieldname": "general_settings_section",
+      "fieldtype": "Section Break",
+      "label": "General Settings"
+    },
+    {
+      "fieldname": "pph21_method",
+      "fieldtype": "Select",
+      "label": "PPh 21 Method",
+      "options": "TER\nProgresif",
+      "default": "TER",
+      "description": "Metode perhitungan PPh 21 default"
+    },
+    {
+      "fieldname": "validate_tax_status_strict",
+      "fieldtype": "Check",
+      "label": "Validate Tax Status Strictly",
+      "default": "1",
+      "description": "Validasi tax_status terhadap PTKP table"
+    },
+    {
+      "fieldname": "salary_slip_use_component_cache",
+      "fieldtype": "Check",
+      "label": "Use Salary Component Cache",
+      "default": "1",
+      "description": "Aktifkan cache komponen Salary Slip"
+    },
+    {
+      "fieldname": "auto_queue_salary_slip",
+      "fieldtype": "Check",
+      "label": "Process Salary Slip via Background Jobs",
+      "default": "0",
+      "description": "Salary Slip diproses via background job"
+    },
+    {
+      "fieldname": "bpjs_settings_section",
+      "fieldtype": "Section Break",
+      "label": "BPJS Settings"
+    },
+    {
+      "fieldname": "bpjs_health_employer_rate",
+      "fieldtype": "Float",
+      "label": "BPJS Kesehatan Employer Rate (%)",
+      "default": "4.0",
+      "precision": 2,
+      "description": "Persentase iuran BPJS Kesehatan (Perusahaan)"
+    },
+    {
+      "fieldname": "bpjs_health_employer_cap",
+      "fieldtype": "Currency",
+      "label": "BPJS Kesehatan Employer Cap",
+      "default": "12000000",
+      "description": "Plafon gaji kena iuran (Perusahaan)"
+    },
+    {
+      "fieldname": "bpjs_health_employee_rate",
+      "fieldtype": "Float",
+      "label": "BPJS Kesehatan Employee Rate (%)",
+      "default": "1.0",
+      "precision": 2,
+      "description": "Persentase iuran BPJS Kesehatan (Karyawan)"
+    },
+    {
+      "fieldname": "bpjs_health_employee_cap",
+      "fieldtype": "Currency",
+      "label": "BPJS Kesehatan Employee Cap",
+      "default": "12000000",
+      "description": "Plafon gaji kena iuran (Karyawan)"
+    },
+    {
+      "fieldname": "column_break_bpjs_1",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "bpjs_jht_employer_rate",
+      "fieldtype": "Float",
+      "label": "BPJS JHT Employer Rate (%)",
+      "default": "3.7",
+      "precision": 2,
+      "description": "Persentase JHT (Perusahaan)"
+    },
+    {
+      "fieldname": "bpjs_jht_employer_cap",
+      "fieldtype": "Currency",
+      "label": "BPJS JHT Employer Cap",
+      "default": "9077600",
+      "description": "Plafon JHT (Perusahaan)"
+    },
+    {
+      "fieldname": "bpjs_jht_employee_rate",
+      "fieldtype": "Float",
+      "label": "BPJS JHT Employee Rate (%)",
+      "default": "2.0",
+      "precision": 2,
+      "description": "Persentase JHT (Karyawan)"
+    },
+    {
+      "fieldname": "bpjs_jht_employee_cap",
+      "fieldtype": "Currency",
+      "label": "BPJS JHT Employee Cap",
+      "default": "9077600",
+      "description": "Plafon JHT (Karyawan)"
+    },
+    {
+      "fieldname": "column_break_bpjs_2",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "bpjs_jkk_rate",
+      "fieldtype": "Float",
+      "label": "BPJS JKK Rate (%)",
+      "default": "0.24",
+      "precision": 2,
+      "description": "Persentase JKK"
+    },
+    {
+      "fieldname": "bpjs_jkk_cap",
+      "fieldtype": "Currency",
+      "label": "BPJS JKK Cap",
+      "default": "9077600",
+      "description": "Plafon JKK"
+    },
+    {
+      "fieldname": "bpjs_jkm_rate",
+      "fieldtype": "Float",
+      "label": "BPJS JKM Rate (%)",
+      "default": "0.3",
+      "precision": 2,
+      "description": "Persentase JKM"
+    },
+    {
+      "fieldname": "bpjs_jkm_cap",
+      "fieldtype": "Currency",
+      "label": "BPJS JKM Cap",
+      "default": "9077600",
+      "description": "Plafon JKM"
+    },
+    {
+      "fieldname": "pension_section",
+      "fieldtype": "Section Break",
+      "label": "Pension Settings"
+    },
+    {
+      "fieldname": "bpjs_pension_employer_rate",
+      "fieldtype": "Float",
+      "label": "BPJS JP Employer Rate (%)",
+      "default": "2.0",
+      "precision": 2,
+      "description": "Persentase JP (Perusahaan)"
+    },
+    {
+      "fieldname": "bpjs_pension_employer_cap",
+      "fieldtype": "Currency",
+      "label": "BPJS JP Employer Cap",
+      "default": "9077600",
+      "description": "Plafon JP (Perusahaan)"
+    },
+    {
+      "fieldname": "bpjs_pension_employee_rate",
+      "fieldtype": "Float",
+      "label": "BPJS JP Employee Rate (%)",
+      "default": "1.0",
+      "precision": 2,
+      "description": "Persentase JP (Karyawan)"
+    },
+    {
+      "fieldname": "bpjs_pension_employee_cap",
+      "fieldtype": "Currency",
+      "label": "BPJS JP Employee Cap",
+      "default": "9077600",
+      "description": "Plafon JP (Karyawan)"
+    },
+    {
+      "fieldname": "column_break_pension",
+      "fieldtype": "Column Break"
+    },
+    {
+      "fieldname": "biaya_jabatan_rate",
+      "fieldtype": "Float",
+      "label": "Biaya Jabatan Rate (%)",
+      "default": "5.0",
+      "precision": 2,
+      "description": "Persentase Biaya Jabatan"
+    },
+    {
+      "fieldname": "biaya_jabatan_cap",
+      "fieldtype": "Currency",
+      "label": "Biaya Jabatan Cap Yearly",
+      "default": "6000000",
+      "description": "Maksimum Biaya Jabatan tahunan"
+    },
+    {
+      "fieldname": "ptkp_settings_section",
+      "fieldtype": "Section Break",
+      "label": "PTKP Settings"
+    },
+    {
+      "fieldname": "ptkp_table",
+      "fieldtype": "Table",
+      "label": "PTKP Table",
+      "options": "PTKP Table"
+    },
+    {
+      "fieldname": "ter_settings_section",
+      "fieldtype": "Section Break",
+      "label": "TER Settings"
+    },
+    {
+      "fieldname": "ter_mapping_table",
+      "fieldtype": "Table",
+      "label": "TER Mapping",
+      "options": "TER Mapping Table"
+    },
+    {
+      "fieldname": "ter_bracket_section",
+      "fieldtype": "Section Break",
+      "label": "TER Brackets"
+    },
+    {
+      "fieldname": "ter_bracket_table",
+      "fieldtype": "Table",
+      "label": "TER Bracket",
+      "options": "TER Bracket Table"
+    },
+    {
+      "fieldname": "payroll_options_section",
+      "fieldtype": "Section Break",
+      "label": "Payroll Options"
+    },
+    {
+      "fieldname": "fallback_income_tax_slab",
+      "fieldtype": "Link",
+      "label": "Fallback Income Tax Slab",
+      "options": "Income Tax Slab",
+      "description": "Digunakan jika tax_status tidak ditemukan"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "permlevel": 0,
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "submit": 0,
+      "cancel": 0,
+      "amend": 0,
+      "print": 1,
+      "email": 1,
+      "report": 1,
+      "import": 0,
+      "export": 1,
+      "share": 1
+    },
+    {
+      "role": "HR Manager",
+      "permlevel": 0,
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 0,
+      "submit": 0,
+      "cancel": 0,
+      "amend": 0,
+      "print": 1,
+      "email": 1,
+      "report": 1,
+      "import": 0,
+      "export": 1,
+      "share": 1
+    }
+  ]
+}

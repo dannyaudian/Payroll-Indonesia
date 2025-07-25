@@ -1,0 +1,18 @@
+[
+  {
+    "ptkp_table": [
+      { "tax_status": "TK/0", "ptkp_amount": 54000000 },
+      { "tax_status": "TK/1", "ptkp_amount": 58500000 },
+      { "tax_status": "TK/2", "ptkp_amount": 63000000 },
+      { "tax_status": "TK/3", "ptkp_amount": 67500000 },
+      { "tax_status": "K/0", "ptkp_amount": 58500000 },
+      { "tax_status": "K/1", "ptkp_amount": 63000000 },
+      { "tax_status": "K/2", "ptkp_amount": 67500000 },
+      { "tax_status": "K/3", "ptkp_amount": 72000000 },
+      { "tax_status": "HB/0", "ptkp_amount": 58500000 },
+      { "tax_status": "HB/1", "ptkp_amount": 63000000 },
+      { "tax_status": "HB/2", "ptkp_amount": 67500000 },
+      { "tax_status": "HB/3", "ptkp_amount": 72000000 }
+    ]
+  }
+]

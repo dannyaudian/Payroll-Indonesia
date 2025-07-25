@@ -24,7 +24,7 @@
     "label": "Status Pajak",
     "fieldtype": "Select",
     "insert_after": "tax_section",
-    "options": "TK/0\nTK/1\nTK/2\nTK/3\nK/0\nK/1\nK/2\nK/3\nK/I/0\nK/I/1\nK/I/2\nK/I/3\nHB/0\nHB/1\nHB/2\nHB/3",
+    "options": "TK/0\nTK/1\nTK/2\nTK/3\nK/0\nK/1\nK/2\nK/3\nHB/0\nHB/1\nHB/2\nHB/3",
     "reqd": 1,
     "default": "TK/0",
     "depends_on": "",
@@ -32,24 +32,6 @@
     "no_copy": 0,
     "print_hide": 0,
     "in_filter": 1,
-    "in_list_view": 0
-  },
-  {
-    "doctype": "Custom Field",
-    "dt": "Employee",
-    "fieldname": "tax_description",
-    "label": "Keterangan Status Pajak",
-    "fieldtype": "Small Text",
-    "insert_after": "tax_status",
-    "options": "",
-    "reqd": 0,
-    "default": "TK = Tidak Kawin\nK = Kawin\nK/I = Kawin Istri Bekerja\nHB = Hidup Berpisah\n\nAngka = Jumlah Tanggungan",
-    "depends_on": "",
-    "hidden": 0,
-    "no_copy": 0,
-    "print_hide": 0,
-    "read_only": 1,
-    "in_filter": 0,
     "in_list_view": 0
   },
   {

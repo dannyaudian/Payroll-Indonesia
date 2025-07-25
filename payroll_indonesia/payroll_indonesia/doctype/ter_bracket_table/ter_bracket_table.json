@@ -1,0 +1,43 @@
+{
+  "doctype": "DocType",
+  "name": "TER Bracket Table",
+  "module": "Payroll Indonesia",
+  "istable": 1,
+  "editable_grid": 1,
+  "track_changes": 1,
+  "fields": [
+    {
+      "fieldname": "ter_code",
+      "fieldtype": "Data",
+      "label": "TER Code",
+      "in_list_view": 1,
+      "reqd": 1,
+      "description": "Kode TER: A, B, C"
+    },
+    {
+      "fieldname": "min",
+      "fieldtype": "Currency",
+      "label": "Min Amount",
+      "in_list_view": 1,
+      "reqd": 1,
+      "description": "Batas bawah penghasilan bruto bulanan"
+    },
+    {
+      "fieldname": "max",
+      "fieldtype": "Currency",
+      "label": "Max Amount",
+      "in_list_view": 1,
+      "reqd": 0,
+      "description": "Batas atas penghasilan bruto bulanan (kosong untuk batas teratas)"
+    },
+    {
+      "fieldname": "rate",
+      "fieldtype": "Float",
+      "label": "Rate (%)",
+      "in_list_view": 1,
+      "reqd": 1,
+      "precision": 2,
+      "description": "Tarif pajak (%)"
+    }
+  ]
+}

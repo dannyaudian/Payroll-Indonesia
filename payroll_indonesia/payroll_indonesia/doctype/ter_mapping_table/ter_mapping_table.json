@@ -1,0 +1,26 @@
+{
+  "doctype": "DocType",
+  "name": "TER Mapping Table",
+  "module": "Payroll Indonesia",
+  "istable": 1,
+  "editable_grid": 1,
+  "track_changes": 1,
+  "fields": [
+    {
+      "fieldname": "tax_status",
+      "fieldtype": "Data",
+      "label": "Tax Status",
+      "in_list_view": 1,
+      "reqd": 1,
+      "description": "Contoh: TK/1, K/3, HB/2"
+    },
+    {
+      "fieldname": "ter_code",
+      "fieldtype": "Data",
+      "label": "TER Code",
+      "in_list_view": 1,
+      "reqd": 1,
+      "description": "Contoh: A, B, C"
+    }
+  ]
+}

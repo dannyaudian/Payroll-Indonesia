@@ -1,0 +1,14 @@
+[
+  { "tax_status": "TK/0", "ter_code": "A" },
+  { "tax_status": "TK/1", "ter_code": "A" },
+  { "tax_status": "K/0",  "ter_code": "A" },
+  { "tax_status": "TK/2", "ter_code": "B" },
+  { "tax_status": "K/1",  "ter_code": "B" },
+  { "tax_status": "TK/3", "ter_code": "B" },
+  { "tax_status": "K/2",  "ter_code": "B" },
+  { "tax_status": "K/3",  "ter_code": "C" },
+  { "tax_status": "HB/0", "ter_code": "A" },
+  { "tax_status": "HB/1", "ter_code": "B" },
+  { "tax_status": "HB/2", "ter_code": "B" },
+  { "tax_status": "HB/3", "ter_code": "C" }
+]

@@ -208,5 +208,6 @@ after_sync = "payroll_indonesia.setup.setup_module.after_sync"
 # Fixtures are data that should be auto-imported when the app is installed
 fixtures = [
     "Custom Field",
-    "Salary Component"
+    "Salary Component",
+    "Income Tax Slab"
 ]
