@@ -1,9 +1,8 @@
 import json
 import os
-from typing import Dict, List, Any, Optional
+from typing import Any, Optional
 
 import frappe
-
 
 def load_json(filename: str) -> Any:
     """
@@ -28,7 +27,6 @@ def load_json(filename: str) -> Any:
         frappe.logger().warning(f"Error loading {filename}: {str(e)}")
         return None
 
-
 def import_ptkp_table() -> None:
     """Import default PTKP values into Payroll Indonesia Settings"""
     ptkp_data = load_json("default_ptkp_table.json")
@@ -40,10 +38,8 @@ def import_ptkp_table() -> None:
     if not settings:
         return
     
-    # Clear existing PTKP table
     settings.ptkp_table = []
     
-    # Add new PTKP entries
     for entry in ptkp_data[0]["ptkp_table"]:
         settings.append("ptkp_table", {
             "tax_status": entry["tax_status"],
@@ -52,7 +48,6 @@ def import_ptkp_table() -> None:
     
     settings.save()
     frappe.logger().info("Imported default PTKP table")
-
 
 def import_ter_mapping() -> None:
     """Import default TER mapping into Payroll Indonesia Settings"""
@@ -65,10 +60,8 @@ def import_ter_mapping() -> None:
     if not settings:
         return
     
-    # Clear existing TER mapping table
     settings.ter_mapping_table = []
     
-    # Add new TER mapping entries
     for entry in ter_mapping_data:
         settings.append("ter_mapping_table", {
             "tax_status": entry["tax_status"],
@@ -77,7 +70,6 @@ def import_ter_mapping() -> None:
     
     settings.save()
     frappe.logger().info("Imported default TER mapping")
-
 
 def import_ter_brackets() -> None:
     """Import default TER brackets into Payroll Indonesia Settings"""
@@ -90,10 +82,8 @@ def import_ter_brackets() -> None:
     if not settings:
         return
     
-    # Clear existing TER bracket table
     settings.ter_bracket_table = []
     
-    # Add new TER bracket entries
     for ter_code_data in ter_rate_data:
         ter_code = ter_code_data["ter_code"]
         for bracket in ter_code_data["brackets"]:
@@ -107,20 +97,17 @@ def import_ter_brackets() -> None:
     settings.save()
     frappe.logger().info("Imported default TER brackets")
 
-
 def get_or_create_settings() -> Optional[frappe.Document]:
     """Get or create Payroll Indonesia Settings document"""
     if not frappe.db.exists("Payroll Indonesia Settings", "Payroll Indonesia Settings"):
         settings = frappe.new_doc("Payroll Indonesia Settings")
         settings.name = "Payroll Indonesia Settings"
         
-        # Set default values for main settings
         settings.pph21_method = "TER"
         settings.validate_tax_status_strict = 1
         settings.salary_slip_use_component_cache = 1
         settings.auto_queue_salary_slip = 0
         
-        # Set default BPJS rates
         settings.bpjs_health_employer_rate = 4.0
         settings.bpjs_health_employer_cap = 12000000
         settings.bpjs_health_employee_rate = 1.0
@@ -144,6 +131,8 @@ def get_or_create_settings() -> Optional[frappe.Document]:
         settings.biaya_jabatan_rate = 5.0
         settings.biaya_jabatan_cap = 6000000
         
+        settings.fallback_income_tax_slab = None
+
         settings.insert()
         frappe.db.commit()
         frappe.logger().info("Created new Payroll Indonesia Settings")
@@ -151,14 +140,12 @@ def get_or_create_settings() -> Optional[frappe.Document]:
     else:
         return frappe.get_doc("Payroll Indonesia Settings", "Payroll Indonesia Settings")
 
-
 def setup_default_settings() -> None:
     """
     Setup default Payroll Indonesia settings
     This function is called from setup_module.py after_sync
     """
     try:
-        # Import data in sequence
         import_ptkp_table()
         import_ter_mapping()
         import_ter_brackets()
@@ -168,7 +155,6 @@ def setup_default_settings() -> None:
     except Exception as e:
         frappe.db.rollback()
         frappe.logger().error(f"Error in Payroll Indonesia settings migration: {str(e)}")
-
 
 @frappe.whitelist()
 def run_settings_migration() -> str:

@@ -176,7 +176,7 @@
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 1,
     "amount_based_on_formula": 1,
-    "formula": "",
+    "formula": "min(base, get_bpjs_cap(\"bpjs_health_employer_cap\")) * get_bpjs_rate(\"bpjs_health_employer_rate\") / 100",
     "statistical_component": 0,
     "description": "Tanggungan BPJS Kesehatan 4% dari perusahaan",
     "remove_if_zero_valued": 1
@@ -191,7 +191,7 @@
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 1,
     "amount_based_on_formula": 1,
-    "formula": "",
+    "formula": "min(base, get_bpjs_cap(\"bpjs_jht_employer_cap\")) * get_bpjs_rate(\"bpjs_jht_employer_rate\") / 100",
     "statistical_component": 0,
     "description": "Tanggungan BPJS JHT 3.7% dari perusahaan",
     "remove_if_zero_valued": 1
@@ -206,7 +206,7 @@
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 1,
     "amount_based_on_formula": 1,
-    "formula": "",
+    "formula": "min(base, get_bpjs_cap(\"bpjs_pension_employer_cap\")) * get_bpjs_rate(\"bpjs_pension_employer_rate\") / 100",
     "statistical_component": 0,
     "description": "Tanggungan BPJS JP 2% dari perusahaan",
     "remove_if_zero_valued": 1
@@ -221,7 +221,7 @@
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 1,
     "amount_based_on_formula": 1,
-    "formula": "",
+    "formula": "min(base, get_bpjs_cap(\"bpjs_jkk_cap\")) * get_bpjs_rate(\"bpjs_jkk_rate\") / 100",
     "statistical_component": 0,
     "description": "Tanggungan BPJS JKK 0.24% dari perusahaan (persentase bisa berbeda sesuai kelas risiko)",
     "remove_if_zero_valued": 1
@@ -236,7 +236,7 @@
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 1,
     "amount_based_on_formula": 1,
-    "formula": "",
+    "formula": "min(base, get_bpjs_cap(\"bpjs_jkm_cap\")) * get_bpjs_rate(\"bpjs_jkm_rate\") / 100",
     "statistical_component": 0,
     "description": "Tanggungan BPJS JKM 0.3% dari perusahaan",
     "remove_if_zero_valued": 1
@@ -251,7 +251,7 @@
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 0,
     "amount_based_on_formula": 1,
-    "formula": "",
+    "formula": "min(base, get_bpjs_cap(\"bpjs_health_employee_cap\")) * get_bpjs_rate(\"bpjs_health_employee_rate\") / 100",
     "statistical_component": 0,
     "description": "Potongan BPJS Kesehatan 1% dari karyawan",
     "remove_if_zero_valued": 1
@@ -266,7 +266,7 @@
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 0,
     "amount_based_on_formula": 1,
-    "formula": "",
+    "formula": "min(base, get_bpjs_cap(\"bpjs_jht_employee_cap\")) * get_bpjs_rate(\"bpjs_jht_employee_rate\") / 100",
     "statistical_component": 0,
     "description": "Potongan BPJS JHT 2% dari karyawan",
     "remove_if_zero_valued": 1
@@ -281,7 +281,7 @@
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 0,
     "amount_based_on_formula": 1,
-    "formula": "",
+    "formula": "min(base, get_bpjs_cap(\"bpjs_pension_employee_cap\")) * get_bpjs_rate(\"bpjs_pension_employee_rate\") / 100",
     "statistical_component": 0,
     "description": "Potongan BPJS JP 1% dari karyawan",
     "remove_if_zero_valued": 1
@@ -309,7 +309,7 @@
     "depends_on_payment_days": 0,
     "do_not_include_in_total": 1,
     "amount_based_on_formula": 1,
-    "formula": "min(gross_pay * 0.05, 500000)",
+    "formula": "min(gross_pay * get_bpjs_rate(\"biaya_jabatan_rate\") / 100, get_bpjs_cap(\"biaya_jabatan_cap\") / 12)",
     "statistical_component": 1,
     "description": "Biaya Jabatan 5% (maksimal Rp500.000 per bulan atau Rp6.000.000 per tahun)",
     "remove_if_zero_valued": 1
@@ -324,7 +324,7 @@
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 1,
     "amount_based_on_formula": 1,
-    "formula": "",
+    "formula": "min(base, get_bpjs_cap(\"bpjs_health_employer_cap\")) * get_bpjs_rate(\"bpjs_health_employer_rate\") / 100",
     "statistical_component": 0,
     "description": "Contra entry untuk BPJS Kesehatan Employer",
     "remove_if_zero_valued": 1
@@ -339,7 +339,7 @@
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 1,
     "amount_based_on_formula": 1,
-    "formula": "",
+    "formula": "min(base, get_bpjs_cap(\"bpjs_jht_employer_cap\")) * get_bpjs_rate(\"bpjs_jht_employer_rate\") / 100",
     "statistical_component": 0,
     "description": "Contra entry untuk BPJS JHT Employer",
     "remove_if_zero_valued": 1
@@ -354,7 +354,7 @@
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 1,
     "amount_based_on_formula": 1,
-    "formula": "",
+    "formula": "min(base, get_bpjs_cap(\"bpjs_pension_employer_cap\")) * get_bpjs_rate(\"bpjs_pension_employer_rate\") / 100",
     "statistical_component": 0,
     "description": "Contra entry untuk BPJS JP Employer",
     "remove_if_zero_valued": 1
@@ -369,7 +369,7 @@
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 1,
     "amount_based_on_formula": 1,
-    "formula": "",
+    "formula": "min(base, get_bpjs_cap(\"bpjs_jkk_cap\")) * get_bpjs_rate(\"bpjs_jkk_rate\") / 100",
     "statistical_component": 0,
     "description": "Contra entry untuk BPJS JKK Employer",
     "remove_if_zero_valued": 1
@@ -384,7 +384,7 @@
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 1,
     "amount_based_on_formula": 1,
-    "formula": "",
+    "formula": "min(base, get_bpjs_cap(\"bpjs_jkm_cap\")) * get_bpjs_rate(\"bpjs_jkm_rate\") / 100",
     "statistical_component": 0,
     "description": "Contra entry untuk BPJS JKM Employer",
     "remove_if_zero_valued": 1
