@@ -1,156 +1,159 @@
-import json
 import os
-from typing import List, Optional
+import json
+import traceback
 
 import frappe
 from payroll_indonesia.payroll_indonesia.setup.gl_account_mapper import (
     assign_gl_accounts_to_salary_components,
 )
-from payroll_indonesia.payroll_indonesia.setup.settings_migration import setup_default_settings
+from payroll_indonesia.payroll_indonesia.setup.settings_migration import (
+    setup_default_settings,
+)
 
 
-def get_parent_account(possible_names: List[str], company_abbr: str) -> Optional[str]:
+def get_active_companies():
+    """Return all active companies in the system."""
+    return frappe.get_all("Company", filters={"disabled": 0}, fields=["name", "abbr"])
+
+
+def get_or_create_parent_account(company_name, company_abbr, account_name, root_type):
     """
-    Find a suitable parent account by trying different possible names.
+    Ensure parent account exists for the company. Return full account name with abbr.
     """
-    for name in possible_names:
-        parent_account = f"{name} - {company_abbr}"
-        if frappe.db.exists("Account", parent_account):
-            return parent_account
-    return None
-
-
-def ensure_parent_account(
-    name: str, company_name: str, company_abbr: str, root_type: str
-) -> None:
-    """Ensure a group parent account exists for the given company."""
-    account_name_with_abbr = f"{name} - {company_abbr}"
-    if frappe.db.exists("Account", account_name_with_abbr):
-        return
-
+    full_account_name = f"{account_name} - {company_abbr}"
+    if frappe.db.exists("Account", full_account_name):
+        return full_account_name
     try:
         parent_doc = frappe.get_doc(
             {
                 "doctype": "Account",
-                "account_name": name,
+                "account_name": account_name,
                 "company": company_name,
                 "is_group": 1,
                 "root_type": root_type,
-                "report_type": "Balance Sheet" if root_type == "Liability" else "Profit and Loss",
+                "report_type": "Profit and Loss" if root_type == "Expense" else "Balance Sheet",
             }
         )
         parent_doc.insert(ignore_permissions=True)
         frappe.db.commit()
+        frappe.logger().info(f"Created parent account {full_account_name} for {company_name}")
+        return full_account_name
     except Exception as e:
-        frappe.log_error(
-            f"Error creating parent account {account_name_with_abbr}: {str(e)}",
-            "Payroll Indonesia Setup",
+        frappe.logger().error(
+            f"Error creating parent account {full_account_name} for {company_name}: {str(e)}\n{traceback.format_exc()}"
+        )
+        return None
+
+
+def create_account_if_not_exists(
+    company_name,
+    company_abbr,
+    account_name,
+    root_type,
+    account_type,
+    is_group,
+    parent_account,
+):
+    """
+    Create an account if it does not exist for the company. Defensive error handling.
+    """
+    full_account_name = f"{account_name} - {company_abbr}"
+    if frappe.db.exists("Account", full_account_name):
+        frappe.logger().info(f"Account {full_account_name} already exists for {company_name}. Skipping.")
+        return
+    if not frappe.db.exists("Account", parent_account):
+        frappe.logger().error(
+            f"Parent account {parent_account} missing for child {full_account_name} in company {company_name}. Skipping."
+        )
+        return
+    try:
+        account_doc = frappe.get_doc(
+            {
+                "doctype": "Account",
+                "account_name": account_name,
+                "parent_account": parent_account,
+                "company": company_name,
+                "root_type": root_type,
+                "account_type": account_type,
+                "is_group": is_group,
+                "report_type": "Profit and Loss" if root_type == "Expense" else "Balance Sheet",
+            }
+        )
+        account_doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        frappe.logger().info(f"Created account {full_account_name} under {parent_account} for {company_name}")
+    except Exception as e:
+        frappe.logger().error(
+            f"Error creating account {full_account_name} in {company_name}: {str(e)}\n{traceback.format_exc()}"
         )
 
 
-def create_default_accounts(company_name: str, company_abbr: str) -> None:
+def setup_accounts_for_company(company):
     """
-    Create default GL accounts for payroll processing for the specified company.
+    Setup all default GL accounts for a single company. Modular & idempotent.
     """
-    json_file_path = frappe.get_app_path("payroll_indonesia", "setup", "default_gl_accounts.json")
-    if not os.path.exists(json_file_path):
-        frappe.log_error(f"File not found: {json_file_path}", "Payroll Indonesia Setup")
+    company_name = company["name"]
+    company_abbr = company["abbr"]
+
+    json_path = os.path.join(
+        frappe.get_app_path("payroll_indonesia"),
+        "payroll_indonesia",
+        "data",
+        "default_gl_accounts.json",
+    )
+    if not os.path.exists(json_path):
+        frappe.logger().error(f"File not found: {json_path}")
         return
 
-    with open(json_file_path, "r") as f:
-        gl_accounts = json.load(f)
+    try:
+        with open(json_path, "r") as f:
+            gl_accounts = json.load(f)
+    except Exception as e:
+        frappe.logger().error(
+            f"Failed to load default_gl_accounts.json: {str(e)}\n{traceback.format_exc()}"
+        )
+        return
 
-    parent_account_options = {
-        "expense": [
-            "Direct Expenses",
-            "Pengeluaran Langsung",
-            "Expenses",
-            "Biaya",
-        ],
-        "liability": [
-            "Payables",
-            "Utang Usaha",
-            "Current Liabilities",
-            "Kewajiban Lancar",
-            "Liabilities",
-        ],
-        "tax": ["Duties and Taxes", "Utang Pajak"],
-    }
+    # Ensure parent accounts first
+    parent_expense = get_or_create_parent_account(company_name, company_abbr, "Direct Expenses", "Expense")
+    parent_liability = get_or_create_parent_account(company_name, company_abbr, "Duties and Taxes", "Liability")
 
-    for account in gl_accounts:
-        account_name = account.get("account_name")
-        root_type = account.get("root_type")
-        account_type = account.get("account_type")
-        is_group = account.get("is_group", 0)
-        account_name_with_abbr = f"{account_name} - {company_abbr}"
+    for acc in gl_accounts:
+        account_name = acc.get("account_name")
+        root_type = acc.get("root_type")
+        account_type = acc.get("account_type")
+        is_group = acc.get("is_group", 0)
+        category = acc.get("category") or "expense"
 
-        if account_name == "PPh 21 Payable":
-            ensure_parent_account("Duties and Taxes", company_name, company_abbr, "Liability")
-        elif root_type == "Expense":
-            ensure_parent_account("Expenses", company_name, company_abbr, "Expense")
-        elif root_type == "Liability" and account_type == "Payable":
-            ensure_parent_account("Liabilities", company_name, company_abbr, "Liability")
-
-        if frappe.db.exists("Account", account_name_with_abbr):
+        # Determine parent based on category
+        if category == "expense":
+            parent_account = parent_expense
+        elif category == "liability":
+            parent_account = parent_liability
+        else:
+            frappe.logger().error(
+                f"Unknown category '{category}' for account '{account_name}' in company '{company_name}'. Skipping."
+            )
             continue
 
-        parent_account = None
-
-        if account_name == "PPh 21 Payable":
-            parent_account = get_parent_account(parent_account_options["tax"], company_abbr)
-        elif root_type == "Expense":
-            parent_account = get_parent_account(parent_account_options["expense"], company_abbr)
-        elif root_type == "Liability" and account_type == "Payable":
-            parent_account = get_parent_account(parent_account_options["liability"], company_abbr)
-
         if not parent_account:
-            available = frappe.get_all(
-                "Account",
-                filters={
-                    "company": company_name,
-                    "root_type": root_type,
-                    "is_group": 1,
-                },
-                pluck="name",
+            frappe.logger().error(
+                f"Missing parent account for category '{category}' in company '{company_name}'. Skipping '{account_name}'."
             )
-            if available:
-                parent_account = available[0]
-
-        if not parent_account:
-            warning = (
-                f"Skipping account {account_name_with_abbr}: " "No suitable parent account found"
-            )
-            frappe.logger().warning(warning)
             continue
 
-        try:
-            new_account = frappe.get_doc(
-                {
-                    "doctype": "Account",
-                    "account_name": account_name,
-                    "parent_account": parent_account,
-                    "company": company_name,
-                    "root_type": root_type,
-                    "account_type": account_type,
-                    "is_group": is_group,
-                    "report_type": (
-                        "Balance Sheet" if root_type == "Liability" else "Profit and Loss"
-                    ),
-                }
-            )
-
-            new_account.insert(ignore_permissions=True)
-            frappe.db.commit()
-            frappe.msgprint(f"Created account: {account_name_with_abbr}")
-
-        except Exception as e:
-            frappe.log_error(
-                f"Error creating account {account_name_with_abbr}: {str(e)}",
-                "Payroll Indonesia Setup",
-            )
+        create_account_if_not_exists(
+            company_name=company_name,
+            company_abbr=company_abbr,
+            account_name=account_name,
+            root_type=root_type,
+            account_type=account_type,
+            is_group=is_group,
+            parent_account=parent_account,
+        )
 
 
-def create_salary_structure_for_company(company_name: str) -> None:
+def create_salary_structure_for_company(company_name):
     """
     Create Salary Structure for Indonesian Payroll Standard for the company if not exists.
     The structure and components are loaded from salary_structure.json fixture file.
@@ -160,20 +163,28 @@ def create_salary_structure_for_company(company_name: str) -> None:
         frappe.log_error(f"File not found: {json_file_path}", "Payroll Indonesia Setup")
         return
 
-    with open(json_file_path, "r") as f:
-        salary_structures = json.load(f)
+    try:
+        with open(json_file_path, "r") as f:
+            salary_structures = json.load(f)
+    except Exception as e:
+        frappe.logger().error(
+            f"Failed to load salary_structure.json: {str(e)}\n{traceback.format_exc()}"
+        )
+        return
 
     for structure in salary_structures:
         structure_name = structure.get(
             "salary_structure_name", structure.get("name", "Indonesian Payroll Standard")
         )
-        # Avoid duplicate per company
         exists = frappe.db.exists(
             "Salary Structure", {"salary_structure_name": structure_name, "company": company_name}
         )
         if exists:
+            frappe.logger().info(
+                f"Salary Structure '{structure_name}' already exists for {company_name}. Skipping."
+            )
             continue
-        # Build doc, inject company
+
         doc = frappe.get_doc(
             {
                 "doctype": "Salary Structure",
@@ -196,60 +207,57 @@ def create_salary_structure_for_company(company_name: str) -> None:
         try:
             doc.insert(ignore_permissions=True)
             frappe.db.commit()
+            frappe.logger().info(
+                f"Created Salary Structure '{structure_name}' for {company_name}"
+            )
             frappe.msgprint(f"Created Salary Structure: {structure_name} for {company_name}")
         except Exception as e:
-            frappe.log_error(
-                f"Error creating Salary Structure for {company_name}: {str(e)}",
-                "Payroll Indonesia Setup",
+            frappe.logger().error(
+                f"Error creating Salary Structure for {company_name}: {str(e)}\n{traceback.format_exc()}"
             )
 
 
-def after_sync() -> None:
+def after_sync():
     """
-    Setup function that runs after app sync.
-    Creates default GL accounts for all companies, maps them to salary components,
-    migrates Payroll Indonesia Settings tables from default JSON if not present,
-    and creates Salary Structure for each company.
+    Called after app sync. Sets up default GL accounts, salary mapping, and settings for all companies.
     """
     try:
-        # Step 1: Ensure fixtures are loaded (handled by Frappe before after_sync)
-
-        # Step 2: Get all companies
-        companies = frappe.get_all("Company", fields=["name", "abbr"])
+        companies = get_active_companies()
+        if not companies:
+            frappe.logger().warning("No active companies found. Skipping setup.")
+            return
 
         for company in companies:
-            # Step 3: Create default accounts for company
-            create_default_accounts(company.name, company.abbr)
-
-            # Step 4: Map GL accounts to salary components
             try:
-                assign_gl_accounts_to_salary_components(company.name, company.abbr)
+                setup_accounts_for_company(company)
+            except Exception as e:
+                frappe.logger().error(
+                    f"Error in setup_accounts_for_company for {company['name']}: {str(e)}\n{traceback.format_exc()}"
+                )
+
+            try:
+                assign_gl_accounts_to_salary_components(company["name"], company["abbr"])
                 frappe.logger().info(
-                    f"Mapped salary components to GL accounts for company: {company.name}"
+                    f"Mapped salary components to GL accounts for company: {company['name']}"
                 )
             except Exception as e:
-                frappe.log_error(
-                    f"Error mapping salary components to GL accounts for company {company.name}: {str(e)}",
-                    "Payroll Indonesia Setup",
+                frappe.logger().error(
+                    f"Error mapping salary components to GL accounts for company {company['name']}: {str(e)}\n{traceback.format_exc()}"
                 )
 
-            # Step 5: Create Salary Structure for company
             try:
-                create_salary_structure_for_company(company.name)
+                create_salary_structure_for_company(company["name"])
             except Exception as e:
-                frappe.log_error(
-                    f"Error creating Salary Structure for company {company.name}: {str(e)}",
-                    "Payroll Indonesia Setup",
+                frappe.logger().error(
+                    f"Error creating Salary Structure for company {company['name']}: {str(e)}\n{traceback.format_exc()}"
                 )
 
-        # Step 6: Migrate Payroll Indonesia Settings tables if needed
         try:
             setup_default_settings()
             frappe.logger().info("Payroll Indonesia Settings tables migrated (PTKP/TER/Brackets)")
         except Exception as e:
-            frappe.log_error(
-                f"Error in Payroll Indonesia Settings migration: {str(e)}",
-                "Payroll Indonesia Setup",
+            frappe.logger().error(
+                f"Error in Payroll Indonesia Settings migration: {str(e)}\n{traceback.format_exc()}"
             )
 
         frappe.msgprint(
@@ -257,4 +265,6 @@ def after_sync() -> None:
         )
 
     except Exception as e:
-        frappe.log_error(f"Error in Payroll Indonesia setup: {str(e)}", "Payroll Indonesia Setup")
+        frappe.logger().error(
+            f"Error in Payroll Indonesia after_sync setup: {str(e)}\n{traceback.format_exc()}"
+        )
