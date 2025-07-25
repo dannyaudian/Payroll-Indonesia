@@ -43,7 +43,7 @@
     "fieldname": "id_section",
     "label": "Dokumen Identitas",
     "fieldtype": "Section Break",
-    "insert_after": "tax_description",
+    "insert_after": "tax_status",
     "options": "",
     "reqd": 0,
     "default": "",
