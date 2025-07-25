@@ -181,6 +181,7 @@ def after_sync():
     Called after app sync. Sets up Payroll Indonesia Settings, GL accounts from JSON,
     salary mapping, and settings for all companies.
     """
+    frappe.logger().info("Running after_sync for payroll_indonesia")
     try:
         # 1. Setup GL Accounts from JSON (new logic)
         setup_accounts_from_json()
