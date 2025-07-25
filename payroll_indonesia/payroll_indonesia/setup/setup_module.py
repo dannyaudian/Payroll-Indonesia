@@ -67,8 +67,11 @@ def get_active_companies():
 
 def setup_accounts_from_json():
     """Create GL accounts for all companies from template JSON."""
-    json_path = os.path.join(os.path.dirname(__file__), "..", "default_gl_accounts.json")
-    json_path = os.path.abspath(json_path)
+    json_path = frappe.get_app_path(
+        "payroll_indonesia",
+        "setup",
+        "default_gl_accounts.json",
+    )
 
     if not os.path.exists(json_path):
         frappe.logger().error(f"GL Accounts file not found: {json_path}")
