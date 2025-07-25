@@ -8,7 +8,7 @@ authors = [{name = "IMOGI", email = "hello@imogi.tech"}]
 description = "Payroll Indonesia - Modul Perhitungan BPJS & PPh 21 untuk ERPNext Indonesia"
 requires-python = ">=3.10"
 readme = "README.md"
-dynamic = ["version"]
+version = "0.1.0"
 dependencies = [
     "frappe>=15.0.0",
     "erpnext>=15.0.0"
