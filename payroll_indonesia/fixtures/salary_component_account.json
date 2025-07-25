@@ -1,226 +1,282 @@
 [
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Basic_Salary",
     "salary_component": "Basic Salary",
     "company": "",
     "account": "Salary Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Basic Salary",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Gaji_Pokok",
     "salary_component": "Gaji Pokok",
     "company": "",
     "account": "Salary Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Gaji Pokok",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Tunjangan_Transport",
     "salary_component": "Tunjangan Transport",
     "company": "",
     "account": "Transport Allowance",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Tunjangan Transport",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Tunjangan_Makan",
     "salary_component": "Tunjangan Makan",
     "company": "",
     "account": "Meal Allowance",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Tunjangan Makan",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_THR",
     "salary_component": "THR",
     "company": "",
     "account": "THR Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "THR",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Bonus",
     "salary_component": "Bonus",
     "company": "",
     "account": "Bonus Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Bonus",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Makan_di_Kantor",
     "salary_component": "Makan di Kantor",
     "company": "",
     "account": "Office Meals Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Makan di Kantor",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Seragam_Kerja",
     "salary_component": "Seragam Kerja",
     "company": "",
     "account": "Work Uniform Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Seragam Kerja",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Bingkisan_Hari_Raya",
     "salary_component": "Bingkisan Hari Raya",
     "company": "",
     "account": "Holiday Gift Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Bingkisan Hari Raya",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Asuransi_Tambahan",
     "salary_component": "Asuransi Tambahan",
     "company": "",
     "account": "Additional Insurance Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Asuransi Tambahan",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Kendaraan_Dinas",
     "salary_component": "Kendaraan Dinas",
     "company": "",
     "account": "Company Vehicle Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Kendaraan Dinas",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Insentif_Penjualan",
     "salary_component": "Insentif Penjualan",
     "company": "",
     "account": "Sales Incentive Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Insentif Penjualan",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Tunjangan_Pajak_atas_Insentif",
     "salary_component": "Tunjangan Pajak atas Insentif",
     "company": "",
     "account": "Tax Allowance Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Tunjangan Pajak atas Insentif",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_BPJS_Kesehatan_Employee",
     "salary_component": "BPJS Kesehatan Employee",
     "company": "",
     "account": "BPJS Kesehatan Payable",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "BPJS Kesehatan Employee",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_BPJS_JHT_Employee",
     "salary_component": "BPJS JHT Employee",
     "company": "",
     "account": "BPJS JHT Payable",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "BPJS JHT Employee",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_BPJS_JP_Employee",
     "salary_component": "BPJS JP Employee",
     "company": "",
     "account": "BPJS JP Payable",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "BPJS JP Employee",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_BPJS_Kesehatan_Employer",
     "salary_component": "BPJS Kesehatan Employer",
     "company": "",
     "account": "BPJS Kesehatan Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "BPJS Kesehatan Employer",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_BPJS_JHT_Employer",
     "salary_component": "BPJS JHT Employer",
     "company": "",
     "account": "BPJS JHT Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "BPJS JHT Employer",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_BPJS_JP_Employer",
     "salary_component": "BPJS JP Employer",
     "company": "",
     "account": "BPJS JP Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "BPJS JP Employer",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_BPJS_JKK_Employer",
     "salary_component": "BPJS JKK Employer",
     "company": "",
     "account": "BPJS JKK Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "BPJS JKK Employer",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_BPJS_JKM_Employer",
     "salary_component": "BPJS JKM Employer",
     "company": "",
     "account": "BPJS JKM Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "BPJS JKM Employer",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Contra_BPJS_Kesehatan_Employer",
     "salary_component": "Contra BPJS Kesehatan Employer",
     "company": "",
     "account": "BPJS Kesehatan Payable",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Contra BPJS Kesehatan Employer",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Contra_BPJS_JHT_Employer",
     "salary_component": "Contra BPJS JHT Employer",
     "company": "",
     "account": "BPJS JHT Payable",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Contra BPJS JHT Employer",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Contra_BPJS_JP_Employer",
     "salary_component": "Contra BPJS JP Employer",
     "company": "",
     "account": "BPJS JP Payable",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Contra BPJS JP Employer",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Contra_BPJS_JKK_Employer",
     "salary_component": "Contra BPJS JKK Employer",
     "company": "",
     "account": "BPJS JKK Payable",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Contra BPJS JKK Employer",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Contra_BPJS_JKM_Employer",
     "salary_component": "Contra BPJS JKM Employer",
     "company": "",
     "account": "BPJS JKM Payable",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Contra BPJS JKM Employer",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_PPh_21",
     "salary_component": "PPh 21",
     "company": "",
     "account": "PPh 21 Payable",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "PPh 21",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   },
   {
     "doctype": "Salary Component Account",
-    "name": "salary_component_account_Biaya_Jabatan",
     "salary_component": "Biaya Jabatan",
     "company": "",
     "account": "Salary Expense",
-    "default_account": 1
+    "default_account": 1,
+    "parent": "Biaya Jabatan",
+    "parenttype": "Salary Component",
+    "parentfield": "accounts"
   }
 ]
