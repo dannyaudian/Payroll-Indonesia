@@ -27,8 +27,6 @@ def create_account_if_not_exists(account_data: dict) -> None:
     """
     Create an Account if it does not exist. Idempotent logic.
     """
-    full_account_name = f"{account_data['account_name']} - {account_data['company_abbr']}" \
-        if 'company_abbr' in account_data else account_data['account_name']
     company = account_data["company"]
     account_name = account_data["account_name"]
     parent_account = account_data.get("parent_account")
