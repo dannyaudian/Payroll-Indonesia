@@ -4,7 +4,7 @@ from typing import List, Optional
 
 import frappe
 from payroll_indonesia.setup.gl_account_mapper import assign_gl_accounts_to_salary_components
-
+from payroll_indonesia.setup.settings_migration import setup_default_settings
 
 def get_parent_account(possible_names: List[str], company_abbr: str) -> Optional[str]:
     """
@@ -142,6 +142,7 @@ def after_sync() -> None:
     """
     Setup function that runs after app sync.
     Creates default GL accounts for all companies and maps them to salary components.
+    Also migrates Payroll Indonesia Settings tables from default JSON if not present.
     """
     try:
         # Get all companies
@@ -161,7 +162,17 @@ def after_sync() -> None:
                     "Payroll Indonesia Setup"
                 )
         
-        frappe.msgprint("Payroll Indonesia: Default GL accounts setup and mapping completed")
+        # Migrate Payroll Indonesia Settings tables if needed
+        try:
+            setup_default_settings()
+            frappe.logger().info("Payroll Indonesia Settings tables migrated (PTKP/TER/Brackets)")
+        except Exception as e:
+            frappe.log_error(
+                f"Error in Payroll Indonesia Settings migration: {str(e)}",
+                "Payroll Indonesia Setup"
+            )
+
+        frappe.msgprint("Payroll Indonesia: Default GL accounts setup, mapping, and settings migration completed")
     
     except Exception as e:
         frappe.log_error(
