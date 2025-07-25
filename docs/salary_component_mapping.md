@@ -1,6 +1,6 @@
 # Salary Components & Account Mapping
 
-Dokumen ini menjelaskan daftar **Salary Component** yang disediakan modul Payroll Indonesia beserta akun GL bawaan yang dipetakan ke setiap komponen. Definisi komponen berada pada file `fixtures/salary_component.json`, sedangkan pemetaan akun berada pada `payroll_indonesia/setup/gl_account_mapping.json`.
+Dokumen ini menjelaskan daftar **Salary Component** yang disediakan modul Payroll Indonesia beserta akun GL bawaan yang dipetakan ke setiap komponen. Definisi komponen berada pada file `fixtures/salary_component.json`. Akun GL default dibuat menggunakan `payroll_indonesia/setup/default_gl_accounts.json` dan dipetakan ke komponen pada `payroll_indonesia/setup/gl_account_mapping.json`.
 
 ## Daftar Komponen
 
@@ -35,4 +35,4 @@ Dokumen ini menjelaskan daftar **Salary Component** yang disediakan modul Payrol
 | Contra BPJS JKK Employer | C-BPJS JKK-E | Deduction | BPJS JKK Payable | Contra entry untuk BPJS JKK Employer |
 | Contra BPJS JKM Employer | C-BPJS JKM-E | Deduction | BPJS JKM Payable | Contra entry untuk BPJS JKM Employer |
 
-Akun di atas merupakan nama akun **tanpa** akhiran kode perusahaan. Saat proses *setup* berjalan, modul akan menambahkan akronim perusahaan (contoh `- IND`) pada nama akun sesuai mapping di `gl_account_mapping.json`.
+Akun di atas merupakan nama akun **tanpa** akhiran kode perusahaan. Saat proses *setup* berjalan, modul akan membuat akun tersebut berdasarkan `default_gl_accounts.json`, menambahkan akronim perusahaan (contoh `- IND`), dan memetakan setiap komponen ke akun sesuai `gl_account_mapping.json`.
