@@ -1,6 +1,7 @@
 [
   {
     "doctype": "Salary Component",
+    "name": "Basic Salary",
     "salary_component": "Basic Salary",
     "salary_component_abbr": "BS",
     "type": "Earning",
@@ -13,6 +14,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Gaji Pokok",
     "salary_component": "Gaji Pokok",
     "salary_component_abbr": "GP",
     "type": "Earning",
@@ -25,6 +27,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Tunjangan Transport",
     "salary_component": "Tunjangan Transport",
     "salary_component_abbr": "TT",
     "type": "Earning",
@@ -38,6 +41,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Tunjangan Makan",
     "salary_component": "Tunjangan Makan",
     "salary_component_abbr": "TM",
     "type": "Earning",
@@ -51,6 +55,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "THR",
     "salary_component": "THR",
     "salary_component_abbr": "THR",
     "type": "Earning",
@@ -64,6 +69,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Bonus",
     "salary_component": "Bonus",
     "salary_component_abbr": "BON",
     "type": "Earning",
@@ -77,6 +83,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Makan di Kantor",
     "salary_component": "Makan di Kantor",
     "salary_component_abbr": "MK",
     "type": "Earning",
@@ -90,6 +97,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Seragam Kerja",
     "salary_component": "Seragam Kerja",
     "salary_component_abbr": "SK",
     "type": "Earning",
@@ -103,6 +111,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Bingkisan Hari Raya",
     "salary_component": "Bingkisan Hari Raya",
     "salary_component_abbr": "BHR",
     "type": "Earning",
@@ -116,6 +125,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Asuransi Tambahan",
     "salary_component": "Asuransi Tambahan",
     "salary_component_abbr": "AT",
     "type": "Earning",
@@ -129,6 +139,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Kendaraan Dinas",
     "salary_component": "Kendaraan Dinas",
     "salary_component_abbr": "KD",
     "type": "Earning",
@@ -142,6 +153,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Insentif Penjualan",
     "salary_component": "Insentif Penjualan",
     "salary_component_abbr": "IP",
     "type": "Earning",
@@ -155,6 +167,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Tunjangan Pajak atas Insentif",
     "salary_component": "Tunjangan Pajak atas Insentif",
     "salary_component_abbr": "TPI",
     "type": "Earning",
@@ -168,6 +181,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "BPJS Kesehatan Employer",
     "salary_component": "BPJS Kesehatan Employer",
     "salary_component_abbr": "BPJS KES-E",
     "type": "Earning",
@@ -183,6 +197,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "BPJS JHT Employer",
     "salary_component": "BPJS JHT Employer",
     "salary_component_abbr": "BPJS JHT-E",
     "type": "Earning",
@@ -198,6 +213,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "BPJS JP Employer",
     "salary_component": "BPJS JP Employer",
     "salary_component_abbr": "BPJS JP-E",
     "type": "Earning",
@@ -213,6 +229,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "BPJS JKK Employer",
     "salary_component": "BPJS JKK Employer",
     "salary_component_abbr": "BPJS JKK-E",
     "type": "Earning",
@@ -228,6 +245,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "BPJS JKM Employer",
     "salary_component": "BPJS JKM Employer",
     "salary_component_abbr": "BPJS JKM-E",
     "type": "Earning",
@@ -243,6 +261,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "BPJS Kesehatan Employee",
     "salary_component": "BPJS Kesehatan Employee",
     "salary_component_abbr": "BPJS KES-EE",
     "type": "Deduction",
@@ -258,6 +277,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "BPJS JHT Employee",
     "salary_component": "BPJS JHT Employee",
     "salary_component_abbr": "BPJS JHT-EE",
     "type": "Deduction",
@@ -273,6 +293,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "BPJS JP Employee",
     "salary_component": "BPJS JP Employee",
     "salary_component_abbr": "BPJS JP-EE",
     "type": "Deduction",
@@ -288,6 +309,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "PPh 21",
     "salary_component": "PPh 21",
     "salary_component_abbr": "PPh21",
     "type": "Deduction",
@@ -301,6 +323,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Biaya Jabatan",
     "salary_component": "Biaya Jabatan",
     "salary_component_abbr": "BJ",
     "type": "Deduction",
@@ -316,6 +339,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Contra BPJS Kesehatan Employer",
     "salary_component": "Contra BPJS Kesehatan Employer",
     "salary_component_abbr": "C-BPJS KES-E",
     "type": "Deduction",
@@ -331,6 +355,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Contra BPJS JHT Employer",
     "salary_component": "Contra BPJS JHT Employer",
     "salary_component_abbr": "C-BPJS JHT-E",
     "type": "Deduction",
@@ -346,6 +371,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Contra BPJS JP Employer",
     "salary_component": "Contra BPJS JP Employer",
     "salary_component_abbr": "C-BPJS JP-E",
     "type": "Deduction",
@@ -361,6 +387,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Contra BPJS JKK Employer",
     "salary_component": "Contra BPJS JKK Employer",
     "salary_component_abbr": "C-BPJS JKK-E",
     "type": "Deduction",
@@ -376,6 +403,7 @@
   },
   {
     "doctype": "Salary Component",
+    "name": "Contra BPJS JKM Employer",
     "salary_component": "Contra BPJS JKM Employer",
     "salary_component_abbr": "C-BPJS JKM-E",
     "type": "Deduction",
