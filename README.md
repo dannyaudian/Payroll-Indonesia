@@ -58,6 +58,7 @@ Referensi dan contoh hitung PPh 21, BPJS, serta perlakuan natura (PMK 168 & PMK 
    bench migrate
    ```
 4. Semua komponen, mapping, dan pengaturan akan otomatis terimport dan siap digunakan.
+5. Modul akan mencari nama grup akun umum seperti "Expenses" atau "Liabilities" sebagai induk akun payroll. Jika tidak ditemukan, akan digunakan grup akun pertama dengan `root_type` yang sama.
 
 ---
 
