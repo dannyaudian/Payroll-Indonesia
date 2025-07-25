@@ -1,0 +1,39 @@
+[
+  {
+    "doctype": "Salary Structure",
+    "name": "Indonesian Payroll Standard",
+    "salary_structure_assignments": [],
+    "earnings": [
+      { "salary_component": "Basic Salary" },
+      { "salary_component": "Gaji Pokok" },
+      { "salary_component": "Tunjangan Transport" },
+      { "salary_component": "Tunjangan Makan" },
+      { "salary_component": "THR" },
+      { "salary_component": "Bonus" },
+      { "salary_component": "Makan di Kantor" },
+      { "salary_component": "Seragam Kerja" },
+      { "salary_component": "Bingkisan Hari Raya" },
+      { "salary_component": "Asuransi Tambahan" },
+      { "salary_component": "Kendaraan Dinas" },
+      { "salary_component": "Insentif Penjualan" },
+      { "salary_component": "Tunjangan Pajak atas Insentif" },
+      { "salary_component": "BPJS Kesehatan Employer" },
+      { "salary_component": "BPJS JHT Employer" },
+      { "salary_component": "BPJS JP Employer" },
+      { "salary_component": "BPJS JKK Employer" },
+      { "salary_component": "BPJS JKM Employer" }
+    ],
+    "deductions": [
+      { "salary_component": "BPJS Kesehatan Employee" },
+      { "salary_component": "BPJS JHT Employee" },
+      { "salary_component": "BPJS JP Employee" },
+      { "salary_component": "PPh 21" },
+      { "salary_component": "Biaya Jabatan" },
+      { "salary_component": "Contra BPJS Kesehatan Employer" },
+      { "salary_component": "Contra BPJS JHT Employer" },
+      { "salary_component": "Contra BPJS JP Employer" },
+      { "salary_component": "Contra BPJS JKK Employer" },
+      { "salary_component": "Contra BPJS JKM Employer" }
+    ]
+  }
+]
