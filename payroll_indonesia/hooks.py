@@ -73,7 +73,7 @@ app_license = "MIT"
 # Integration Setup
 # ------------------
 # To set up dependencies/integrations with other apps
-after_sync = "payroll_indonesia.setup.setup_module.after_sync"
+after_sync = "payroll_indonesia.payroll_indonesia.setup.setup_module.after_sync"
 
 # Desk Notifications
 # ------------------
