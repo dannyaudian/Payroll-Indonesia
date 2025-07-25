@@ -10,6 +10,9 @@ def make_fake_frappe(parents_exist=True):
 
     class DB:
         def exists(self, doctype, name):
+            for doc in created:
+                if doctype == "Account" and f"{doc['account_name']} - TEST" == name:
+                    return True
             if not parents_exist:
                 return False
             return name in {
@@ -88,7 +91,7 @@ def test_create_default_accounts_no_account_type(monkeypatch):
     assert created, "Accounts were not created"
 
 
-def test_create_default_accounts_skip_when_no_parent(monkeypatch):
+def test_create_default_accounts_creates_parents_when_missing(monkeypatch):
     fake_frappe, created, logs = make_fake_frappe(parents_exist=False)
     sys.modules["frappe"] = fake_frappe
     sys.modules["payroll_indonesia.payroll_indonesia.setup.gl_account_mapper"] = SimpleNamespace(
@@ -104,5 +107,7 @@ def test_create_default_accounts_skip_when_no_parent(monkeypatch):
 
     setup_module.create_default_accounts("Test Company", "TEST")
 
-    assert not created, "Accounts should be skipped when no parent is found"
-    assert any("Skipping account" in log for log in logs)
+    parent_names = {d["account_name"] for d in created if d.get("is_group")}
+    assert {"Expenses", "Liabilities", "Duties and Taxes"} <= parent_names
+    assert any(d["account_name"] == "Salary Expense" for d in created)
+    assert not any("Skipping account" in log for log in logs)

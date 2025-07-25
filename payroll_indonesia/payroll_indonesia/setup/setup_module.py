@@ -20,6 +20,34 @@ def get_parent_account(possible_names: List[str], company_abbr: str) -> Optional
     return None
 
 
+def ensure_parent_account(
+    name: str, company_name: str, company_abbr: str, root_type: str
+) -> None:
+    """Ensure a group parent account exists for the given company."""
+    account_name_with_abbr = f"{name} - {company_abbr}"
+    if frappe.db.exists("Account", account_name_with_abbr):
+        return
+
+    try:
+        parent_doc = frappe.get_doc(
+            {
+                "doctype": "Account",
+                "account_name": name,
+                "company": company_name,
+                "is_group": 1,
+                "root_type": root_type,
+                "report_type": "Balance Sheet" if root_type == "Liability" else "Profit and Loss",
+            }
+        )
+        parent_doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+    except Exception as e:
+        frappe.log_error(
+            f"Error creating parent account {account_name_with_abbr}: {str(e)}",
+            "Payroll Indonesia Setup",
+        )
+
+
 def create_default_accounts(company_name: str, company_abbr: str) -> None:
     """
     Create default GL accounts for payroll processing for the specified company.
@@ -55,6 +83,13 @@ def create_default_accounts(company_name: str, company_abbr: str) -> None:
         account_type = account.get("account_type")
         is_group = account.get("is_group", 0)
         account_name_with_abbr = f"{account_name} - {company_abbr}"
+
+        if account_name == "PPh 21 Payable":
+            ensure_parent_account("Duties and Taxes", company_name, company_abbr, "Liability")
+        elif root_type == "Expense":
+            ensure_parent_account("Expenses", company_name, company_abbr, "Expense")
+        elif root_type == "Liability" and account_type == "Payable":
+            ensure_parent_account("Liabilities", company_name, company_abbr, "Liability")
 
         if frappe.db.exists("Account", account_name_with_abbr):
             continue
