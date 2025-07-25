@@ -209,5 +209,9 @@ after_sync = "payroll_indonesia.payroll_indonesia.setup.setup_module.after_sync"
 fixtures = [
     "Custom Field",
     "Salary Component",
-    "Income Tax Slab"
+    "Income Tax Slab",
+    "PTKP Table",
+    "TER Bracket Table",
+    "TER Mapping Table",
+    "Payroll Indonesia Settings"
 ]
