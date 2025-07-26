@@ -22,6 +22,7 @@
     "is_flexible_benefit": 0,
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 0,
+    "amount_based_on_formula": 1,
     "statistical_component": 0,
     "description": "Komponen gaji pokok",
     "formula": "base"

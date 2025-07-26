@@ -150,8 +150,8 @@
   },
   {
     "doctype": "Custom Field",
-    "name": "Salary Slip-run_payroll_indonesia",
-    "dt": "Salary Slip",
+    "name": "Payroll Entry-run_payroll_indonesia",
+    "dt": "Payroll Entry",
     "fieldname": "run_payroll_indonesia",
     "label": "Run Payroll Indonesia",
     "fieldtype": "Check",
@@ -169,8 +169,8 @@
   },
   {
     "doctype": "Custom Field",
-    "name": "Salary Slip-run_payroll_indonesia_december",
-    "dt": "Salary Slip",
+    "name": "Payroll Entry-run_payroll_indonesia_december",
+    "dt": "Payroll Entry",
     "fieldname": "run_payroll_indonesia_december",
     "label": "Run Payroll Indonesia December",
     "fieldtype": "Check",
