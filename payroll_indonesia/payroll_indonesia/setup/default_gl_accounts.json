@@ -1,5 +1,32 @@
 [
   {
+    "account_name": "Expenses - {{company_abbr}}",
+    "parent_account": "",
+    "company": "{{company}}",
+    "root_type": "Expense",
+    "account_type": "Expense Account",
+    "is_group": 1,
+    "report_type": "Profit and Loss"
+  },
+  {
+    "account_name": "Current Liability - {{company_abbr}}",
+    "parent_account": "",
+    "company": "{{company}}",
+    "root_type": "Liability",
+    "account_type": "Current Liability",
+    "is_group": 1,
+    "report_type": "Balance Sheet"
+  },
+  {
+    "account_name": "Duties and Taxes - {{company_abbr}}",
+    "parent_account": "",
+    "company": "{{company}}",
+    "root_type": "Liability",
+    "account_type": "Tax",
+    "is_group": 1,
+    "report_type": "Balance Sheet"
+  },
+  {
     "account_name": "Employee Expense",
     "parent_account": "Expenses - {{company_abbr}}",
     "company": "{{company}}",
