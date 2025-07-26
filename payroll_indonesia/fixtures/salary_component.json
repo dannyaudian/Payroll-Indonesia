@@ -23,7 +23,8 @@
     "depends_on_payment_days": 1,
     "do_not_include_in_total": 0,
     "statistical_component": 0,
-    "description": "Komponen gaji pokok"
+    "description": "Komponen gaji pokok",
+    "formula": "base"
   },
   {
     "doctype": "Salary Component",

@@ -185,5 +185,41 @@
     "in_filter": 1, 
     "in_list_view": 0,
     "description": "Gunakan perhitungan PPh 21 metode tahunan (sesuai PMK 168/2023)"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Structure Assignment",
+    "fieldname": "meal_allowance",
+    "label": "Uang Makan",
+    "fieldtype": "Currency",
+    "insert_after": "base",
+    "options": "",
+    "reqd": 0,
+    "default": "",
+    "depends_on": "",
+    "hidden": 0,
+    "no_copy": 0,
+    "print_hide": 0,
+    "in_filter": 1,
+    "in_list_view": 1,
+    "description": "Tunjangan uang makan bulanan"
+  },
+  {
+    "doctype": "Custom Field",
+    "dt": "Salary Structure Assignment",
+    "fieldname": "transport_allowance",
+    "label": "Uang Transport",
+    "fieldtype": "Currency",
+    "insert_after": "meal_allowance",
+    "options": "",
+    "reqd": 0,
+    "default": "",
+    "depends_on": "",
+    "hidden": 0,
+    "no_copy": 0,
+    "print_hide": 0,
+    "in_filter": 1,
+    "in_list_view": 1,
+    "description": "Tunjangan uang transport bulanan"
   }
 ]

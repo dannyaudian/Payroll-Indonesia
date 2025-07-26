@@ -4,7 +4,6 @@
     "name": "Indonesian Payroll Standard",
     "salary_structure_assignments": [],
     "earnings": [
-      { "salary_component": "Basic Salary" },
       { "salary_component": "Gaji Pokok" },
       { "salary_component": "Tunjangan Transport" },
       { "salary_component": "Tunjangan Makan" },
