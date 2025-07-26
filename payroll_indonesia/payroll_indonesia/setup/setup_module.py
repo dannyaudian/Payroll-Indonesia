@@ -80,7 +80,9 @@ def create_accounts_from_json() -> None:
                 doc.insert(ignore_if_duplicate=True, ignore_permissions=True)
                 frappe.logger().info(f"Created account {doc.name} for {company}")
             except Exception:
-                frappe.logger().info(f"Skipped account {acc.get('account_name')} for {company}")
+                frappe.logger().error(
+                    f"Skipped account {acc.get('account_name')} for {company}\n{traceback.format_exc()}"
+                )
         frappe.db.commit()
 
 
