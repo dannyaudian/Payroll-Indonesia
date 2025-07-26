@@ -1,6 +1,6 @@
 [
   {
-    "account_name": "Expenses - {{company_abbr}}",
+    "account_name": "Expenses",
     "parent_account": "",
     "company": "{{company}}",
     "root_type": "Expense",
@@ -9,7 +9,7 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "Current Liability - {{company_abbr}}",
+    "account_name": "Current Liability",
     "parent_account": "",
     "company": "{{company}}",
     "root_type": "Liability",
@@ -18,7 +18,7 @@
     "report_type": "Balance Sheet"
   },
   {
-    "account_name": "Duties and Taxes - {{company_abbr}}",
+    "account_name": "Duties and Taxes",
     "parent_account": "",
     "company": "{{company}}",
     "root_type": "Liability",
@@ -27,8 +27,8 @@
     "report_type": "Balance Sheet"
   },
   {
-    "account_name": "Employee Expense - {{company_abbr}}",
-    "parent_account": "Expenses - {{company_abbr}}",
+    "account_name": "Employee Expense",
+    "parent_account": "Expenses",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Direct Expense",
@@ -36,8 +36,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "BPJS Payable - {{company_abbr}}",
-    "parent_account": "Current Liability - {{company_abbr}}",
+    "account_name": "BPJS Payable",
+    "parent_account": "Current Liability",
     "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Current Liability",
@@ -45,8 +45,8 @@
     "report_type": "Balance Sheet"
   },
   {
-    "account_name": "Salary Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "Salary Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Expense Account",
@@ -54,8 +54,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "THR Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "THR Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Expense Account",
@@ -63,8 +63,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "Bonus Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "Bonus Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Expense Account",
@@ -72,8 +72,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "Transport Allowance - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "Transport Allowance",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Direct Expense",
@@ -81,8 +81,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "Meal Allowance - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "Meal Allowance",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Direct Expense",
@@ -90,8 +90,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "Office Meals Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "Office Meals Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Indirect Expense",
@@ -99,8 +99,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "Work Uniform Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "Work Uniform Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Indirect Expense",
@@ -108,8 +108,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "Holiday Gift Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "Holiday Gift Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Indirect Expense",
@@ -117,8 +117,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "Additional Insurance Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "Additional Insurance Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Indirect Expense",
@@ -126,8 +126,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "Company Vehicle Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "Company Vehicle Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Indirect Expense",
@@ -135,8 +135,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "Sales Incentive Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "Sales Incentive Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Direct Expense",
@@ -144,8 +144,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "Tax Allowance Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "Tax Allowance Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Indirect Expense",
@@ -153,8 +153,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "BPJS Kesehatan Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "BPJS Kesehatan Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Direct Expense",
@@ -162,8 +162,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "BPJS JHT Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "BPJS JHT Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Direct Expense",
@@ -171,8 +171,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "BPJS JKK Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "BPJS JKK Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Direct Expense",
@@ -180,8 +180,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "BPJS JKM Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "BPJS JKM Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Direct Expense",
@@ -189,8 +189,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "BPJS JP Expense - {{company_abbr}}",
-    "parent_account": "Employee Expense - {{company_abbr}}",
+    "account_name": "BPJS JP Expense",
+    "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
     "account_type": "Direct Expense",
@@ -198,8 +198,8 @@
     "report_type": "Profit and Loss"
   },
   {
-    "account_name": "BPJS Kesehatan Payable - {{company_abbr}}",
-    "parent_account": "BPJS Payable - {{company_abbr}}",
+    "account_name": "BPJS Kesehatan Payable",
+    "parent_account": "BPJS Payable",
     "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Payable",
@@ -207,8 +207,8 @@
     "report_type": "Balance Sheet"
   },
   {
-    "account_name": "BPJS JHT Payable - {{company_abbr}}",
-    "parent_account": "BPJS Payable - {{company_abbr}}",
+    "account_name": "BPJS JHT Payable",
+    "parent_account": "BPJS Payable",
     "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Payable",
@@ -216,8 +216,8 @@
     "report_type": "Balance Sheet"
   },
   {
-    "account_name": "BPJS JKK Payable - {{company_abbr}}",
-    "parent_account": "BPJS Payable - {{company_abbr}}",
+    "account_name": "BPJS JKK Payable",
+    "parent_account": "BPJS Payable",
     "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Payable",
@@ -225,8 +225,8 @@
     "report_type": "Balance Sheet"
   },
   {
-    "account_name": "BPJS JKM Payable - {{company_abbr}}",
-    "parent_account": "BPJS Payable - {{company_abbr}}",
+    "account_name": "BPJS JKM Payable",
+    "parent_account": "BPJS Payable",
     "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Payable",
@@ -234,8 +234,8 @@
     "report_type": "Balance Sheet"
   },
   {
-    "account_name": "BPJS JP Payable - {{company_abbr}}",
-    "parent_account": "BPJS Payable - {{company_abbr}}",
+    "account_name": "BPJS JP Payable",
+    "parent_account": "BPJS Payable",
     "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Payable",
@@ -243,8 +243,8 @@
     "report_type": "Balance Sheet"
   },
   {
-    "account_name": "PPh 21 Payable - {{company_abbr}}",
-    "parent_account": "Duties and Taxes - {{company_abbr}}",
+    "account_name": "PPh 21 Payable",
+    "parent_account": "Duties and Taxes",
     "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Tax",
@@ -252,8 +252,8 @@
     "report_type": "Balance Sheet"
   },
   {
-    "account_name": "Employee Salary Payable - {{company_abbr}}",
-    "parent_account": "Current Liability - {{company_abbr}}",
+    "account_name": "Employee Salary Payable",
+    "parent_account": "Current Liability",
     "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Payable",
