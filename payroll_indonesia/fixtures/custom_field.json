@@ -189,6 +189,7 @@
   {
     "doctype": "Custom Field",
     "dt": "Salary Structure Assignment",
+    "name": "Salary Structure Assignment-meal_allowance",
     "fieldname": "meal_allowance",
     "label": "Uang Makan",
     "fieldtype": "Currency",
@@ -206,6 +207,7 @@
   },
   {
     "doctype": "Custom Field",
+    "name": "Salary Structure Assignment-transport_allowance",
     "dt": "Salary Structure Assignment",
     "fieldname": "transport_allowance",
     "label": "Uang Transport",
