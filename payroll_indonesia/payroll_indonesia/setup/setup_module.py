@@ -13,7 +13,7 @@ __all__ = ["after_sync"]
 
 def ensure_parent(name: str, company: str, root_type: str, report_type: str) -> bool:
     """Create parent account if missing."""
-    if frappe.db.exists("Account", {"account_name": name, "company": company}):
+    if frappe.db.exists("Account", name):
         return True
 
     try:
@@ -69,12 +69,14 @@ def create_accounts_from_json() -> None:
         for acc in accounts:
             parent = acc.get("parent_account")
             if parent:
-                parent_name = parent.rsplit(" - ", 1)[0]
                 if not ensure_parent(
-                    parent_name, company, acc.get("root_type"), acc.get("report_type")
+                    parent,
+                    company,
+                    acc.get("root_type"),
+                    acc.get("report_type"),
                 ):
                     frappe.logger().info(
-                        f"Skipped account {acc.get('account_name')} for {company} because parent {parent_name} is missing"
+                        f"Skipped account {acc.get('account_name')} for {company} because parent {parent} is missing"
                     )
                     continue
             try:
@@ -95,9 +97,7 @@ def after_sync() -> None:
         create_accounts_from_json()
         frappe.db.commit()
     except Exception:
-        frappe.logger().error(
-            f"Error creating GL accounts\n{traceback.format_exc()}"
-        )
+        frappe.logger().error(f"Error creating GL accounts\n{traceback.format_exc()}")
         frappe.db.rollback()
         return
 
