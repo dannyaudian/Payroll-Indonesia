@@ -9,10 +9,10 @@ import frappe
 __all__ = ["after_sync"]
 
 
-def ensure_parent(name: str, company: str, root_type: str, report_type: str) -> None:
+def ensure_parent(name: str, company: str, root_type: str, report_type: str) -> bool:
     """Create parent account if missing."""
     if frappe.db.exists("Account", {"account_name": name, "company": company}):
-        return
+        return True
 
     try:
         doc = frappe.get_doc(
@@ -27,10 +27,12 @@ def ensure_parent(name: str, company: str, root_type: str, report_type: str) -> 
         )
         doc.insert(ignore_if_duplicate=True, ignore_permissions=True)
         frappe.logger().info(f"Created parent account {doc.name} for {company}")
+        return True
     except Exception:
         frappe.logger().error(
             f"Failed creating parent account {name} for {company}\n{traceback.format_exc()}"
         )
+        return False
 
 
 def create_accounts_from_json() -> None:
@@ -66,7 +68,13 @@ def create_accounts_from_json() -> None:
             parent = acc.get("parent_account")
             if parent:
                 parent_name = parent.rsplit(" - ", 1)[0]
-                ensure_parent(parent_name, company, acc.get("root_type"), acc.get("report_type"))
+                if not ensure_parent(
+                    parent_name, company, acc.get("root_type"), acc.get("report_type")
+                ):
+                    frappe.logger().info(
+                        f"Skipped account {acc.get('account_name')} for {company} because parent {parent_name} is missing"
+                    )
+                    continue
             try:
                 doc = frappe.get_doc({"doctype": "Account", **acc})
                 doc.insert(ignore_if_duplicate=True, ignore_permissions=True)
