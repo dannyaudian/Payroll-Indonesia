@@ -5,6 +5,7 @@ import os
 import traceback
 
 import frappe
+
 from .gl_account_mapper import assign_gl_accounts_to_salary_components_all
 from .settings_migration import setup_default_settings
 
@@ -12,8 +13,17 @@ __all__ = ["after_sync"]
 
 
 def ensure_parent(name: str, company: str, root_type: str, report_type: str) -> bool:
-    """Create parent account if missing."""
+    """Create parent account if missing or update mismatched metadata."""
     if frappe.db.exists("Account", name):
+        doc = frappe.get_doc("Account", name)
+        updates: dict[str, str] = {}
+        if doc.root_type != root_type:
+            updates["root_type"] = root_type
+        if doc.report_type != report_type:
+            updates["report_type"] = report_type
+        if updates:
+            frappe.logger().warning(f"Updating parent account {name} for {company} with {updates}")
+            frappe.db.set_value("Account", name, updates, update_modified=False)
         return True
 
     try:
