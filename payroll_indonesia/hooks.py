@@ -72,11 +72,15 @@ app_license = "MIT"
 
 # Integration Setup
 # ------------------
-# To set up dependencies/integrations with other apps
+# To set up dependencies/integrations with other apps.
+#
+# `after_sync` is executed immediately after DocType sync while
+# `after_migrate` runs later once all patches have been applied.
+# Running both hooks would call the setup twice, so we only use
+# `after_migrate`.
 after_migrate = [
     "payroll_indonesia.payroll_indonesia.setup.setup_module.after_sync"
 ]
-after_sync = after_migrate
 
 # Desk Notifications
 # ------------------
