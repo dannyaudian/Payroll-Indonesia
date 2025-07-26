@@ -9,6 +9,15 @@
     "report_type": "Profit and Loss"
   },
   {
+  "account_name": "Account Payable",
+  "parent_account": "Current Liability",
+  "company": "{{company}}",
+  "root_type": "Liability",
+  "account_type": "Payable",
+  "is_group": 1,
+  "report_type": "Balance Sheet"
+},
+  {
     "account_name": "Current Liability",
     "parent_account": "",
     "company": "{{company}}",
@@ -31,7 +40,7 @@
     "parent_account": "Expenses",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Direct Expense",
+    "account_type": "Expense Account",
     "is_group": 1,
     "report_type": "Profit and Loss"
   },
@@ -76,7 +85,7 @@
     "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Direct Expense",
+    "account_type": "Expense Account",
     "is_group": 0,
     "report_type": "Profit and Loss"
   },
@@ -85,7 +94,7 @@
     "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Direct Expense",
+    "account_type": "Expense Account",
     "is_group": 0,
     "report_type": "Profit and Loss"
   },
@@ -94,7 +103,7 @@
     "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Indirect Expense",
+    "account_type": "Expense Account",
     "is_group": 0,
     "report_type": "Profit and Loss"
   },
@@ -103,7 +112,7 @@
     "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Indirect Expense",
+    "account_type": "Expense Account",
     "is_group": 0,
     "report_type": "Profit and Loss"
   },
@@ -112,7 +121,7 @@
     "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Indirect Expense",
+    "account_type": "Expense Account",
     "is_group": 0,
     "report_type": "Profit and Loss"
   },
@@ -121,7 +130,7 @@
     "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Indirect Expense",
+    "account_type": "Expense Account",
     "is_group": 0,
     "report_type": "Profit and Loss"
   },
@@ -130,7 +139,7 @@
     "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Indirect Expense",
+    "account_type": "Expense Account",
     "is_group": 0,
     "report_type": "Profit and Loss"
   },
@@ -139,7 +148,7 @@
     "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Direct Expense",
+    "account_type": "Expense Account",
     "is_group": 0,
     "report_type": "Profit and Loss"
   },
@@ -148,7 +157,7 @@
     "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Indirect Expense",
+    "account_type": "Expense Account",
     "is_group": 0,
     "report_type": "Profit and Loss"
   },
@@ -157,7 +166,7 @@
     "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Direct Expense",
+    "account_type": "Expense Account",
     "is_group": 0,
     "report_type": "Profit and Loss"
   },
@@ -166,7 +175,7 @@
     "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Direct Expense",
+    "account_type": "Expense Account",
     "is_group": 0,
     "report_type": "Profit and Loss"
   },
@@ -175,7 +184,7 @@
     "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Direct Expense",
+    "account_type": "Expense Account",
     "is_group": 0,
     "report_type": "Profit and Loss"
   },
@@ -184,7 +193,7 @@
     "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Direct Expense",
+    "account_type": "Expense Account",
     "is_group": 0,
     "report_type": "Profit and Loss"
   },
@@ -193,7 +202,7 @@
     "parent_account": "Employee Expense",
     "company": "{{company}}",
     "root_type": "Expense",
-    "account_type": "Direct Expense",
+    "account_type": "Expense Account",
     "is_group": 0,
     "report_type": "Profit and Loss"
   },
