@@ -5,6 +5,8 @@ import os
 import traceback
 
 import frappe
+from .gl_account_mapper import assign_gl_accounts_to_salary_components_all
+from .settings_migration import setup_default_settings
 
 __all__ = ["after_sync"]
 
@@ -87,4 +89,31 @@ def create_accounts_from_json() -> None:
 def after_sync() -> None:
     """Entry point executed on migrate and sync."""
     frappe.logger().info("🚀 Payroll GL Setup started")
-    create_accounts_from_json()
+    try:
+        create_accounts_from_json()
+        frappe.db.commit()
+    except Exception:
+        frappe.logger().error(
+            f"Error creating GL accounts\n{traceback.format_exc()}"
+        )
+        frappe.db.rollback()
+        return
+
+    try:
+        assign_gl_accounts_to_salary_components_all()
+        frappe.db.commit()
+    except Exception:
+        frappe.logger().error(
+            f"Error assigning GL accounts to salary components\n{traceback.format_exc()}"
+        )
+        frappe.db.rollback()
+        return
+
+    try:
+        setup_default_settings()
+        frappe.db.commit()
+    except Exception:
+        frappe.logger().error(
+            f"Error setting up default Payroll Indonesia settings\n{traceback.format_exc()}"
+        )
+        frappe.db.rollback()
