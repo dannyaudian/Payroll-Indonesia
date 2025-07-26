@@ -37,7 +37,7 @@
   },
   {
     "account_name": "BPJS Payable",
-    "parent_account": "Current Liability",
+    "parent_account": "Account Payable",
     "company": "{{company}}",
     "root_type": "Liability",
     "account_type": "Current Liability",
