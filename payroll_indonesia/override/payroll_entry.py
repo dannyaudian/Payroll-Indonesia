@@ -1,8 +1,5 @@
 from erpnext.payroll.doctype.payroll_entry.payroll_entry import PayrollEntry
 import frappe
-from payroll_indonesia.config import config
-from payroll_indonesia.config import pph21_ter
-from payroll_indonesia.config import pph21_ter_december
 
 class CustomPayrollEntry(PayrollEntry):
     def validate(self):
@@ -10,16 +7,17 @@ class CustomPayrollEntry(PayrollEntry):
         # Custom validation for Payroll Indonesia
         if getattr(self, "run_payroll_indonesia", False):
             frappe.logger().info("Payroll Entry: Run Payroll Indonesia is checked.")
-            settings = config.get_settings()
-            if hasattr(self, "pph21_method") and not self.pph21_method:
+            # Auto set pph21_method from settings if not set
+            settings = frappe.get_single("Payroll Indonesia Settings") if frappe.db.exists("DocType", "Payroll Indonesia Settings") else None
+            if hasattr(self, "pph21_method") and not self.pph21_method and settings:
                 self.pph21_method = settings.get("pph21_method", "TER")
         if getattr(self, "run_payroll_indonesia_december", False):
             frappe.logger().info("Payroll Entry: Run Payroll Indonesia DECEMBER mode is checked.")
-            # Tambahkan validasi/logic khusus Desember jika ada
+            # Add any December-specific validation here if needed
 
     def create_salary_slips(self):
         """
-        Override: generate salary slips dengan perhitungan PPh 21 Indonesia (TER/Desember)
+        Override: generate salary slips dengan perhitungan PPh 21 Indonesia (TER/Desember) via CustomSalarySlip logic
         """
         if getattr(self, "run_payroll_indonesia_december", False):
             frappe.logger().info("Payroll Entry: Running Salary Slip generation for Payroll Indonesia DECEMBER (final year) mode.")
@@ -32,40 +30,69 @@ class CustomPayrollEntry(PayrollEntry):
 
     def _create_salary_slips_indonesia(self):
         """
-        Generate salary slips dengan logika PPh21 TER (bulanan).
+        Generate salary slips dengan logika PPh21 TER (bulanan) sesuai CustomSalarySlip.
         """
         slips = super().create_salary_slips()
         for slip in slips:
-            emp = self._get_employee_doc(slip)
-            # Hitung PPh 21 TER
-            pph21_result = pph21_ter.calculate_pph21_TER(emp, slip)
-            slip["pph21_info"] = pph21_result
-            slip["tax"] = pph21_result.get("pph21", 0)
-            slip["tax_type"] = "TER"
+            slip_obj = self._get_salary_slip_obj(slip)
+            # calculate_income_tax will handle the Indonesian logic
+            slip_obj.calculate_income_tax()
+            # Sync calculated fields back if slip is dict (for batch context)
+            if isinstance(slip, dict):
+                slip["pph21_info"] = getattr(slip_obj, "pph21_info", {})
+                slip["tax"] = getattr(slip_obj, "tax", 0)
+                slip["tax_type"] = getattr(slip_obj, "tax_type", "TER")
         return slips
 
     def _create_salary_slips_indonesia_december(self):
         """
-        Generate salary slips dengan logika PPh21 Desember (annual progressive/final).
+        Generate salary slips dengan logika PPh21 Desember (annual progressive/final) sesuai CustomSalarySlip.
         """
         slips = super().create_salary_slips()
         for slip in slips:
-            emp = self._get_employee_doc(slip)
-            # Hitung PPh 21 progressive annual (Desember)
-            pph21_result = pph21_ter_december.calculate_pph21_TER_december(emp, slip)
-            slip["pph21_info"] = pph21_result
-            slip["tax"] = pph21_result.get("pph21_month", 0)
-            slip["tax_type"] = "DECEMBER"
+            slip_obj = self._get_salary_slip_obj(slip)
+            slip_obj.calculate_income_tax()
+            if isinstance(slip, dict):
+                slip["pph21_info"] = getattr(slip_obj, "pph21_info", {})
+                slip["tax"] = getattr(slip_obj, "tax", 0)
+                slip["tax_type"] = getattr(slip_obj, "tax_type", "DECEMBER")
         return slips
+
+    def _get_salary_slip_obj(self, slip):
+        """
+        Helper: construct or fetch a SalarySlip (or CustomSalarySlip) object for calculation.
+        If slip is an object, use directly.
+        If dict, fetch doc from DB or construct object.
+        """
+        if hasattr(slip, "calculate_income_tax"):
+            return slip  # already a slip object
+        elif isinstance(slip, dict):
+            # Try fetch from DB if possible, else construct dummy object
+            if "name" in slip:
+                try:
+                    slip_obj = frappe.get_doc("Salary Slip", slip["name"])
+                except Exception:
+                    from payroll_indonesia.override.salary_slip import CustomSalarySlip
+                    slip_obj = CustomSalarySlip(**slip)
+            else:
+                from payroll_indonesia.override.salary_slip import CustomSalarySlip
+                slip_obj = CustomSalarySlip(**slip)
+            return slip_obj
+        else:
+            return slip  # fallback
 
     def _get_employee_doc(self, slip):
         """
         Helper untuk mengambil data employee (dict), bisa dari slip atau fetch dari DB.
         """
-        if "employee" in slip:
+        if hasattr(slip, "employee"):
+            if isinstance(slip.employee, dict):
+                return slip.employee
+            else:
+                return frappe.get_doc("Employee", slip.employee)
+        if isinstance(slip, dict) and "employee" in slip:
             if isinstance(slip["employee"], dict):
                 return slip["employee"]
             else:
-                # Fetch doc dari DB jika hanya string id
                 return frappe.get_doc("Employee", slip["employee"])
         return {}
