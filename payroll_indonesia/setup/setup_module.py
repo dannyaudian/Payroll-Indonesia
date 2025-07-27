@@ -185,6 +185,8 @@ def after_sync() -> None:
 
     try:
         setup_default_settings()
+        frappe.db.commit()
+        frappe.logger().info("✅ Payroll GL Setup completed")
     except Exception:
         frappe.logger().error(
             f"Error setting up default Payroll Indonesia settings\n{traceback.format_exc()}"
