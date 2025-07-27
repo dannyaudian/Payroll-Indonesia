@@ -220,5 +220,6 @@ fixtures = [
     "PTKP Table",
     "TER Bracket Table",
     "TER Mapping Table",
-    "Payroll Indonesia Settings"
+    "Payroll Indonesia Settings",
+    "Workspace"
 ]

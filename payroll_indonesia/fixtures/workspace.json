@@ -1,0 +1,28 @@
+[
+  {
+    "doctype": "Workspace",
+    "name": "Payroll Indonesia",
+    "label": "Payroll Indonesia",
+    "module": "Payroll Indonesia",
+    "icon": "octicon octicon-briefcase",
+    "description": "Quick access to Payroll Indonesia features",
+    "sequence": 1,
+    "content": [
+      {"type": "doctype", "link_to": "Employee", "label": "Employees"},
+      {"type": "doctype", "link_to": "Salary Slip", "label": "Salary Slips"}
+    ]
+  },
+  {
+    "doctype": "Workspace",
+    "name": "HR & Payroll",
+    "label": "HR & Payroll",
+    "module": "HR",
+    "icon": "octicon octicon-people",
+    "description": "General payroll links",
+    "sequence": 2,
+    "content": [
+      {"type": "doctype", "link_to": "Payroll Entry", "label": "Payroll Entry"},
+      {"type": "doctype", "link_to": "Attendance", "label": "Attendance"}
+    ]
+  }
+]
