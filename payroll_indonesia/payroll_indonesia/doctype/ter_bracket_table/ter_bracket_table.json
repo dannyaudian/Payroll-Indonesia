@@ -15,23 +15,23 @@
       "description": "Kode TER: A, B, C"
     },
     {
-      "fieldname": "min",
+      "fieldname": "min_income",
       "fieldtype": "Currency",
-      "label": "Min Amount",
+      "label": "Min Income",
       "in_list_view": 1,
       "reqd": 1,
       "description": "Batas bawah penghasilan bruto bulanan"
     },
     {
-      "fieldname": "max",
+      "fieldname": "max_income",
       "fieldtype": "Currency",
-      "label": "Max Amount",
+      "label": "Max Income",
       "in_list_view": 1,
       "reqd": 0,
       "description": "Batas atas penghasilan bruto bulanan (kosong untuk batas teratas)"
     },
     {
-      "fieldname": "rate",
+      "fieldname": "rate_percent",
       "fieldtype": "Float",
       "label": "Rate (%)",
       "in_list_view": 1,

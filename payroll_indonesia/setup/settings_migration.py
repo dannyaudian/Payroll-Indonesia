@@ -94,9 +94,9 @@ def import_ter_brackets() -> None:
                 "ter_bracket_table",
                 {
                     "ter_code": ter_code,
-                    "min": bracket["min"],
-                    "max": bracket["max"] if bracket["max"] is not None else 0,
-                    "rate": bracket["rate"],
+                    "min_income": bracket["min_income"],
+                    "max_income": bracket["max_income"] if bracket["max_income"] is not None else 0,
+                    "rate_percent": bracket["rate_percent"],
                 },
             )
 

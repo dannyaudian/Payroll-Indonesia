@@ -48,6 +48,8 @@ def get_ter_rate(ter_code: str, monthly_income: float) -> float:
     settings = get_settings()
     brackets = [b for b in settings.get("ter_bracket_table", []) if b.ter_code == ter_code]
     for row in brackets:
-        if monthly_income >= row.min and (row.max == 0 or monthly_income <= row.max):
-            return flt(row.rate)
+        if monthly_income >= row.min_income and (
+            row.max_income == 0 or monthly_income <= row.max_income
+        ):
+            return flt(row.rate_percent)
     return 0.0
