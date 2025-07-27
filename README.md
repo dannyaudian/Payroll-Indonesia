@@ -59,6 +59,7 @@ Referensi dan contoh hitung PPh 21, BPJS, serta perlakuan natura (PMK 168 & PMK 
    ```
 4. Semua komponen, mapping, dan pengaturan akan otomatis terimport dan siap digunakan.
 5. Modul akan mencari nama grup akun umum seperti "Expenses" atau "Liabilities" sebagai induk akun payroll. Jika tidak ditemukan, akan digunakan grup akun pertama dengan `root_type` yang sama.
+6. Pastikan perusahaan menggunakan **Chart of Accounts** bawaan ERPNext yaitu `Standard Template`. Penggunaan template lain seperti `Standard Indonesia` dapat menyebabkan pembuatan akun GL dari `default_gl_accounts.json` gagal. Apabila parent account yang tercantum di berkas tersebut belum ada, buatlah terlebih dahulu sebelum menjalankan setup.
 
 ---
 
