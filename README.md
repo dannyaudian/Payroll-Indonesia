@@ -42,6 +42,7 @@ Daftar lengkap komponen gaji dan mapping akun dapat dilihat di [docs/salary_comp
 ## Dokumentasi Perpajakan
 
 Referensi dan contoh hitung PPh 21, BPJS, serta perlakuan natura (PMK 168 & PMK 66/2023) tersedia di [docs/perpajakan_payroll_indonesia.md](docs/perpajakan_payroll_indonesia.md).
+Penjelasan detail flag pajak pada setiap `Salary Component` dapat dibaca di [docs/pajak_pada_salary_component_payroll_indonesia.md](docs/pajak_pada_salary_component_payroll_indonesia.md).
 
 ---
 
