@@ -4,10 +4,10 @@
     "name": "Payroll Indonesia",
     "label": "Payroll Indonesia",
     "title": "Payroll Indonesia",
-    "module": "Payroll Indonesia",
-    "icon": "octicon octicon-briefcase",
-    "description": "Quick access to Payroll Indonesia features",
-    "sequence": 1,
-    "content": "[{\"type\": \"doctype\", \"link_to\": \"Employee\", \"label\": \"Employees\"}, {\"type\": \"doctype\", \"link_to\": \"Salary Slip\", \"label\": \"Salary Slips\"}]"
+    "icon": "income",
+    "module": "Payroll",
+    "sequence": 10,
+    "public": 1,
+    "content": "[{\"id\":\"jvTZ8RvO42\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"hNVIisuaFR\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Salary Slip\",\"col\":3}},{\"id\":\"6XUIWHJ3jI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Payroll Entry\",\"col\":3}},{\"id\":\"yjIBi3GMoo\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Salary Register\",\"col\":3}},{\"id\":\"ORKhwX-uqw\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"gGURwviUAZ\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Transactions & Reports</b></span>\",\"col\":12}},{\"id\":\"m7ibJXxzpl\",\"type\":\"card\",\"data\":{\"card_name\":\"Masters\",\"col\":4}},{\"id\":\"U-jv2v4nCv\",\"type\":\"card\",\"data\":{\"card_name\":\"Payroll\",\"col\":4}},{\"id\":\"LG69O3ku4y\",\"type\":\"card\",\"data\":{\"card_name\":\"Incentives\",\"col\":4}},{\"id\":\"kOuItimoNm\",\"type\":\"card\",\"data\":{\"card_name\":\"Accounting\",\"col\":4}},{\"id\":\"UJqBhPqNZd\",\"type\":\"card\",\"data\":{\"card_name\":\"Accounting Reports\",\"col\":4}},{\"id\":\"eNZuk6i-jy\",\"type\":\"card\",\"data\":{\"card_name\":\"Payroll Reports\",\"col\":4}},{\"id\":\"ll91Zs2cbx\",\"type\":\"card\",\"data\":{\"card_name\":\"Deduction Reports\",\"col\":4}},{\"id\":\"payroll-indonesia-settings-shortcut\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Payroll Indonesia Settings\",\"col\":3}}]"
   }
 ]
