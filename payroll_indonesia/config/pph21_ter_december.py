@@ -3,7 +3,8 @@ from frappe.utils import flt
 from payroll_indonesia.config import config
 
 # Income tax slab untuk progressive (PMK 168/2023, berlaku 2024)
-TAX_SLABS = [
+# Data bawaan digunakan jika dokumen Income Tax Slab tidak ditemukan.
+DEFAULT_TAX_SLABS = [
     # (batas_atas, tarif_persen)
     (60_000_000, 5),
     (250_000_000, 15),
@@ -11,6 +12,33 @@ TAX_SLABS = [
     (5_000_000_000, 30),
     (float("inf"), 35),
 ]
+
+
+def get_tax_slabs() -> list[tuple[float, float]]:
+    """Ambil daftar tax slab dari dokumen Income Tax Slab di settings."""
+    slab_name = config.get_value("fallback_income_tax_slab")
+    if not slab_name:
+        return DEFAULT_TAX_SLABS
+
+    try:
+        slab_doc = frappe.get_cached_doc("Income Tax Slab", slab_name)
+    except Exception:
+        frappe.logger().warning("Income Tax Slab %s tidak ditemukan", slab_name)
+        return DEFAULT_TAX_SLABS
+
+    slabs = []
+    for row in slab_doc.get("slabs", []):
+        batas = flt(row.to_amount or 0)
+        if batas == 0:
+            batas = float("inf")
+        rate = flt(row.percent_deduction or 0)
+        slabs.append((batas, rate))
+
+    if not slabs:
+        return DEFAULT_TAX_SLABS
+
+    slabs.sort(key=lambda x: x[0])
+    return slabs
 
 def get_ptkp_amount(tax_status):
     """Ambil PTKP dari table di settings."""
@@ -77,7 +105,7 @@ def calculate_pph21_progressive(pkp_annual):
     pkp_left = pkp_annual
     lower_limit = 0
 
-    for batas, rate in TAX_SLABS:
+    for batas, rate in get_tax_slabs():
         if pkp_left <= 0:
             break
         lapisan = min(pkp_left, batas - lower_limit)
@@ -125,7 +153,7 @@ def calculate_pph21_TER_december(employee, salary_slip):
     # 8. Pajak bulan Desember/final
     pph21_month = round(pph21_annual - getattr(employee, "pph21_paid_jan_nov", 0))
     # 9. Rate info (for audit only)
-    rates = "/".join([f"{rate}%" for _, rate in TAX_SLABS])
+    rates = "/".join([f"{rate}%" for _, rate in get_tax_slabs()])
     return {
         "bruto": bruto,
         "netto": netto,
