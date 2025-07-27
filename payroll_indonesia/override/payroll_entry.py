@@ -1,5 +1,6 @@
 from erpnext.payroll.doctype.payroll_entry.payroll_entry import PayrollEntry
 import frappe
+from payroll_indonesia.override.salary_slip import CustomSalarySlip
 
 class CustomPayrollEntry(PayrollEntry):
     def validate(self):
@@ -17,7 +18,8 @@ class CustomPayrollEntry(PayrollEntry):
 
     def create_salary_slips(self):
         """
-        Override: generate salary slips dengan perhitungan PPh 21 Indonesia (TER/Desember) via CustomSalarySlip logic
+        Override: generate salary slips dengan perhitungan PPh 21 Indonesia (TER/Desember) via CustomSalarySlip logic.
+        Koreksi PPh21 minus: komponen tax di slip akan minus, sistem journal ERPNext akan balancing otomatis.
         """
         if getattr(self, "run_payroll_indonesia_december", False):
             frappe.logger().info("Payroll Entry: Running Salary Slip generation for Payroll Indonesia DECEMBER (final year) mode.")
@@ -31,11 +33,11 @@ class CustomPayrollEntry(PayrollEntry):
     def _create_salary_slips_indonesia(self):
         """
         Generate salary slips dengan logika PPh21 TER (bulanan) sesuai CustomSalarySlip.
+        Koreksi PPh21 minus (jika ada) tetap masuk di komponen pajak, nilai bisa positif/negatif.
         """
         slips = super().create_salary_slips()
         for slip in slips:
             slip_obj = self._get_salary_slip_obj(slip)
-            # calculate_income_tax will handle the Indonesian logic
             slip_obj.calculate_income_tax()
             # Sync calculated fields back if slip is dict (for batch context)
             if isinstance(slip, dict):
@@ -47,6 +49,7 @@ class CustomPayrollEntry(PayrollEntry):
     def _create_salary_slips_indonesia_december(self):
         """
         Generate salary slips dengan logika PPh21 Desember (annual progressive/final) sesuai CustomSalarySlip.
+        Koreksi PPh21 minus (kelebihan potong): komponen pajak akan minus, balancing otomatis di journal.
         """
         slips = super().create_salary_slips()
         for slip in slips:
@@ -72,10 +75,8 @@ class CustomPayrollEntry(PayrollEntry):
                 try:
                     slip_obj = frappe.get_doc("Salary Slip", slip["name"])
                 except Exception:
-                    from payroll_indonesia.override.salary_slip import CustomSalarySlip
                     slip_obj = CustomSalarySlip(**slip)
             else:
-                from payroll_indonesia.override.salary_slip import CustomSalarySlip
                 slip_obj = CustomSalarySlip(**slip)
             return slip_obj
         else:
