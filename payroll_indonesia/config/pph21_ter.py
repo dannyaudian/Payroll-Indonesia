@@ -32,7 +32,7 @@ def get_ptkp_amount(tax_status):
 
 def sum_bruto_earnings(salary_slip):
     """
-    Menjumlahkan seluruh komponen earning yang menambah penghasilan bruto:
+    Menjumlahkan seluruh komponen earning yang menambah penghasilan bruto (termasuk natura taxable):
     - is_tax_applicable = 1 (atau is_income_tax_component/variable_based_on_taxable_salary = 1)
     - do_not_include_in_total = 0
     - statistical_component = 0
@@ -47,27 +47,6 @@ def sum_bruto_earnings(salary_slip):
             and row.get("do_not_include_in_total", 0) == 0
             and row.get("statistical_component", 0) == 0
             and row.get("exempted_from_income_tax", 0) == 0
-        ):
-            total += flt(row.amount)
-    return total
-
-def sum_natura_earnings(salary_slip):
-    """
-    Menjumlahkan earning natura yang dikenakan pajak (natura taxable):
-    - is_tax_applicable = 1
-    - do_not_include_in_total = 0
-    - statistical_component = 0
-    - exempted_from_income_tax = 0
-    - (pastikan komponen natura taxable mengisi flag dengan benar di salary_component.json)
-    """
-    total = 0.0
-    for row in salary_slip.get("earnings", []):
-        if (
-            row.get("is_tax_applicable", 0) == 1
-            and row.get("do_not_include_in_total", 0) == 0
-            and row.get("statistical_component", 0) == 0
-            and row.get("exempted_from_income_tax", 0) == 0
-            and "natura" in (row.get("description", "").lower() + row.get("salary_component", "").lower())
         ):
             total += flt(row.amount)
     return total
@@ -91,31 +70,29 @@ def sum_pengurang_netto(salary_slip):
             total += flt(row.amount)
     return total
 
-def sum_biaya_jabatan(salary_slip, bruto):
+def get_biaya_jabatan_from_component(salary_slip):
     """
-    Mengambil nilai biaya jabatan dari deduction jika tersedia.
-    Jika tidak ada, hitung manual menggunakan rate dan cap dari settings.
+    Ambil nilai biaya jabatan dari komponen deduction 'Biaya Jabatan' jika tersedia pada salary slip.
+    Jika tidak ditemukan, return 0.
     """
     for row in salary_slip.get("deductions", []):
         if "biaya jabatan" in row.get("salary_component", "").lower():
             return flt(row.amount)
-    # fallback: hitung manual jika tidak ditemukan
-    rate = config.get_bpjs_rate("biaya_jabatan_rate")
-    cap = config.get_bpjs_cap("biaya_jabatan_cap") / 12
-    return min(bruto * rate / 100, cap)
+    return 0.0
 
 def calculate_pph21_TER(employee, salary_slip):
     """
-    Hitung PPh 21 metode TER per bulan (PMK 168/2023) dengan pemisahan rumus:
+    Hitung PPh 21 metode TER per bulan (PMK 168/2023):
+
       - PTKP
       - Penghasilan Bruto (termasuk natura)
       - Pengurang Netto (exclude biaya jabatan)
-      - Biaya Jabatan
+      - Biaya Jabatan (dari komponen deduction salary slip)
       - PKP
-      - Employment Type (hanya Full-time)
+      - Hanya untuk Employment Type: Full-time
 
     Args:
-        employee: dict atau doc Employee (wajib punya tax_status dan employment_type)
+        employee: dict atau doc Employee (punya tax_status dan employment_type)
         salary_slip: dict, wajib ada earnings dan deductions (list of dicts)
     Returns:
         dict: {
@@ -130,7 +107,6 @@ def calculate_pph21_TER(employee, salary_slip):
             'employment_type_checked': bool
         }
     """
-    # Employment Type check
     employment_type = None
     if hasattr(employee, "employment_type"):
         employment_type = getattr(employee, "employment_type")
@@ -161,8 +137,8 @@ def calculate_pph21_TER(employee, salary_slip):
     # 3. Pengurang Netto (exclude biaya jabatan)
     pengurang_netto = sum_pengurang_netto(salary_slip)
 
-    # 4. Biaya Jabatan
-    biaya_jabatan = sum_biaya_jabatan(salary_slip, bruto)
+    # 4. Biaya Jabatan dari komponen deduction "Biaya Jabatan"
+    biaya_jabatan = get_biaya_jabatan_from_component(salary_slip)
 
     # 5. Netto
     netto = bruto - pengurang_netto - biaya_jabatan

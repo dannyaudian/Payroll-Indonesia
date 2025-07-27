@@ -2,10 +2,8 @@ import frappe
 from frappe.utils import flt
 from payroll_indonesia.config import config
 
-# Income tax slab untuk progressive (PMK 168/2023, berlaku 2024)
-# Data bawaan digunakan jika dokumen Income Tax Slab tidak ditemukan.
+# Default progressive income tax slabs (PMK 168/2023, berlaku 2024)
 DEFAULT_TAX_SLABS = [
-    # (batas_atas, tarif_persen)
     (60_000_000, 5),
     (250_000_000, 15),
     (500_000_000, 25),
@@ -13,8 +11,7 @@ DEFAULT_TAX_SLABS = [
     (float("inf"), 35),
 ]
 
-
-def get_tax_slabs() -> list[tuple[float, float]]:
+def get_tax_slabs():
     """Ambil daftar tax slab dari dokumen Income Tax Slab di settings."""
     slab_name = config.get_value("fallback_income_tax_slab")
     if not slab_name:
@@ -48,9 +45,9 @@ def get_ptkp_amount(tax_status):
             return flt(row.ptkp_amount)
     return 0.0
 
-def sum_taxable_earnings(salary_slip):
+def sum_bruto_earnings(salary_slip):
     """
-    Menjumlahkan earning taxable sesuai setting komponen salary:
+    Jumlahkan seluruh komponen earning yang menambah penghasilan bruto (termasuk natura taxable).
     - is_tax_applicable = 1 (atau is_income_tax_component/variable_based_on_taxable_salary = 1)
     - do_not_include_in_total = 0
     - statistical_component = 0
@@ -71,9 +68,11 @@ def sum_taxable_earnings(salary_slip):
 
 def sum_income_tax_deductions(salary_slip):
     """
-    Menjumlahkan deduction yang harus menjadi pengurang netto pada perhitungan PPh 21.
-    Contoh: BPJS Kesehatan Employee, BPJS JHT Employee, BPJS JP Employee,
-    sesuai dengan flag (is_income_tax_component = 1 atau variable_based_on_taxable_salary = 1 pada deduction).
+    Jumlahkan deduction pengurang netto (BPJS Kesehatan Employee, BPJS JHT Employee, BPJS JP Employee, dsb).
+    - is_income_tax_component = 1 atau variable_based_on_taxable_salary = 1
+    - do_not_include_in_total = 0
+    - statistical_component = 0
+    - EXCLUDE biaya jabatan!
     """
     total = 0.0
     for row in salary_slip.get("deductions", []):
@@ -82,18 +81,40 @@ def sum_income_tax_deductions(salary_slip):
              row.get("variable_based_on_taxable_salary", 0) == 1)
             and row.get("do_not_include_in_total", 0) == 0
             and row.get("statistical_component", 0) == 0
+            and "biaya jabatan" not in row.get("salary_component", "").lower()
         ):
             total += flt(row.amount)
     return total
 
-def calculate_biaya_jabatan(bruto):
-    """Hitung biaya jabatan: 5% bruto, maksimal 500.000/bulan."""
-    return min(bruto * 0.05, 500_000)
+def get_biaya_jabatan_from_component(salary_slip):
+    """
+    Ambil nilai biaya jabatan dari komponen deduction 'Biaya Jabatan' jika tersedia pada salary slip.
+    Jika tidak ditemukan, return 0.
+    """
+    for row in salary_slip.get("deductions", []):
+        if "biaya jabatan" in row.get("salary_component", "").lower():
+            return flt(row.amount)
+    return 0.0
 
-def calculate_pkp_annual(netto_bulanan, ptkp_bulanan):
-    """PKP tahunan = (netto bulanan - PTKP bulanan) * 12, dibulatkan ke ribuan terdekat"""
-    pkp = max((netto_bulanan - ptkp_bulanan) * 12, 0)
-    # pembulatan ke ribuan
+def sum_total_actual_netto_this_year(employee, salary_slips):
+    """
+    Menjumlah seluruh netto aktual dari slip gaji Januari sampai Desember.
+    Netto bulanan = bruto - pengurang_netto - biaya_jabatan, sesuai slip salary masing-masing bulan.
+    salary_slips: list of dict, setiap dict = salary_slip bulan berjalan
+    """
+    total_netto = 0.0
+    for slip in salary_slips:
+        bruto = sum_bruto_earnings(slip)
+        pengurang_netto = sum_income_tax_deductions(slip)
+        biaya_jabatan = get_biaya_jabatan_from_component(slip)
+        total_netto += bruto - pengurang_netto - biaya_jabatan
+    return total_netto
+
+def calculate_pkp_annual(total_netto_actual, ptkp_annual):
+    """
+    PKP tahunan = (total netto setahun - PTKP setahun), dibulatkan ke ribuan terdekat.
+    """
+    pkp = max(total_netto_actual - ptkp_annual, 0)
     return int(round(pkp / 1000.0)) * 1000
 
 def calculate_pph21_progressive(pkp_annual):
@@ -114,29 +135,30 @@ def calculate_pph21_progressive(pkp_annual):
         lower_limit = batas
     return pajak
 
-def calculate_pph21_TER_december(employee, salary_slip):
+def calculate_pph21_TER_december(employee, salary_slips, pph21_paid_jan_nov=0):
     """
-    Hitung PPh 21 metode progressive/normal (Desember/final year) berdasarkan income tax slab.
+    Hitung PPh 21 progressive/normal (Desember/final year) berdasarkan income tax slab.
     Hanya untuk Employment Type: Full-time.
 
     Args:
-        employee: dict atau doc Employee (wajib punya tax_status dan employment_type)
-        salary_slip: dict, wajib ada earnings dan deductions (list of dicts)
+        employee: dict atau doc Employee (punya tax_status dan employment_type)
+        salary_slips: list of dict, slip seluruh tahun berjalan (Jan–Des)
+        pph21_paid_jan_nov: float, total PPh21 yang sudah dipotong/dibayar Jan–Nov
+
     Returns:
         dict: {
-            'bruto': float,
-            'netto': float,
-            'ptkp': float,
+            'bruto_total': float,
+            'netto_total': float,
+            'ptkp_annual': float,
             'pkp_annual': float,
             'rate': str,       # range progresif
             'pph21_annual': float,
             'pph21_month': float,
-            'income_tax_deduction': float,
-            'biaya_jabatan': float,
+            'income_tax_deduction_total': float,
+            'biaya_jabatan_total': float,
             'employment_type_checked': bool
         }
     """
-    # Employment Type check
     employment_type = None
     if hasattr(employee, "employment_type"):
         employment_type = getattr(employee, "employment_type")
@@ -145,48 +167,59 @@ def calculate_pph21_TER_december(employee, salary_slip):
 
     if employment_type != "Full-time":
         return {
-            "bruto": 0.0,
-            "netto": 0.0,
-            "ptkp": 0.0,
+            "bruto_total": 0.0,
+            "netto_total": 0.0,
+            "ptkp_annual": 0.0,
             "pkp_annual": 0.0,
             "rate": "",
             "pph21_annual": 0.0,
             "pph21_month": 0.0,
-            "income_tax_deduction": 0.0,
-            "biaya_jabatan": 0.0,
+            "income_tax_deduction_total": 0.0,
+            "biaya_jabatan_total": 0.0,
             "employment_type_checked": False,
             "message": "PPh21 TER Desember hanya dihitung untuk Employment Type: Full-time"
         }
 
-    # 1. Bruto taxable earning
-    bruto = sum_taxable_earnings(salary_slip)
-    # 2. Pengurang: deduction (BPJS employee, dll, sesuai flag)
-    income_tax_deduction = sum_income_tax_deductions(salary_slip)
-    # 3. Biaya Jabatan
-    biaya_jabatan = calculate_biaya_jabatan(bruto)
-    # 4. Netto bulanan
-    netto = bruto - income_tax_deduction - biaya_jabatan
-    # 5. PTKP bulanan
+    # 1. PTKP tahunan
     tax_status = getattr(employee, "tax_status", None) if hasattr(employee, "tax_status") else employee.get("tax_status")
-    ptkp = get_ptkp_amount(tax_status)
-    ptkp_bulanan = ptkp / 12
-    # 6. PKP tahunan
-    pkp_annual = calculate_pkp_annual(netto, ptkp_bulanan)
-    # 7. Hitung PPh progresif setahun
+    ptkp_annual = get_ptkp_amount(tax_status)
+
+    # 2. Jumlah slip gaji tahun berjalan (Jan–Des)
+    bruto_total = 0.0
+    income_tax_deduction_total = 0.0
+    biaya_jabatan_total = 0.0
+    netto_total = 0.0
+
+    for slip in salary_slips:
+        bruto = sum_bruto_earnings(slip)
+        pengurang_netto = sum_income_tax_deductions(slip)
+        biaya_jabatan = get_biaya_jabatan_from_component(slip)
+        netto = bruto - pengurang_netto - biaya_jabatan
+        bruto_total += bruto
+        income_tax_deduction_total += pengurang_netto
+        biaya_jabatan_total += biaya_jabatan
+        netto_total += netto
+
+    # 3. PKP tahunan
+    pkp_annual = calculate_pkp_annual(netto_total, ptkp_annual)
+
+    # 4. Hitung PPh progresif setahun
     pph21_annual = calculate_pph21_progressive(pkp_annual)
-    # 8. Pajak bulan Desember/final
-    pph21_month = round(pph21_annual - getattr(employee, "pph21_paid_jan_nov", 0))
-    # 9. Rate info (for audit only)
+    # 5. Pajak bulan Desember/final
+    pph21_month = round(pph21_annual - pph21_paid_jan_nov)
+
+    # 6. Rate info (for audit only)
     rates = "/".join([f"{rate}%" for _, rate in get_tax_slabs()])
+
     return {
-        "bruto": bruto,
-        "netto": netto,
-        "ptkp": ptkp,
+        "bruto_total": bruto_total,
+        "netto_total": netto_total,
+        "ptkp_annual": ptkp_annual,
         "pkp_annual": pkp_annual,
         "rate": rates,
         "pph21_annual": pph21_annual,
         "pph21_month": pph21_month,
-        "income_tax_deduction": income_tax_deduction,
-        "biaya_jabatan": biaya_jabatan,
+        "income_tax_deduction_total": income_tax_deduction_total,
+        "biaya_jabatan_total": biaya_jabatan_total,
         "employment_type_checked": True
     }
