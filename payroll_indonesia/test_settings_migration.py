@@ -7,7 +7,7 @@ sys.modules.setdefault("frappe", frappe_mock)
 sys.modules.setdefault("frappe.model", MagicMock())
 sys.modules.setdefault("frappe.model.document", MagicMock())
 
-from payroll_indonesia.payroll_indonesia.setup import settings_migration as mig
+from payroll_indonesia.setup import settings_migration as mig
 
 
 def test_get_or_create_settings_creates_without_commit():
