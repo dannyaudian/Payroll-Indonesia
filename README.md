@@ -46,6 +46,12 @@ Penjelasan detail flag pajak pada setiap `Salary Component` dapat dibaca di [doc
 
 ---
 
+## Custom Salary Slip
+
+Penjelasan mengenai kelas `CustomSalarySlip` beserta cara mengaktifkan override terdapat di [docs/custom_salary_slip.md](docs/custom_salary_slip.md).
+
+---
+
 ## Instalasi
 
 1. Pastikan ERPNext & Frappe sudah terinstall.
