@@ -117,9 +117,10 @@ def calculate_pph21_progressive(pkp_annual):
 def calculate_pph21_TER_december(employee, salary_slip):
     """
     Hitung PPh 21 metode progressive/normal (Desember/final year) berdasarkan income tax slab.
+    Hanya untuk Employment Type: Full-time.
 
     Args:
-        employee: dict atau doc Employee (wajib punya tax_status)
+        employee: dict atau doc Employee (wajib punya tax_status dan employment_type)
         salary_slip: dict, wajib ada earnings dan deductions (list of dicts)
     Returns:
         dict: {
@@ -132,8 +133,31 @@ def calculate_pph21_TER_december(employee, salary_slip):
             'pph21_month': float,
             'income_tax_deduction': float,
             'biaya_jabatan': float,
+            'employment_type_checked': bool
         }
     """
+    # Employment Type check
+    employment_type = None
+    if hasattr(employee, "employment_type"):
+        employment_type = getattr(employee, "employment_type")
+    elif isinstance(employee, dict):
+        employment_type = employee.get("employment_type")
+
+    if employment_type != "Full-time":
+        return {
+            "bruto": 0.0,
+            "netto": 0.0,
+            "ptkp": 0.0,
+            "pkp_annual": 0.0,
+            "rate": "",
+            "pph21_annual": 0.0,
+            "pph21_month": 0.0,
+            "income_tax_deduction": 0.0,
+            "biaya_jabatan": 0.0,
+            "employment_type_checked": False,
+            "message": "PPh21 TER Desember hanya dihitung untuk Employment Type: Full-time"
+        }
+
     # 1. Bruto taxable earning
     bruto = sum_taxable_earnings(salary_slip)
     # 2. Pengurang: deduction (BPJS employee, dll, sesuai flag)
@@ -164,4 +188,5 @@ def calculate_pph21_TER_december(employee, salary_slip):
         "pph21_month": pph21_month,
         "income_tax_deduction": income_tax_deduction,
         "biaya_jabatan": biaya_jabatan,
+        "employment_type_checked": True
     }

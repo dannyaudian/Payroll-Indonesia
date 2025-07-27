@@ -112,9 +112,10 @@ def calculate_pph21_TER(employee, salary_slip):
       - Pengurang Netto (exclude biaya jabatan)
       - Biaya Jabatan
       - PKP
+      - Employment Type (hanya Full-time)
 
     Args:
-        employee: dict atau doc Employee (wajib punya tax_status)
+        employee: dict atau doc Employee (wajib punya tax_status dan employment_type)
         salary_slip: dict, wajib ada earnings dan deductions (list of dicts)
     Returns:
         dict: {
@@ -126,8 +127,30 @@ def calculate_pph21_TER(employee, salary_slip):
             'pkp': float,
             'rate': float,
             'pph21': float,
+            'employment_type_checked': bool
         }
     """
+    # Employment Type check
+    employment_type = None
+    if hasattr(employee, "employment_type"):
+        employment_type = getattr(employee, "employment_type")
+    elif isinstance(employee, dict):
+        employment_type = employee.get("employment_type")
+
+    if employment_type != "Full-time":
+        return {
+            "ptkp": 0.0,
+            "bruto": 0.0,
+            "pengurang_netto": 0.0,
+            "biaya_jabatan": 0.0,
+            "netto": 0.0,
+            "pkp": 0.0,
+            "rate": 0.0,
+            "pph21": 0.0,
+            "employment_type_checked": False,
+            "message": "PPh21 TER hanya dihitung untuk Employment Type: Full-time"
+        }
+
     # 1. PTKP bulanan
     tax_status = getattr(employee, "tax_status", None) if hasattr(employee, "tax_status") else employee.get("tax_status")
     ptkp = get_ptkp_amount(tax_status) / 12
@@ -163,4 +186,5 @@ def calculate_pph21_TER(employee, salary_slip):
         "pkp": pkp,
         "rate": rate,
         "pph21": pph21,
+        "employment_type_checked": True
     }
