@@ -104,9 +104,10 @@ after_migrate = [
 # ---------------
 # Override standard doctype classes
 
-# override_doctype_class = {
-#	"ToDo": "custom_app.overrides.CustomToDo"
-# }
+override_doctype_class = {
+    "Payroll Entry": "payroll_indonesia.override.payroll_entry.CustomPayrollEntry",
+    "Salary Slip": "payroll_indonesia.override.salary_slip.CustomSalarySlip",
+}
 
 # Document Events
 # ---------------
