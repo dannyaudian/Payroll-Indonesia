@@ -156,6 +156,7 @@ def calculate_pph21_TER_december(employee, salary_slips, pph21_paid_jan_nov=0):
             'pph21_month': float,
             'income_tax_deduction_total': float,
             'biaya_jabatan_total': float,
+            'koreksi_pph21': float,
             'employment_type_checked': bool
         }
     """
@@ -176,6 +177,7 @@ def calculate_pph21_TER_december(employee, salary_slips, pph21_paid_jan_nov=0):
             "pph21_month": 0.0,
             "income_tax_deduction_total": 0.0,
             "biaya_jabatan_total": 0.0,
+            "koreksi_pph21": 0.0,
             "employment_type_checked": False,
             "message": "PPh21 TER Desember hanya dihitung untuk Employment Type: Full-time"
         }
@@ -206,7 +208,13 @@ def calculate_pph21_TER_december(employee, salary_slips, pph21_paid_jan_nov=0):
     # 4. Hitung PPh progresif setahun
     pph21_annual = calculate_pph21_progressive(pkp_annual)
     # 5. Pajak bulan Desember/final
-    pph21_month = round(pph21_annual - pph21_paid_jan_nov)
+    # Koreksi PPh21: jika minus, kelebihan potong; jika positif, kekurangan potong
+    koreksi_pph21 = pph21_annual - pph21_paid_jan_nov
+    # Untuk slip, jika koreksi_pph21 < 0 maka PPh21 di slip Desember = 0, dan kelebihan ditambahkan ke THP
+    if koreksi_pph21 > 0:
+        pph21_month = koreksi_pph21
+    else:
+        pph21_month = 0
 
     # 6. Rate info (for audit only)
     rates = "/".join([f"{rate}%" for _, rate in get_tax_slabs()])
@@ -221,5 +229,6 @@ def calculate_pph21_TER_december(employee, salary_slips, pph21_paid_jan_nov=0):
         "pph21_month": pph21_month,
         "income_tax_deduction_total": income_tax_deduction_total,
         "biaya_jabatan_total": biaya_jabatan_total,
+        "koreksi_pph21": koreksi_pph21,
         "employment_type_checked": True
     }
