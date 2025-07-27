@@ -93,14 +93,16 @@ def sum_pengurang_netto(salary_slip):
 
 def sum_biaya_jabatan(salary_slip, bruto):
     """
-    Mengambil nilai biaya jabatan dari deduction (jika ada), 
-    jika tidak ada hitung manual 5% maksimal 500.000.
+    Mengambil nilai biaya jabatan dari deduction jika tersedia.
+    Jika tidak ada, hitung manual menggunakan rate dan cap dari settings.
     """
     for row in salary_slip.get("deductions", []):
         if "biaya jabatan" in row.get("salary_component", "").lower():
             return flt(row.amount)
     # fallback: hitung manual jika tidak ditemukan
-    return min(bruto * 0.05, 500_000)
+    rate = config.get_bpjs_rate("biaya_jabatan_rate")
+    cap = config.get_bpjs_cap("biaya_jabatan_cap") / 12
+    return min(bruto * rate / 100, cap)
 
 def calculate_pph21_TER(employee, salary_slip):
     """

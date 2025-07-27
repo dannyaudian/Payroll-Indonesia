@@ -8,7 +8,7 @@ sys.modules["frappe"] = frappe_import_mock
 sys.modules["frappe.model"] = MagicMock()
 sys.modules["frappe.model.document"] = MagicMock()
 
-from payroll_indonesia.payroll_indonesia.setup import setup_module as setup_mod
+from payroll_indonesia.setup import setup_module as setup_mod
 
 
 def test_ensure_parent_idempotent():
