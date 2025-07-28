@@ -1,63 +1,64 @@
 {
- "doctype": "DocType",
- "name": "Annual Payroll History Child",
- "module": "Payroll Indonesia",
- "istable": 1,
- "custom": 1,
- "fields": [
-  {
-   "fieldname": "bulan",
-   "fieldtype": "Int",
-   "label": "Bulan (1-12)",
-   "reqd": 1
-  },
-  {
-   "fieldname": "bruto",
-   "fieldtype": "Currency",
-   "label": "Bruto Bulan Ini",
-   "reqd": 1
-  },
-  {
-   "fieldname": "pengurang_netto",
-   "fieldtype": "Currency",
-   "label": "Pengurang Netto (exclude biaya jabatan)",
-   "reqd": 1
-  },
-  {
-   "fieldname": "biaya_jabatan",
-   "fieldtype": "Currency",
-   "label": "Biaya Jabatan",
-   "reqd": 1
-  },
-  {
-   "fieldname": "netto",
-   "fieldtype": "Currency",
-   "label": "Netto Bulan Ini",
-   "reqd": 1
-  },
-  {
-   "fieldname": "pkp",
-   "fieldtype": "Currency",
-   "label": "PKP Bulan Ini",
-   "reqd": 1
-  },
-  {
-   "fieldname": "rate",
-   "fieldtype": "Percent",
-   "label": "Rate TER Bulan Ini (%)",
-   "reqd": 1
-  },
-  {
-   "fieldname": "pph21",
-   "fieldtype": "Currency",
-   "label": "PPh21 Bulan Ini",
-   "reqd": 1
-  },
-  {
-   "fieldname": "salary_slip",
-   "fieldtype": "Link",
-   "label": "Salary Slip",
-   "options": "Salary Slip"
-  }
- ]
+  "doctype": "DocType",
+  "name": "Annual Payroll History Child",
+  "module": "Payroll Indonesia",
+  "istable": 1,
+  "custom": 1,
+  "fields": [
+    {
+      "fieldname": "bulan",
+      "fieldtype": "Int",
+      "label": "Bulan (1-12)",
+      "reqd": 1
+    },
+    {
+      "fieldname": "bruto",
+      "fieldtype": "Currency",
+      "label": "Bruto Bulan Ini",
+      "reqd": 1
+    },
+    {
+      "fieldname": "pengurang_netto",
+      "fieldtype": "Currency",
+      "label": "Pengurang Netto (exclude biaya jabatan)",
+      "reqd": 1
+    },
+    {
+      "fieldname": "biaya_jabatan",
+      "fieldtype": "Currency",
+      "label": "Biaya Jabatan",
+      "reqd": 1
+    },
+    {
+      "fieldname": "netto",
+      "fieldtype": "Currency",
+      "label": "Netto Bulan Ini",
+      "reqd": 1
+    },
+    {
+      "fieldname": "pkp",
+      "fieldtype": "Currency",
+      "label": "PKP Bulan Ini",
+      "reqd": 1
+    },
+    {
+      "fieldname": "rate",
+      "fieldtype": "Percent",
+      "label": "Rate TER Bulan Ini (%)",
+      "reqd": 1
+    },
+    {
+      "fieldname": "pph21",
+      "fieldtype": "Currency",
+      "label": "PPh21 Bulan Ini",
+      "reqd": 1
+    },
+    {
+      "fieldname": "salary_slip",
+      "fieldtype": "Link",
+      "label": "Salary Slip",
+      "options": "Salary Slip"
+    }
+  ],
+  "modified": "2024-01-01 00:00:00"
 }
