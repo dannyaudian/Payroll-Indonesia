@@ -6,17 +6,20 @@ except Exception:  # pragma: no cover - erpnext may not be installed during test
 import frappe
 
 from payroll_indonesia.config import pph21_ter, pph21_ter_december
+from payroll_indonesia.utils import sync_annual_payroll_history
 
 class CustomSalarySlip(SalarySlip):
     """
     Salary Slip with Indonesian income tax calculations (TER bulanan dan Progressive/Desember).
     Koreksi PPh21 minus: PPh21 di slip minus, THP otomatis bertambah oleh sistem.
+    Sinkronisasi ke Annual Payroll History setiap kali slip dihitung atau dibatalkan.
     """
 
     def calculate_income_tax(self):
         """
         Hitung pajak penghasilan sesuai mode payroll (TER atau Progressive/Desember).
         Koreksi PPh21 minus: komponen pajak di slip akan minus, THP otomatis bertambah.
+        Sinkronisasi ke Annual Payroll History.
         """
         # Mode: Progressive/Desember (final year/progressive)
         if getattr(self, "run_payroll_indonesia_december", False):
@@ -35,7 +38,10 @@ class CustomSalarySlip(SalarySlip):
             koreksi_pph21 = result.get("koreksi_pph21", 0)
             self.tax = koreksi_pph21 if koreksi_pph21 > 0 else koreksi_pph21  # boleh minus
             self.tax_type = "DECEMBER"
-            # Biarkan tax (komponen PPh21 di slip) minus jika kelebihan potong
+
+            # --- Sinkronisasi ke Annual Payroll History (Desember) ---
+            self.sync_to_annual_payroll_history(result, mode="december")
+
             return self.tax
 
         # Mode: TER (bulanan/flat)
@@ -46,6 +52,10 @@ class CustomSalarySlip(SalarySlip):
             self.pph21_info = result
             self.tax = result.get("pph21", 0)
             self.tax_type = "TER"
+
+            # --- Sinkronisasi ke Annual Payroll History (bulanan) ---
+            self.sync_to_annual_payroll_history(result, mode="monthly")
+
             return self.tax
 
         # Default: fallback to vanilla ERPNext
@@ -76,3 +86,72 @@ class CustomSalarySlip(SalarySlip):
             "tax_type": getattr(self, "tax_type", None)
         })
         return doc
+
+    def sync_to_annual_payroll_history(self, result, mode="monthly"):
+        """
+        Sinkronisasi hasil slip ke Annual Payroll History.
+        Untuk mode 'monthly': hanya satu bulan.
+        Untuk mode 'december': bisa summary full year.
+        """
+        try:
+            employee_doc = self.get_employee_doc()
+            fiscal_year = getattr(self, "fiscal_year", None) or getattr(self, "start_date", "")[:4]  # fallback ke tahun start_date
+            if not fiscal_year:
+                return
+
+            # Data bulanan (untuk 1 slip)
+            monthly_result = {
+                "bulan": getattr(self, "month", None) or getattr(self, "bulan", None),
+                "bruto": result.get("bruto", result.get("bruto_total", 0)),
+                "pengurang_netto": result.get("pengurang_netto", result.get("income_tax_deduction_total", 0)),
+                "biaya_jabatan": result.get("biaya_jabatan", result.get("biaya_jabatan_total", 0)),
+                "netto": result.get("netto", result.get("netto_total", 0)),
+                "pkp": result.get("pkp", result.get("pkp_annual", 0)),
+                "rate": result.get("rate", ""),
+                "pph21": result.get("pph21", result.get("pph21_month", 0)),
+                "salary_slip": self.name,
+            }
+            if mode == "monthly":
+                sync_annual_payroll_history.sync_annual_payroll_history(
+                    employee=employee_doc,
+                    fiscal_year=fiscal_year,
+                    monthly_results=[monthly_result],
+                    summary=None
+                )
+            elif mode == "december":
+                # Untuk Desember, masukkan summary tahunan
+                summary = {
+                    "bruto_total": result.get("bruto_total", 0),
+                    "netto_total": result.get("netto_total", 0),
+                    "ptkp_annual": result.get("ptkp_annual", 0),
+                    "pkp_annual": result.get("pkp_annual", 0),
+                    "pph21_annual": result.get("pph21_annual", 0),
+                    "koreksi_pph21": result.get("koreksi_pph21", 0),
+                }
+                sync_annual_payroll_history.sync_annual_payroll_history(
+                    employee=employee_doc,
+                    fiscal_year=fiscal_year,
+                    monthly_results=[monthly_result],
+                    summary=summary
+                )
+        except Exception as e:
+            frappe.logger().error(f"Failed to sync Annual Payroll History: {e}")
+
+    def on_cancel(self):
+        """
+        Saat slip dibatalkan, hapus baris terkait di Annual Payroll History.
+        """
+        try:
+            employee_doc = self.get_employee_doc()
+            fiscal_year = getattr(self, "fiscal_year", None) or getattr(self, "start_date", "")[:4]
+            if not fiscal_year:
+                return
+            sync_annual_payroll_history.sync_annual_payroll_history(
+                employee=employee_doc,
+                fiscal_year=fiscal_year,
+                monthly_results=None,
+                summary=None,
+                cancelled_salary_slip=self.name
+            )
+        except Exception as e:
+            frappe.logger().error(f"Failed to remove from Annual Payroll History on cancel: {e}")
