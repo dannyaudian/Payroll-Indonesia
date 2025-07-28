@@ -5,6 +5,10 @@
   "custom": 1,
   "istable": 0,
   "editable_grid": 0,
+  "is_submittable": 1,
+  "is_creatable": 1,
+  "show_in_module_section": 1,
+  "route": "annual-payroll-history",
   "fields": [
     {
       "fieldname": "fiscal_year",
@@ -63,6 +67,19 @@
       "fieldtype": "Table",
       "label": "Monthly Detail",
       "options": "Annual Payroll History Child"
+    }
+  ],
+  "permissions": [
+    {
+      "role": "System Manager",
+      "permlevel": 0,
+      "read": 1,
+      "write": 1,
+      "create": 1,
+      "delete": 1,
+      "submit": 1,
+      "cancel": 1,
+      "amend": 1
     }
   ],
   "modified": "2024-01-02 00:00:00"
