@@ -222,5 +222,7 @@ fixtures = [
     "TER Bracket Table",
     "TER Mapping Table",
     "Payroll Indonesia Settings",
-    "Workspace"
+    "Workspace",
+    "Annual Payroll History",
+    "Annual Payroll History Child",
 ]
