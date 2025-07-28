@@ -135,15 +135,14 @@ def calculate_pph21_progressive(pkp_annual):
         lower_limit = batas
     return pajak
 
-def calculate_pph21_TER_december(employee, salary_slips, pph21_paid_jan_nov=0):
+def calculate_pph21_TER_december_from_annual_payroll(annual_payroll_history, employee=None):
     """
-    Hitung PPh 21 progressive/normal (Desember/final year) berdasarkan income tax slab.
+    Hitung PPh 21 progressive/normal (Desember/final year) berdasarkan data Annual Payroll History (parent dan child).
     Hanya untuk Employment Type: Full-time.
 
     Args:
-        employee: dict atau doc Employee (punya tax_status dan employment_type)
-        salary_slips: list of dict, slip seluruh tahun berjalan (Jan–Des)
-        pph21_paid_jan_nov: float, total PPh21 yang sudah dipotong/dibayar Jan–Nov
+        annual_payroll_history: Document/Dict AnnualPayrollHistory, memuat child table (monthly details)
+        employee: optional, Document/Dict Employee jika ingin override (default ambil dari parent)
 
     Returns:
         dict: {
@@ -157,14 +156,26 @@ def calculate_pph21_TER_december(employee, salary_slips, pph21_paid_jan_nov=0):
             'income_tax_deduction_total': float,
             'biaya_jabatan_total': float,
             'koreksi_pph21': float,
-            'employment_type_checked': bool
+            'employment_type_checked': bool,
+            'message': str (optional)
         }
     """
+
+    # Ambil data employee dari parent jika tidak diberikan
+    if not employee:
+        employee = getattr(annual_payroll_history, "employee", None) or getattr(annual_payroll_history, "employee_doc", None)
+        if hasattr(annual_payroll_history, "as_dict"):
+            employee = annual_payroll_history.as_dict().get("employee") or annual_payroll_history.as_dict().get("employee_doc")
+
+    # Cek employment type Full-time
     employment_type = None
+    tax_status = None
     if hasattr(employee, "employment_type"):
         employment_type = getattr(employee, "employment_type")
+        tax_status = getattr(employee, "tax_status", None)
     elif isinstance(employee, dict):
         employment_type = employee.get("employment_type")
+        tax_status = employee.get("tax_status")
 
     if employment_type != "Full-time":
         return {
@@ -182,41 +193,63 @@ def calculate_pph21_TER_december(employee, salary_slips, pph21_paid_jan_nov=0):
             "message": "PPh21 TER Desember hanya dihitung untuk Employment Type: Full-time"
         }
 
-    # 1. PTKP tahunan
-    tax_status = getattr(employee, "tax_status", None) if hasattr(employee, "tax_status") else employee.get("tax_status")
-    ptkp_annual = get_ptkp_amount(tax_status)
+    # --- Ambil data dari parent & child table ---
+    # Child table bisa: .monthly_details atau .annual_payroll_history_childs
+    child_table = getattr(annual_payroll_history, "monthly_details", None) \
+        or getattr(annual_payroll_history, "annual_payroll_history_childs", None) \
+        or annual_payroll_history.get("monthly_details") \
+        or annual_payroll_history.get("annual_payroll_history_childs")
 
-    # 2. Jumlah slip gaji tahun berjalan (Jan–Des)
+    if not child_table or len(child_table) == 0:
+        return {
+            "message": "Data child (detail bulan) tidak ditemukan.",
+            "employment_type_checked": True
+        }
+
+    # Sum seluruh tahun
     bruto_total = 0.0
-    income_tax_deduction_total = 0.0
+    pengurang_netto_total = 0.0
     biaya_jabatan_total = 0.0
     netto_total = 0.0
+    pkp_total = 0.0
+    pph21_total = 0.0
 
-    for slip in salary_slips:
-        bruto = sum_bruto_earnings(slip)
-        pengurang_netto = sum_income_tax_deductions(slip)
-        biaya_jabatan = get_biaya_jabatan_from_component(slip)
-        netto = bruto - pengurang_netto - biaya_jabatan
-        bruto_total += bruto
-        income_tax_deduction_total += pengurang_netto
-        biaya_jabatan_total += biaya_jabatan
-        netto_total += netto
+    # Untuk total PPh21 Jan–Nov
+    pph21_paid_jan_nov = 0.0
 
-    # 3. PKP tahunan
+    for row in child_table:
+        bulan = None
+        if hasattr(row, "bulan"):
+            bulan = getattr(row, "bulan")
+        elif isinstance(row, dict):
+            bulan = row.get("bulan")
+        bruto = getattr(row, "bruto", None) if hasattr(row, "bruto") else row.get("bruto", 0)
+        pengurang_netto = getattr(row, "pengurang_netto", None) if hasattr(row, "pengurang_netto") else row.get("pengurang_netto", 0)
+        biaya_jabatan = getattr(row, "biaya_jabatan", None) if hasattr(row, "biaya_jabatan") else row.get("biaya_jabatan", 0)
+        netto = getattr(row, "netto", None) if hasattr(row, "netto") else row.get("netto", 0)
+        pkp = getattr(row, "pkp", None) if hasattr(row, "pkp") else row.get("pkp", 0)
+        pph21 = getattr(row, "pph21", None) if hasattr(row, "pph21") else row.get("pph21", 0)
+
+        bruto_total += float(bruto or 0)
+        pengurang_netto_total += float(pengurang_netto or 0)
+        biaya_jabatan_total += float(biaya_jabatan or 0)
+        netto_total += float(netto or 0)
+        pkp_total += float(pkp or 0)
+        pph21_total += float(pph21 or 0)
+
+        # Jan–Nov only (bulan 1 s.d. 11)
+        if bulan and int(bulan) < 12:
+            pph21_paid_jan_nov += float(pph21 or 0)
+
+    # --- Perhitungan PPh21 Desember ---
+    # PTKP tahunan
+    from .pph21_ter_december import get_ptkp_amount, calculate_pkp_annual, calculate_pph21_progressive, get_tax_slabs
+
+    ptkp_annual = get_ptkp_amount(tax_status)
     pkp_annual = calculate_pkp_annual(netto_total, ptkp_annual)
-
-    # 4. Hitung PPh progresif setahun
     pph21_annual = calculate_pph21_progressive(pkp_annual)
-    # 5. Pajak bulan Desember/final
-    # Koreksi PPh21: jika minus, kelebihan potong; jika positif, kekurangan potong
     koreksi_pph21 = pph21_annual - pph21_paid_jan_nov
-    # Untuk slip, jika koreksi_pph21 < 0 maka PPh21 di slip Desember = 0, dan kelebihan ditambahkan ke THP
-    if koreksi_pph21 > 0:
-        pph21_month = koreksi_pph21
-    else:
-        pph21_month = 0
-
-    # 6. Rate info (for audit only)
+    pph21_month_des = koreksi_pph21 if koreksi_pph21 > 0 else 0
     rates = "/".join([f"{rate}%" for _, rate in get_tax_slabs()])
 
     return {
@@ -226,9 +259,9 @@ def calculate_pph21_TER_december(employee, salary_slips, pph21_paid_jan_nov=0):
         "pkp_annual": pkp_annual,
         "rate": rates,
         "pph21_annual": pph21_annual,
-        "pph21_month": pph21_month,
-        "income_tax_deduction_total": income_tax_deduction_total,
+        "pph21_month": pph21_month_des,
+        "income_tax_deduction_total": pengurang_netto_total,
         "biaya_jabatan_total": biaya_jabatan_total,
         "koreksi_pph21": koreksi_pph21,
-        "employment_type_checked": True
+        "employment_type_checked": True,
     }
