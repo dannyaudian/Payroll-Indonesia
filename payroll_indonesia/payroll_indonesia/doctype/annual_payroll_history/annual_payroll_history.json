@@ -1,60 +1,61 @@
 {
- "doctype": "DocType",
- "name": "Annual Payroll History",
- "module": "Payroll Indonesia",
- "custom": 1,
- "istable": 0,
- "editable_grid": 0,
- "fields": [
-  {
-   "fieldname": "fiscal_year",
-   "fieldtype": "Link",
-   "label": "Fiscal Year",
-   "options": "Fiscal Year",
-   "reqd": 1
-  },
-  {
-   "fieldname": "bruto_total",
-   "fieldtype": "Currency",
-   "label": "Total Bruto",
-   "reqd": 1
-  },
-  {
-   "fieldname": "netto_total",
-   "fieldtype": "Currency",
-   "label": "Total Netto",
-   "reqd": 1
-  },
-  {
-   "fieldname": "ptkp_annual",
-   "fieldtype": "Currency",
-   "label": "PTKP Annual",
-   "reqd": 1
-  },
-  {
-   "fieldname": "pkp_annual",
-   "fieldtype": "Currency",
-   "label": "PKP Annual (Rounded)",
-   "reqd": 1
-  },
-  {
-   "fieldname": "pph21_annual",
-   "fieldtype": "Currency",
-   "label": "PPh21 Annual",
-   "reqd": 1
-  },
-  {
-   "fieldname": "koreksi_pph21",
-   "fieldtype": "Currency",
-   "label": "Koreksi PPh21 Desember",
-   "reqd": 1,
-   "description": "pph21_annual - total pph21 Jan-Nov"
-  },
-  {
-   "fieldname": "monthly_details",
-   "fieldtype": "Table",
-   "label": "Monthly Detail",
-   "options": "Annual Payroll History Child"
-  }
- ]
+  "doctype": "DocType",
+  "name": "Annual Payroll History",
+  "module": "Payroll Indonesia",
+  "custom": 1,
+  "istable": 0,
+  "editable_grid": 0,
+  "fields": [
+    {
+      "fieldname": "fiscal_year",
+      "fieldtype": "Link",
+      "label": "Fiscal Year",
+      "options": "Fiscal Year",
+      "reqd": 1
+    },
+    {
+      "fieldname": "bruto_total",
+      "fieldtype": "Currency",
+      "label": "Total Bruto",
+      "reqd": 1
+    },
+    {
+      "fieldname": "netto_total",
+      "fieldtype": "Currency",
+      "label": "Total Netto",
+      "reqd": 1
+    },
+    {
+      "fieldname": "ptkp_annual",
+      "fieldtype": "Currency",
+      "label": "PTKP Annual",
+      "reqd": 1
+    },
+    {
+      "fieldname": "pkp_annual",
+      "fieldtype": "Currency",
+      "label": "PKP Annual (Rounded)",
+      "reqd": 1
+    },
+    {
+      "fieldname": "pph21_annual",
+      "fieldtype": "Currency",
+      "label": "PPh21 Annual",
+      "reqd": 1
+    },
+    {
+      "fieldname": "koreksi_pph21",
+      "fieldtype": "Currency",
+      "label": "Koreksi PPh21 Desember",
+      "reqd": 1,
+      "description": "pph21_annual - total pph21 Jan-Nov"
+    },
+    {
+      "fieldname": "monthly_details",
+      "fieldtype": "Table",
+      "label": "Monthly Detail",
+      "options": "Annual Payroll History Child"
+    }
+  ],
+  "modified": "2024-01-01 00:00:00"
 }
