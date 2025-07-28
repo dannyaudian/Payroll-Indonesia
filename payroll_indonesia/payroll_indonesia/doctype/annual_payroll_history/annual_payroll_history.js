@@ -23,17 +23,17 @@ frappe.ui.form.on('Annual Payroll History Child', {
     pph21: function(frm, cdt, cdn) {
         calculate_totals(frm);
     },
-    annual_payroll_history_childs_add: function(frm, cdt, cdn) {
+    monthly_details_add: function(frm, cdt, cdn) {
         calculate_totals(frm);
     },
-    annual_payroll_history_childs_remove: function(frm, cdt, cdn) {
+    monthly_details_remove: function(frm, cdt, cdn) {
         calculate_totals(frm);
     }
 });
 
 function calculate_totals(frm) {
     let bruto = 0, pengurang_netto = 0, biaya_jabatan = 0, netto = 0, pkp = 0, pph21 = 0;
-    $.each(frm.doc.annual_payroll_history_childs || [], function(i, row) {
+    $.each(frm.doc.monthly_details || [], function(i, row) {
         bruto += flt(row.bruto);
         pengurang_netto += flt(row.pengurang_netto);
         biaya_jabatan += flt(row.biaya_jabatan);
