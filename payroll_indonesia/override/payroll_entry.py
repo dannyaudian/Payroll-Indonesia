@@ -1,4 +1,4 @@
-from erpnext.payroll.doctype.payroll_entry.payroll_entry import PayrollEntry
+from hrms.payroll.doctype.payroll_entry.payroll_entry import PayrollEntry
 import frappe
 from payroll_indonesia.override.salary_slip import CustomSalarySlip
 

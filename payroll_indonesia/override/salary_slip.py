@@ -1,5 +1,5 @@
 try:
-    from erpnext.payroll.doctype.salary_slip.salary_slip import SalarySlip
+    from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
 except Exception:  # pragma: no cover - erpnext may not be installed during tests
     SalarySlip = object  # type: ignore
 
