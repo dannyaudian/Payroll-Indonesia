@@ -14,6 +14,14 @@
       "reqd": 1
     },
     {
+      "fieldname": "employee",
+      "fieldtype": "Link",
+      "label": "Employee",
+      "options": "Employee",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
       "fieldname": "bruto_total",
       "fieldtype": "Currency",
       "label": "Total Bruto",
@@ -57,5 +65,5 @@
       "options": "Annual Payroll History Child"
     }
   ],
-  "modified": "2024-01-01 00:00:00"
+  "modified": "2024-01-02 00:00:00"
 }
