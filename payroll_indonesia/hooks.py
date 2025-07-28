@@ -113,13 +113,11 @@ override_doctype_class = {
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-#	"*": {
-#		"on_update": "method",
-#		"on_cancel": "method",
-#		"on_trash": "method"
-#	}
-# }
+doc_events = {
+    "Salary Structure": {
+        "validate": "payroll_indonesia.utils.validate_salary_structure.validate_salary_structure_required_components"
+    }
+}
 
 # Scheduled Tasks
 # ---------------
