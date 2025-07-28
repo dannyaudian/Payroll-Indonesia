@@ -1,4 +1,3 @@
-import frappe
 from frappe.utils import flt
 from payroll_indonesia.config import config
 
