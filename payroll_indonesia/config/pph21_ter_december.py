@@ -135,6 +135,80 @@ def calculate_pph21_progressive(pkp_annual):
         lower_limit = batas
     return pajak
 
+def calculate_pph21_TER_december(employee, salary_slips, pph21_paid_jan_nov=0):
+    """
+    Hitung PPh 21 progressive/normal (Desember/final year) berdasarkan list
+    salary slip sepanjang tahun.
+
+    Args:
+        employee: dict/Document Employee (punya tax_status dan employment_type)
+        salary_slips: list of dict/Document Salary Slip untuk satu tahun penuh
+        pph21_paid_jan_nov: float, total PPh21 yang sudah dibayar Januari-November
+
+    Returns:
+        dict dengan keys sama seperti :func:`calculate_pph21_TER_december_from_annual_payroll`.
+    """
+
+    employment_type = None
+    tax_status = None
+    if hasattr(employee, "employment_type"):
+        employment_type = getattr(employee, "employment_type")
+        tax_status = getattr(employee, "tax_status", None)
+    elif isinstance(employee, dict):
+        employment_type = employee.get("employment_type")
+        tax_status = employee.get("tax_status")
+
+    if employment_type != "Full-time":
+        return {
+            "bruto_total": 0.0,
+            "netto_total": 0.0,
+            "ptkp_annual": 0.0,
+            "pkp_annual": 0.0,
+            "rate": "",
+            "pph21_annual": 0.0,
+            "pph21_month": 0.0,
+            "income_tax_deduction_total": 0.0,
+            "biaya_jabatan_total": 0.0,
+            "koreksi_pph21": 0.0,
+            "employment_type_checked": False,
+            "message": "PPh21 TER Desember hanya dihitung untuk Employment Type: Full-time",
+        }
+
+    if not salary_slips:
+        return {"message": "Daftar salary slip kosong.", "employment_type_checked": True}
+
+    bruto_total = 0.0
+    pengurang_netto_total = 0.0
+    biaya_jabatan_total = 0.0
+
+    for slip in salary_slips:
+        bruto_total += sum_bruto_earnings(slip)
+        pengurang_netto_total += sum_income_tax_deductions(slip)
+        biaya_jabatan_total += get_biaya_jabatan_from_component(slip)
+
+    netto_total = bruto_total - pengurang_netto_total - biaya_jabatan_total
+
+    ptkp_annual = get_ptkp_amount(tax_status)
+    pkp_annual = calculate_pkp_annual(netto_total, ptkp_annual)
+    pph21_annual = calculate_pph21_progressive(pkp_annual)
+    koreksi_pph21 = pph21_annual - pph21_paid_jan_nov
+    pph21_month_des = koreksi_pph21 if koreksi_pph21 > 0 else 0
+    rates = "/".join([f"{rate}%" for _, rate in get_tax_slabs()])
+
+    return {
+        "bruto_total": bruto_total,
+        "netto_total": netto_total,
+        "ptkp_annual": ptkp_annual,
+        "pkp_annual": pkp_annual,
+        "rate": rates,
+        "pph21_annual": pph21_annual,
+        "pph21_month": pph21_month_des,
+        "income_tax_deduction_total": pengurang_netto_total,
+        "biaya_jabatan_total": biaya_jabatan_total,
+        "koreksi_pph21": koreksi_pph21,
+        "employment_type_checked": True,
+    }
+
 def calculate_pph21_TER_december_from_annual_payroll(annual_payroll_history, employee=None):
     """
     Hitung PPh 21 progressive/normal (Desember/final year) berdasarkan data Annual Payroll History (parent dan child).
