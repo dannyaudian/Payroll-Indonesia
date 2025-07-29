@@ -1,3 +1,10 @@
+"""Custom Salary Slip override for Payroll Indonesia.
+
+Adds Indonesian income tax logic and patches ``eval_condition_and_formula`` so
+that helper functions defined in ``hooks.salary_slip_globals`` are available when
+evaluating Salary Component formulas.
+"""
+
 try:
     from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
 except Exception:  # pragma: no cover - erpnext may not be installed during tests
@@ -7,6 +14,8 @@ import frappe
 
 from payroll_indonesia.config import pph21_ter, pph21_ter_december
 from payroll_indonesia.utils import sync_annual_payroll_history
+from frappe.utils.safe_exec import safe_eval
+from payroll_indonesia import _patch_salary_slip_globals
 
 class CustomSalarySlip(SalarySlip):
     """
@@ -14,6 +23,23 @@ class CustomSalarySlip(SalarySlip):
     Koreksi PPh21 minus: PPh21 di slip minus, THP otomatis bertambah oleh sistem.
     Sinkronisasi ke Annual Payroll History setiap kali slip dihitung atau dibatalkan.
     """
+
+    def eval_condition_and_formula(self, struct_row, data):
+        """Evaluate condition and formula with additional Payroll Indonesia globals."""
+        context = data.copy()
+        context.update(_patch_salary_slip_globals())
+
+        try:
+            if getattr(struct_row, "condition", None):
+                if not safe_eval(struct_row.condition, context):
+                    return 0
+
+            if getattr(struct_row, "formula", None):
+                return safe_eval(struct_row.formula, context)
+        except Exception as e:
+            frappe.throw(f"Failed evaluating formula for {getattr(struct_row, 'salary_component', 'component')}: {e}")
+
+        return super().eval_condition_and_formula(struct_row, data)
 
     def calculate_income_tax(self):
         """
