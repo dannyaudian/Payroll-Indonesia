@@ -1,6 +1,8 @@
 from hrms.payroll.doctype.payroll_entry.payroll_entry import PayrollEntry
 import frappe
 from payroll_indonesia.override.salary_slip import CustomSalarySlip
+from payroll_indonesia.config import get_value
+
 
 class CustomPayrollEntry(PayrollEntry):
     def validate(self):
@@ -9,9 +11,8 @@ class CustomPayrollEntry(PayrollEntry):
         if getattr(self, "run_payroll_indonesia", False):
             frappe.logger().info("Payroll Entry: Run Payroll Indonesia is checked.")
             # Auto set pph21_method from settings if not set
-            settings = frappe.get_single("Payroll Indonesia Settings") if frappe.db.exists("DocType", "Payroll Indonesia Settings") else None
-            if hasattr(self, "pph21_method") and not self.pph21_method and settings:
-                self.pph21_method = settings.get("pph21_method", "TER")
+            if hasattr(self, "pph21_method") and not self.pph21_method:
+                self.pph21_method = get_value("pph21_method", "TER")
         if getattr(self, "run_payroll_indonesia_december", False):
             frappe.logger().info("Payroll Entry: Run Payroll Indonesia DECEMBER mode is checked.")
             # Add any December-specific validation here if needed
@@ -22,10 +23,14 @@ class CustomPayrollEntry(PayrollEntry):
         Koreksi PPh21 minus: komponen tax di slip akan minus, sistem journal ERPNext akan balancing otomatis.
         """
         if getattr(self, "run_payroll_indonesia_december", False):
-            frappe.logger().info("Payroll Entry: Running Salary Slip generation for Payroll Indonesia DECEMBER (final year) mode.")
+            frappe.logger().info(
+                "Payroll Entry: Running Salary Slip generation for Payroll Indonesia DECEMBER (final year) mode."
+            )
             return self._create_salary_slips_indonesia_december()
         elif getattr(self, "run_payroll_indonesia", False):
-            frappe.logger().info("Payroll Entry: Running Salary Slip generation for Payroll Indonesia normal mode.")
+            frappe.logger().info(
+                "Payroll Entry: Running Salary Slip generation for Payroll Indonesia normal mode."
+            )
             return self._create_salary_slips_indonesia()
         else:
             return super().create_salary_slips()
