@@ -384,7 +384,7 @@
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
     "amount_based_on_formula": 1,
-    "formula": "(gross_pay * get_bpjs_rate(\"biaya_jabatan_rate\") / 100 if gross_pay * get_bpjs_rate(\"biaya_jabatan_rate\") / 100 <= get_bpjs_cap(\"biaya_jabatan_cap\") / 12 else get_bpjs_cap(\"biaya_jabatan_cap\") / 12)",
+    "formula": "(base * get_bpjs_rate(\"biaya_jabatan_rate\") / 100 if base * get_bpjs_rate(\"biaya_jabatan_rate\") / 100 <= get_bpjs_cap(\"biaya_jabatan_cap\") / 12 else get_bpjs_cap(\"biaya_jabatan_cap\") / 12)",
     "modified": "2024-01-01 00:00:00"
   },
   {
