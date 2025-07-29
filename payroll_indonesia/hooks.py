@@ -111,6 +111,14 @@ override_doctype_class = {
     "Salary Slip": "payroll_indonesia.override.salary_slip.CustomSalarySlip",
 }
 
+# Safe Eval Globals
+# -----------------
+# Tambahan fungsi yang dapat dipanggil pada formula Salary Component.
+salary_slip_globals = {
+    "get_bpjs_cap": "payroll_indonesia.config.get_bpjs_cap",
+    "get_bpjs_rate": "payroll_indonesia.config.get_bpjs_rate",
+}
+
 # Document Events
 # ---------------
 # Hook on document methods and events
