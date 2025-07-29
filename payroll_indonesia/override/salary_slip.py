@@ -7,15 +7,16 @@ evaluating Salary Component formulas.
 
 try:
     from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
-except Exception:  # pragma: no cover - erpnext may not be installed during tests
-    SalarySlip = object  # type: ignore
+except Exception:
+    SalarySlip = object 
 
 import frappe
+from frappe.utils.safe_exec import safe_eval
 
 from payroll_indonesia.config import pph21_ter, pph21_ter_december
 from payroll_indonesia.utils import sync_annual_payroll_history
-from frappe.utils.safe_exec import safe_eval
 from payroll_indonesia import _patch_salary_slip_globals
+
 
 class CustomSalarySlip(SalarySlip):
     """
@@ -24,6 +25,9 @@ class CustomSalarySlip(SalarySlip):
     Sinkronisasi ke Annual Payroll History setiap kali slip dihitung atau dibatalkan.
     """
 
+    # -------------------------
+    # Formula evaluation
+    # -------------------------
     def eval_condition_and_formula(self, struct_row, data):
         """Evaluate condition and formula with additional Payroll Indonesia globals."""
         context = data.copy()
@@ -36,11 +40,17 @@ class CustomSalarySlip(SalarySlip):
 
             if getattr(struct_row, "formula", None):
                 return safe_eval(struct_row.formula, context)
+
         except Exception as e:
-            frappe.throw(f"Failed evaluating formula for {getattr(struct_row, 'salary_component', 'component')}: {e}")
+            frappe.throw(
+                f"Failed evaluating formula for {getattr(struct_row, 'salary_component', 'component')}: {e}"
+            )
 
         return super().eval_condition_and_formula(struct_row, data)
 
+    # -------------------------
+    # Income tax calculation
+    # -------------------------
     def calculate_income_tax(self):
         """
         Hitung pajak penghasilan sesuai mode payroll (TER atau Progressive/Desember).
@@ -57,11 +67,10 @@ class CustomSalarySlip(SalarySlip):
             result = pph21_ter_december.calculate_pph21_TER_december(
                 employee_doc,
                 salary_slips,
-                pph21_paid_jan_nov=pph21_paid_jan_nov
+                pph21_paid_jan_nov=pph21_paid_jan_nov,
             )
             self.pph21_info = result
-            koreksi_pph21 = result.get("koreksi_pph21", 0)
-            self.tax = koreksi_pph21
+            self.tax = result.get("koreksi_pph21", 0)
             self.tax_type = "DECEMBER"
             self.sync_to_annual_payroll_history(result, mode="december")
             return self.tax
@@ -77,13 +86,14 @@ class CustomSalarySlip(SalarySlip):
             self.sync_to_annual_payroll_history(result, mode="monthly")
             return self.tax
 
-        # Default: fallback to vanilla ERPNext
+        # Default: fallback ke ERPNext asli
         return super().calculate_income_tax()
 
+    # -------------------------
+    # Helpers
+    # -------------------------
     def get_employee_doc(self):
-        """
-        Helper: get employee doc/dict from self.employee (id, dict, or object).
-        """
+        """Helper: get employee doc/dict from self.employee (id, dict, or object)."""
         if hasattr(self, "employee"):
             emp = self.employee
             if isinstance(emp, dict):
@@ -94,24 +104,11 @@ class CustomSalarySlip(SalarySlip):
                 return {}
         return {}
 
-    def as_dict(self):
-        """
-        Return a dict representation (for compatibility with PayrollEntry batch logic).
-        """
-        doc = super().as_dict() if hasattr(super(), "as_dict") else dict(self.__dict__)
-        doc.update({
-            "pph21_info": getattr(self, "pph21_info", {}),
-            "tax": getattr(self, "tax", 0),
-            "tax_type": getattr(self, "tax_type", None)
-        })
-        return doc
-
+    # -------------------------
+    # Annual Payroll History sync
+    # -------------------------
     def sync_to_annual_payroll_history(self, result, mode="monthly"):
-        """
-        Sinkronisasi hasil slip ke Annual Payroll History.
-        Untuk mode 'monthly': hanya satu bulan.
-        Untuk mode 'december': bisa summary full year.
-        """
+        """Sinkronisasi hasil slip ke Annual Payroll History."""
         try:
             employee_doc = self.get_employee_doc()
             fiscal_year = getattr(self, "fiscal_year", None) or str(getattr(self, "start_date", ""))[:4]
@@ -129,12 +126,13 @@ class CustomSalarySlip(SalarySlip):
                 "pph21": result.get("pph21", result.get("pph21_month", 0)),
                 "salary_slip": self.name,
             }
+
             if mode == "monthly":
                 sync_annual_payroll_history.sync_annual_payroll_history(
                     employee=employee_doc,
                     fiscal_year=fiscal_year,
                     monthly_results=[monthly_result],
-                    summary=None
+                    summary=None,
                 )
             elif mode == "december":
                 summary = {
@@ -149,15 +147,13 @@ class CustomSalarySlip(SalarySlip):
                     employee=employee_doc,
                     fiscal_year=fiscal_year,
                     monthly_results=[monthly_result],
-                    summary=summary
+                    summary=summary,
                 )
         except Exception as e:
             frappe.logger().error(f"Failed to sync Annual Payroll History: {e}")
 
     def on_cancel(self):
-        """
-        Saat slip dibatalkan, hapus baris terkait di Annual Payroll History.
-        """
+        """Saat slip dibatalkan, hapus baris terkait di Annual Payroll History."""
         try:
             employee_doc = self.get_employee_doc()
             fiscal_year = getattr(self, "fiscal_year", None) or str(getattr(self, "start_date", ""))[:4]
@@ -168,7 +164,7 @@ class CustomSalarySlip(SalarySlip):
                 fiscal_year=fiscal_year,
                 monthly_results=None,
                 summary=None,
-                cancelled_salary_slip=self.name
+                cancelled_salary_slip=self.name,
             )
         except Exception as e:
             frappe.logger().error(f"Failed to remove from Annual Payroll History on cancel: {e}")
