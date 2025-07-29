@@ -16,7 +16,7 @@ Tambahkan mapping berikut pada `override_doctype_class` di `hooks.py` agar ERPNe
 
 ```python
 override_doctype_class = {
-    "Salary Slip": "payroll_indonesia.override.custom_salary_slip.CustomSalarySlip",
+    "Salary Slip": "payroll_indonesia.override.salary_slip.CustomSalarySlip",
     "Payroll Entry": "payroll_indonesia.override.payroll_entry.CustomPayrollEntry",
 }
 ```
