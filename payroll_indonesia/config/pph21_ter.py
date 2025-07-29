@@ -1,33 +1,5 @@
 from frappe.utils import flt
-from payroll_indonesia.config import config
-
-def get_ter_code(tax_status):
-    """Ambil kode TER dari tax_status via settings/mapping table."""
-    settings = config.get_settings()
-    for row in settings.get("ter_mapping_table", []):
-        if row.tax_status == tax_status:
-            return row.ter_code
-    return None
-
-def get_ter_rate(ter_code, monthly_income):
-    """Cari rate TER (%) untuk kode dan penghasilan tertentu dari tabel setting."""
-    settings = config.get_settings()
-    brackets = [b for b in settings.get("ter_bracket_table", []) if b.ter_code == ter_code]
-    for row in brackets:
-        min_income = flt(row.min_income or 0)
-        max_income = flt(row.max_income or 0)
-        rate = flt(row.rate_percent or 0)
-        if monthly_income >= min_income and (max_income == 0 or monthly_income <= max_income):
-            return rate
-    return 0.0
-
-def get_ptkp_amount(tax_status):
-    """Ambil PTKP dari table di settings."""
-    settings = config.get_settings()
-    for row in settings.get("ptkp_table", []):
-        if row.tax_status == tax_status:
-            return flt(row.ptkp_amount)
-    return 0.0
+from payroll_indonesia.config import get_ptkp_amount, get_ter_code, get_ter_rate
 
 def sum_bruto_earnings(salary_slip):
     """
