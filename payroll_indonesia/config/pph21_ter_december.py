@@ -1,6 +1,11 @@
 import frappe
 from frappe.utils import flt
-from payroll_indonesia.config import config
+from payroll_indonesia.config import (
+    config,
+    get_ptkp_amount,
+    get_ter_code,
+    get_ter_rate,
+)
 
 # Default progressive income tax slabs (PMK 168/2023, berlaku 2024)
 DEFAULT_TAX_SLABS = [
@@ -37,13 +42,6 @@ def get_tax_slabs():
     slabs.sort(key=lambda x: x[0])
     return slabs
 
-def get_ptkp_amount(tax_status):
-    """Ambil PTKP dari table di settings."""
-    settings = config.get_settings()
-    for row in settings.get("ptkp_table", []):
-        if row.tax_status == tax_status:
-            return flt(row.ptkp_amount)
-    return 0.0
 
 def sum_bruto_earnings(salary_slip):
     """
@@ -317,7 +315,6 @@ def calculate_pph21_TER_december_from_annual_payroll(annual_payroll_history, emp
 
     # --- Perhitungan PPh21 Desember ---
     # PTKP tahunan
-    from .pph21_ter_december import get_ptkp_amount, calculate_pkp_annual, calculate_pph21_progressive, get_tax_slabs
 
     ptkp_annual = get_ptkp_amount(tax_status)
     pkp_annual = calculate_pkp_annual(netto_total, ptkp_annual)
