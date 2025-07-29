@@ -8,27 +8,6 @@ import frappe
 from payroll_indonesia.config import pph21_ter, pph21_ter_december
 from payroll_indonesia.utils import sync_annual_payroll_history
 
-# --- Ensure min/max are available for formula evaluation globally in ERPNext ---
-def patch_safe_globals():
-    """
-    Patch frappe safe_exec globals to include min/max for formula evaluation.
-    This works for Salary Component/Structure formulas using min/max.
-    """
-    try:
-        from frappe.utils.safe_exec import get_safe_globals
-
-        safe_globals = get_safe_globals()
-        # Patch only if not already present
-        if "min" not in safe_globals:
-            safe_globals["min"] = min
-        if "max" not in safe_globals:
-            safe_globals["max"] = max
-    except Exception:
-        # If frappe not installed or get_safe_globals not available, ignore
-        pass
-
-patch_safe_globals()
-
 class CustomSalarySlip(SalarySlip):
     """
     Salary Slip with Indonesian income tax calculations (TER bulanan dan Progressive/Desember).
