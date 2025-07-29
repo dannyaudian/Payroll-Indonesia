@@ -211,7 +211,7 @@
     "parent_account": "BPJS Payable",
     "company": "{{company}}",
     "root_type": "Liability",
-    "account_type": "Payable",
+    "account_type": "",
     "is_group": 0,
     "report_type": "Balance Sheet"
   },
@@ -220,7 +220,7 @@
     "parent_account": "BPJS Payable",
     "company": "{{company}}",
     "root_type": "Liability",
-    "account_type": "Payable",
+    "account_type": "",
     "is_group": 0,
     "report_type": "Balance Sheet"
   },
@@ -229,7 +229,7 @@
     "parent_account": "BPJS Payable",
     "company": "{{company}}",
     "root_type": "Liability",
-    "account_type": "Payable",
+    "account_type": "",
     "is_group": 0,
     "report_type": "Balance Sheet"
   },
@@ -238,7 +238,7 @@
     "parent_account": "BPJS Payable",
     "company": "{{company}}",
     "root_type": "Liability",
-    "account_type": "Payable",
+    "account_type": "",
     "is_group": 0,
     "report_type": "Balance Sheet"
   },
@@ -247,7 +247,7 @@
     "parent_account": "BPJS Payable",
     "company": "{{company}}",
     "root_type": "Liability",
-    "account_type": "Payable",
+    "account_type": "",
     "is_group": 0,
     "report_type": "Balance Sheet"
   },
