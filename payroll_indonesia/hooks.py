@@ -5,10 +5,15 @@ app_description = "Payroll Indonesia - Modul Perhitungan BPJS & PPh 21 untuk ERP
 app_email = "hello@imogi.tech"
 app_license = "MIT"
 
-# Python built-ins exposed in Frappe's safe execution environment
+# Helper functions exposed in Frappe's safe execution environment
 safe_exec_globals = {
-    "min": "builtins.min",
-    "max": "builtins.max",
+    "min_value": "payroll_indonesia.utils.min_value",
+    "max_value": "payroll_indonesia.utils.max_value",
+    "get_bpjs_cap": "payroll_indonesia.utils.get_bpjs_cap",
+    "get_bpjs_rate": "payroll_indonesia.utils.get_bpjs_rate",
+    "get_ptkp_amount": "payroll_indonesia.utils.get_ptkp_amount",
+    "get_ter_code": "payroll_indonesia.utils.get_ter_code",
+    "get_ter_rate": "payroll_indonesia.utils.get_ter_rate",
 }
 
 # Includes in <head>
