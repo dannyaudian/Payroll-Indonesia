@@ -5,6 +5,12 @@ app_description = "Payroll Indonesia - Modul Perhitungan BPJS & PPh 21 untuk ERP
 app_email = "hello@imogi.tech"
 app_license = "MIT"
 
+# Python built-ins exposed in Frappe's safe execution environment
+safe_exec_globals = {
+    "min": "builtins.min",
+    "max": "builtins.max",
+}
+
 # Includes in <head>
 # ------------------
 
