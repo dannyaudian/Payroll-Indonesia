@@ -8,18 +8,26 @@ import frappe
 from payroll_indonesia.config import pph21_ter, pph21_ter_december
 from payroll_indonesia.utils import sync_annual_payroll_history
 
-# ERPNext's safe execution environment used when evaluating Salary Component
-# formulas does not expose ``min`` and ``max`` by default.  Some Payroll
-# Indonesia components rely on these functions (e.g. BPJS calculations).  Make
-# sure they're available globally when this module is imported.
-try:  # pragma: no cover - frappe may not be installed during tests
-    from frappe.utils.safe_exec import get_safe_globals
+# --- Ensure min/max are available for formula evaluation globally in ERPNext ---
+def patch_safe_globals():
+    """
+    Patch frappe safe_exec globals to include min/max for formula evaluation.
+    This works for Salary Component/Structure formulas using min/max.
+    """
+    try:
+        from frappe.utils.safe_exec import get_safe_globals
 
-    safe_globals = get_safe_globals()
-    safe_globals.setdefault("min", min)
-    safe_globals.setdefault("max", max)
-except Exception:
-    pass
+        safe_globals = get_safe_globals()
+        # Patch only if not already present
+        if "min" not in safe_globals:
+            safe_globals["min"] = min
+        if "max" not in safe_globals:
+            safe_globals["max"] = max
+    except Exception:
+        # If frappe not installed or get_safe_globals not available, ignore
+        pass
+
+patch_safe_globals()
 
 class CustomSalarySlip(SalarySlip):
     """
@@ -38,10 +46,9 @@ class CustomSalarySlip(SalarySlip):
         if getattr(self, "run_payroll_indonesia_december", False):
             frappe.logger().info("Salary Slip: calculating PPh21 December (progressive) mode.")
             employee_doc = self.get_employee_doc()
-            # List slip gaji setahun (Jan-Des). Di payroll batch, harus diinject.
             salary_slips = getattr(self, "salary_slips_this_year", [self])
-            # Total PPh21 Jan-Nov (harus diinject jika batch, 0 jika single slip)
             pph21_paid_jan_nov = getattr(self, "pph21_paid_jan_nov", 0)
+
             result = pph21_ter_december.calculate_pph21_TER_december(
                 employee_doc,
                 salary_slips,
@@ -49,12 +56,9 @@ class CustomSalarySlip(SalarySlip):
             )
             self.pph21_info = result
             koreksi_pph21 = result.get("koreksi_pph21", 0)
-            self.tax = koreksi_pph21 if koreksi_pph21 > 0 else koreksi_pph21  # boleh minus
+            self.tax = koreksi_pph21
             self.tax_type = "DECEMBER"
-
-            # --- Sinkronisasi ke Annual Payroll History (Desember) ---
             self.sync_to_annual_payroll_history(result, mode="december")
-
             return self.tax
 
         # Mode: TER (bulanan/flat)
@@ -65,10 +69,7 @@ class CustomSalarySlip(SalarySlip):
             self.pph21_info = result
             self.tax = result.get("pph21", 0)
             self.tax_type = "TER"
-
-            # --- Sinkronisasi ke Annual Payroll History (bulanan) ---
             self.sync_to_annual_payroll_history(result, mode="monthly")
-
             return self.tax
 
         # Default: fallback to vanilla ERPNext
@@ -108,7 +109,7 @@ class CustomSalarySlip(SalarySlip):
         """
         try:
             employee_doc = self.get_employee_doc()
-            fiscal_year = getattr(self, "fiscal_year", None) or getattr(self, "start_date", "")[:4]  # fallback ke tahun start_date
+            fiscal_year = getattr(self, "fiscal_year", None) or getattr(self, "start_date", "")[:4]
             if not fiscal_year:
                 return
 
@@ -132,7 +133,6 @@ class CustomSalarySlip(SalarySlip):
                     summary=None
                 )
             elif mode == "december":
-                # Untuk Desember, masukkan summary tahunan
                 summary = {
                     "bruto_total": result.get("bruto_total", 0),
                     "netto_total": result.get("netto_total", 0),
