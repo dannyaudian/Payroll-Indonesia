@@ -79,7 +79,7 @@ Berdasarkan screenshot ![image2](image2):
     "remove_if_zero_valued": 1,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
-    "formula": "min(base, get_bpjs_cap(\"bpjs_health_employee_cap\")) * get_bpjs_rate(\"bpjs_health_employee_rate\") / 100"
+    "formula": "bpjs_calc(base, \"bpjs_health_employee_cap\", \"bpjs_health_employee_rate\")"
 }
 ```
 - **Is Income Tax Component = 1** → Akan dimasukkan sebagai pengurang netto saat menghitung PKP pada logika PPh 21.

@@ -84,4 +84,4 @@ Semua rate BPJS + batas maksimal (cap) ditentukan di sini, digunakan langsung da
 Komponen seperti BPJS akan menggunakan helper function untuk membaca rate/cap:
 
 ```python
-min(base, get_bpjs_cap("bpjs_health_employer_cap")) * get_bpjs_rate("bpjs_health_employer_rate")
+bpjs_calc(base, "bpjs_health_employer_cap", "bpjs_health_employer_rate")

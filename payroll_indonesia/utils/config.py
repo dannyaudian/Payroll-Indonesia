@@ -17,11 +17,17 @@ def max_value(*values):
     return max(*values)
 
 
+def bpjs_calc(base: float, cap_key: str, rate_key: str) -> float:
+    """Return BPJS calculation based on cap and rate settings."""
+    return min_value(base, get_bpjs_cap(cap_key)) * get_bpjs_rate(rate_key) / 100
+
+
 __all__ = [
     "min_value",
     "max_value",
     "get_bpjs_cap",
     "get_bpjs_rate",
+    "bpjs_calc",
     "get_ptkp_amount",
     "get_ter_code",
     "get_ter_rate",
