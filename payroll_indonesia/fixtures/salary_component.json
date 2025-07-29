@@ -29,6 +29,7 @@
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
     "remove_if_zero_valued": 0,
+    "amount_based_on_formula": 1,
     "formula": "base",
     "modified": "2024-01-01 00:00:00"
   },
@@ -222,6 +223,7 @@
     "remove_if_zero_valued": 1,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
+    "amount_based_on_formula": 1,
     "formula": "min(base, get_bpjs_cap(\"bpjs_health_employer_cap\")) * get_bpjs_rate(\"bpjs_health_employer_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
@@ -239,6 +241,7 @@
     "remove_if_zero_valued": 1,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
+    "amount_based_on_formula": 1,
     "formula": "min(base, get_bpjs_cap(\"bpjs_jht_employer_cap\")) * get_bpjs_rate(\"bpjs_jht_employer_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
@@ -256,6 +259,7 @@
     "remove_if_zero_valued": 1,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
+    "amount_based_on_formula": 1,
     "formula": "min(base, get_bpjs_cap(\"bpjs_pension_employer_cap\")) * get_bpjs_rate(\"bpjs_pension_employer_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
@@ -273,6 +277,7 @@
     "remove_if_zero_valued": 1,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
+    "amount_based_on_formula": 1,
     "formula": "min(base, get_bpjs_cap(\"bpjs_jkk_cap\")) * get_bpjs_rate(\"bpjs_jkk_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
@@ -290,6 +295,7 @@
     "remove_if_zero_valued": 1,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
+    "amount_based_on_formula": 1,
     "formula": "min(base, get_bpjs_cap(\"bpjs_jkm_cap\")) * get_bpjs_rate(\"bpjs_jkm_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
@@ -307,6 +313,7 @@
     "is_income_tax_component": 1,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
+    "amount_based_on_formula": 1,
     "formula": "min(base, get_bpjs_cap(\"bpjs_health_employee_cap\")) * get_bpjs_rate(\"bpjs_health_employee_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
@@ -324,6 +331,7 @@
     "is_income_tax_component": 1,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
+    "amount_based_on_formula": 1,
     "formula": "min(base, get_bpjs_cap(\"bpjs_jht_employee_cap\")) * get_bpjs_rate(\"bpjs_jht_employee_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
@@ -341,6 +349,7 @@
     "is_income_tax_component": 1,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
+    "amount_based_on_formula": 1,
     "formula": "min(base, get_bpjs_cap(\"bpjs_pension_employee_cap\")) * get_bpjs_rate(\"bpjs_pension_employee_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
@@ -374,6 +383,7 @@
     "is_income_tax_component": 1,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
+    "amount_based_on_formula": 1,
     "formula": "min(gross_pay * get_bpjs_rate(\"biaya_jabatan_rate\") / 100, get_bpjs_cap(\"biaya_jabatan_cap\") / 12)",
     "modified": "2024-01-01 00:00:00"
   },
@@ -391,6 +401,7 @@
     "is_income_tax_component": 0,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
+    "amount_based_on_formula": 1,
     "formula": "min(base, get_bpjs_cap(\"bpjs_health_employer_cap\")) * get_bpjs_rate(\"bpjs_health_employer_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
@@ -408,6 +419,7 @@
     "is_income_tax_component": 0,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
+    "amount_based_on_formula": 1,
     "formula": "min(base, get_bpjs_cap(\"bpjs_jht_employer_cap\")) * get_bpjs_rate(\"bpjs_jht_employer_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
@@ -425,6 +437,7 @@
     "is_income_tax_component": 0,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
+    "amount_based_on_formula": 1,
     "formula": "min(base, get_bpjs_cap(\"bpjs_pension_employer_cap\")) * get_bpjs_rate(\"bpjs_pension_employer_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
@@ -442,6 +455,7 @@
     "is_income_tax_component": 0,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
+    "amount_based_on_formula": 1,
     "formula": "min(base, get_bpjs_cap(\"bpjs_jkk_cap\")) * get_bpjs_rate(\"bpjs_jkk_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
@@ -459,6 +473,7 @@
     "is_income_tax_component": 0,
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
+    "amount_based_on_formula": 1,
     "formula": "min(base, get_bpjs_cap(\"bpjs_jkm_cap\")) * get_bpjs_rate(\"bpjs_jkm_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   }
