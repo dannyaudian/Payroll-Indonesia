@@ -33,7 +33,9 @@ def ensure_parent(name: str, company: str, root_type: str, report_type: str) -> 
         doc = frappe.get_doc(
             {
                 "doctype": "Account",
-                "account_name": name.rsplit(" - ", 1)[0],  # Extract plain name for account_name field
+                "account_name": name.rsplit(" - ", 1)[
+                    0
+                ],  # Extract plain name for account_name field
                 "name": name,
                 "company": company,
                 "is_group": 1,
@@ -52,7 +54,7 @@ def ensure_parent(name: str, company: str, root_type: str, report_type: str) -> 
 
 
 def create_accounts_from_json() -> None:
-    """Create GL accounts for every company from JSON template. 
+    """Create GL accounts for every company from JSON template.
     All parent_account references must be in format 'Nama Parent - {company_abbr}'."""
     path = frappe.get_app_path(
         "payroll_indonesia",
@@ -113,6 +115,7 @@ def create_accounts_from_json() -> None:
                 )
         frappe.db.commit()
 
+
 def create_salary_structures_from_json():
     """Create Salary Structure from JSON template if not exists. Inject formula from salary component."""
     path = frappe.get_app_path("payroll_indonesia", "setup", "salary_structure.json")
@@ -137,28 +140,70 @@ def create_salary_structures_from_json():
             frappe.logger().info(f"Salary Structure '{name}' already exists, skipping.")
             continue
 
-        # Inject formula for earnings
-        for earning in struct.get("earnings", []):
-            comp_name = earning.get("salary_component")
-            comp_doc = frappe.db.get_value("Salary Component", comp_name, ["formula"])
-            if comp_doc and comp_doc[0]:
-                earning["formula"] = comp_doc[0]
+        def map_component(detail: dict) -> None:
+            """Populate fields from the linked Salary Component."""
+            comp_name = detail.get("salary_component")
+            if not comp_name:
+                return
+            try:
+                component = frappe.get_doc("Salary Component", comp_name)
+            except Exception:
+                frappe.logger().warning(
+                    f"Salary Component '{comp_name}' not found while importing"
+                )
+                return
 
-        # Inject formula for deductions
+            fields_to_copy = [
+                "formula",
+                "amount_based_on_formula",
+                "depends_on_payment_days",
+                "is_tax_applicable",
+                "statistical_component",
+                "do_not_include_in_total",
+                "round_to_the_nearest_integer",
+                "remove_if_zero_valued",
+                "disabled",
+                "is_income_tax_component",
+                "description",
+            ]
+
+            data = component.as_dict()
+            for field in fields_to_copy:
+                if field in data:
+                    detail[field] = data[field]
+
+            default_fields = {
+                "name",
+                "owner",
+                "creation",
+                "modified",
+                "modified_by",
+                "docstatus",
+                "idx",
+                "doctype",
+                "salary_component",
+                "salary_component_abbr",
+                "type",
+                "company",
+            }
+
+            for key, value in data.items():
+                if key not in fields_to_copy and key not in default_fields and value is not None:
+                    detail.setdefault(key, value)
+
+        for earning in struct.get("earnings", []):
+            map_component(earning)
+
         for deduction in struct.get("deductions", []):
-            comp_name = deduction.get("salary_component")
-            comp_doc = frappe.db.get_value("Salary Component", comp_name, ["formula"])
-            if comp_doc and comp_doc[0]:
-                deduction["formula"] = comp_doc[0]
+            map_component(deduction)
 
         try:
             doc = frappe.get_doc({"doctype": "Salary Structure", **struct})
             doc.insert(ignore_if_duplicate=True, ignore_permissions=True)
             frappe.logger().info(f"Created Salary Structure: {doc.name}")
         except Exception:
-            frappe.logger().error(
-                f"Skipped Salary Structure {name}\n{traceback.format_exc()}"
-            )
+            frappe.logger().error(f"Skipped Salary Structure {name}\n{traceback.format_exc()}")
+
 
 def after_sync() -> None:
     """Entry point executed on migrate and sync."""
@@ -186,9 +231,7 @@ def after_sync() -> None:
         create_salary_structures_from_json()
         frappe.db.commit()
     except Exception:
-        frappe.logger().error(
-            f"Error creating Salary Structures\n{traceback.format_exc()}"
-        )
+        frappe.logger().error(f"Error creating Salary Structures\n{traceback.format_exc()}")
         frappe.db.rollback()
         return
 
