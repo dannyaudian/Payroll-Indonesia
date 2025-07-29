@@ -109,11 +109,10 @@ class CustomSalarySlip(SalarySlip):
         """
         try:
             employee_doc = self.get_employee_doc()
-            fiscal_year = getattr(self, "fiscal_year", None) or getattr(self, "start_date", "")[:4]
+            fiscal_year = getattr(self, "fiscal_year", None) or str(getattr(self, "start_date", ""))[:4]
             if not fiscal_year:
                 return
 
-            # Data bulanan (untuk 1 slip)
             monthly_result = {
                 "bulan": getattr(self, "month", None) or getattr(self, "bulan", None),
                 "bruto": result.get("bruto", result.get("bruto_total", 0)),
@@ -156,7 +155,7 @@ class CustomSalarySlip(SalarySlip):
         """
         try:
             employee_doc = self.get_employee_doc()
-            fiscal_year = getattr(self, "fiscal_year", None) or getattr(self, "start_date", "")[:4]
+            fiscal_year = getattr(self, "fiscal_year", None) or str(getattr(self, "start_date", ""))[:4]
             if not fiscal_year:
                 return
             sync_annual_payroll_history.sync_annual_payroll_history(
