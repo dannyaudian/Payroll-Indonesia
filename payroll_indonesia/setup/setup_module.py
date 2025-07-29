@@ -114,12 +114,8 @@ def create_accounts_from_json() -> None:
         frappe.db.commit()
 
 def create_salary_structures_from_json():
-    """Create Salary Structure from JSON template if not exists."""
-    path = frappe.get_app_path(
-        "payroll_indonesia",
-        "setup",
-        "salary_structure.json",
-    )
+    """Create Salary Structure from JSON template if not exists. Inject formula from salary component."""
+    path = frappe.get_app_path("payroll_indonesia", "setup", "salary_structure.json")
     if not os.path.exists(path):
         frappe.logger().error(f"Salary Structure template not found: {path}")
         return
@@ -137,10 +133,23 @@ def create_salary_structures_from_json():
 
     for struct in structures:
         name = struct.get("name") or struct.get("salary_structure_name")
-        # Check if already exists (by name)
         if name and frappe.db.exists("Salary Structure", name):
             frappe.logger().info(f"Salary Structure '{name}' already exists, skipping.")
             continue
+
+        # Inject formula for earnings
+        for earning in struct.get("earnings", []):
+            comp_name = earning.get("salary_component")
+            comp_doc = frappe.db.get_value("Salary Component", comp_name, ["formula"])
+            if comp_doc and comp_doc[0]:
+                earning["formula"] = comp_doc[0]
+
+        # Inject formula for deductions
+        for deduction in struct.get("deductions", []):
+            comp_name = deduction.get("salary_component")
+            comp_doc = frappe.db.get_value("Salary Component", comp_name, ["formula"])
+            if comp_doc and comp_doc[0]:
+                deduction["formula"] = comp_doc[0]
 
         try:
             doc = frappe.get_doc({"doctype": "Salary Structure", **struct})
