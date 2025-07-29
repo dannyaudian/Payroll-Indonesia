@@ -8,6 +8,19 @@ import frappe
 from payroll_indonesia.config import pph21_ter, pph21_ter_december
 from payroll_indonesia.utils import sync_annual_payroll_history
 
+# ERPNext's safe execution environment used when evaluating Salary Component
+# formulas does not expose ``min`` and ``max`` by default.  Some Payroll
+# Indonesia components rely on these functions (e.g. BPJS calculations).  Make
+# sure they're available globally when this module is imported.
+try:  # pragma: no cover - frappe may not be installed during tests
+    from frappe.utils.safe_exec import get_safe_globals
+
+    safe_globals = get_safe_globals()
+    safe_globals.setdefault("min", min)
+    safe_globals.setdefault("max", max)
+except Exception:
+    pass
+
 class CustomSalarySlip(SalarySlip):
     """
     Salary Slip with Indonesian income tax calculations (TER bulanan dan Progressive/Desember).
