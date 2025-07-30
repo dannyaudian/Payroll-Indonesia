@@ -46,12 +46,14 @@ def get_ptkp_amount_from_tax_status(tax_status: str) -> float:
     row = frappe.get_value(
         "PTKP Table",
         {"tax_status": tax_status},
-        ["amount"],
+        ["ptkp_amount"],
         as_dict=True,
     )
-    if row and "amount" in row:
-        return flt(row["amount"])
-    frappe.logger().warning(f"PTKP Table: No amount found for tax_status '{tax_status}'.")
+    if row and row.get("ptkp_amount") is not None:
+        return flt(row["ptkp_amount"])
+    frappe.logger().warning(
+        f"PTKP Table: No ptkp_amount found for tax_status '{tax_status}'."
+    )
     return 0.0
 
 def get_ptkp_amount(employee_doc) -> float:
