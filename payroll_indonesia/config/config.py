@@ -1,4 +1,5 @@
 import frappe
+from frappe import ValidationError
 from frappe.utils import flt
 
 SETTINGS_DOCTYPE = "Payroll Indonesia Settings"
@@ -44,32 +45,35 @@ def get_ptkp_amount(tax_status: str) -> float:
             return flt(getattr(row, "ptkp_amount", None) or row.get("ptkp_amount"))
     return 0.0
 
-def get_ter_code(tax_status: str) -> str | None:
-    """
-    Return TER code mapping for the given tax status.
-    """
-    settings = get_settings()
-    for row in settings.get("ter_mapping_table", []):
-        if (getattr(row, "tax_status", None) or row.get("tax_status")) == tax_status:
-            return getattr(row, "ter_code", None) or row.get("ter_code")
-    return None
+def get_ter_code(employee) -> str:
+    """Return TER code based on employee tax status."""
+    tax_status = None
+    if hasattr(employee, "tax_status"):
+        tax_status = getattr(employee, "tax_status")
+    elif isinstance(employee, dict):
+        tax_status = employee.get("tax_status")
+    if not tax_status:
+        tax_status = "TK/0"
+    return tax_status
 
 def get_ter_rate(ter_code: str, monthly_income: float) -> float:
-    """
-    Return TER rate (%) for a given TER code and monthly income.
-    """
-    settings = get_settings()
-    brackets = [
-        row for row in settings.get("ter_bracket_table", [])
-        if (getattr(row, "ter_code", None) or row.get("ter_code")) == ter_code
-    ]
+    """Return TER rate from ``PPh 21 TER Table``."""
+    brackets = frappe.get_all(
+        "PPh 21 TER Table",
+        filters={"ter_code": ter_code},
+        fields=["min_income", "max_income", "rate_percent"],
+        order_by="min_income asc",
+    )
     for row in brackets:
-        min_income = flt(getattr(row, "min_income", None) or row.get("min_income", 0))
-        max_income = flt(getattr(row, "max_income", None) or row.get("max_income", 0))
-        rate = flt(getattr(row, "rate_percent", None) or row.get("rate_percent", 0))
+        min_income = flt(row.get("min_income") or 0)
+        max_income = flt(row.get("max_income") or 0)
+        rate = flt(row.get("rate_percent") or 0)
         if monthly_income >= min_income and (max_income == 0 or monthly_income <= max_income):
             return rate
-    return 0.0
+    frappe.throw(
+        f"No TER bracket found for code {ter_code} and income {monthly_income}",
+        exc=ValidationError,
+    )
 
 def is_auto_queue_salary_slip() -> bool:
     """
