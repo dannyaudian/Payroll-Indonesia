@@ -62,35 +62,21 @@ class CustomSalarySlip(SalarySlip):
         Setelah dihitung, update komponen PPh 21 di deductions agar muncul di UI.
         """
         employee_doc = self.get_employee_doc()
-        gross_income = self.gross_pay or sum([
-            getattr(row, "amount", row.get("amount", 0)) if hasattr(row, "amount") else row.get("amount", 0)
-            for row in self.earnings
-        ])
 
-        # Hitung PTKP
-        ptkp = pph21_ter.get_ptkp_amount(employee_doc)
-        netto = gross_income  # sementara tanpa biaya jabatan
-        pkp = max(netto - ptkp, 0)
+        slip_data = {
+            "earnings": getattr(self, "earnings", []),
+            "deductions": getattr(self, "deductions", []),
+        }
 
-        # Ambil kode TER dari Employee
-        ter_code = pph21_ter.get_ter_code(employee_doc)
+        result = pph21_ter.calculate_pph21_TER(employee_doc, slip_data)
+        tax_amount = flt(result.get("pph21", 0.0))
 
-        # Hitung rate berdasarkan TER
-        rate = 0.0
-        if ter_code:
-            rate = pph21_ter.get_ter_rate(ter_code, gross_income)
+        # Store details as JSON string (pph21_info field is Text)
+        self.pph21_info = json.dumps(result)
 
-        tax_amount = flt((pkp * rate) / 100)
-
-        # Simpan detail di info (as JSON string, NOT dict)
-        self.pph21_info = json.dumps({
-            "ptkp": ptkp,
-            "bruto": gross_income,
-            "netto": netto,
-            "pkp": pkp,
-            "rate": rate,
-            "pph21": tax_amount,
-        })
+        # Set standard Salary Slip fields
+        self.tax = tax_amount
+        self.tax_type = "TER"
 
         self.update_pph21_row(tax_amount)
         return tax_amount
