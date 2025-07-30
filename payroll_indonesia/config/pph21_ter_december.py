@@ -252,7 +252,6 @@ def calculate_pph21_TER_december_from_annual_payroll(annual_payroll_history, emp
     biaya_jabatan_total = 0.0
     netto_total = 0.0
     pkp_total = 0.0
-    pph21_total = 0.0
     pph21_paid_jan_nov = 0.0
 
     for row in child_table:
@@ -269,7 +268,6 @@ def calculate_pph21_TER_december_from_annual_payroll(annual_payroll_history, emp
         biaya_jabatan_total += float(biaya_jabatan or 0)
         netto_total += float(netto or 0)
         pkp_total += float(pkp or 0)
-        pph21_total += float(pph21 or 0)
 
         # Jan–Nov only (bulan 1 s.d. 11)
         if bulan and int(bulan) < 12:
