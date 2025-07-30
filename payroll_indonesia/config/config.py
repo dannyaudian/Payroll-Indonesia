@@ -57,9 +57,11 @@ def get_ter_code(employee) -> str:
     return tax_status
 
 def get_ter_rate(ter_code: str, monthly_income: float) -> float:
-    """Return TER rate from ``PPh 21 TER Table``."""
+    """
+    Return TER rate from `TER Bracket Table`.
+    """
     brackets = frappe.get_all(
-        "PPh 21 TER Table",
+        "TER Bracket Table",  # ✅ gunakan DocType yang benar
         filters={"ter_code": ter_code},
         fields=["min_income", "max_income", "rate_percent"],
         order_by="min_income asc",
@@ -70,10 +72,7 @@ def get_ter_rate(ter_code: str, monthly_income: float) -> float:
         rate = flt(row.get("rate_percent") or 0)
         if monthly_income >= min_income and (max_income == 0 or monthly_income <= max_income):
             return rate
-    frappe.throw(
-        f"No TER bracket found for code {ter_code} and income {monthly_income}",
-        exc=ValidationError,
-    )
+    return 0.0
 
 def is_auto_queue_salary_slip() -> bool:
     """
