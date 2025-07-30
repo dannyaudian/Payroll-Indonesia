@@ -32,9 +32,14 @@ def import_ptkp_table_to_doctype() -> None:
     # Optional: Clear existing records
     frappe.db.sql("DELETE FROM `tabPTKP Table`")
 
+    settings = get_or_create_settings()
+
     for entry in ptkp_data[0]["ptkp_table"]:
         doc = frappe.get_doc({
             "doctype": "PTKP Table",
+            "parent": settings.name,
+            "parenttype": "Payroll Indonesia Settings",
+            "parentfield": "ptkp_table",
             "tax_status": entry["tax_status"],
             "ptkp_amount": entry["ptkp_amount"],
         })
@@ -52,9 +57,14 @@ def import_ter_mapping_to_doctype() -> None:
 
     frappe.db.sql("DELETE FROM `tabTER Mapping Table`")
 
+    settings = get_or_create_settings()
+
     for entry in ter_mapping_data:
         doc = frappe.get_doc({
             "doctype": "TER Mapping Table",
+            "parent": settings.name,
+            "parenttype": "Payroll Indonesia Settings",
+            "parentfield": "ter_mapping_table",
             "tax_status": entry["tax_status"],
             "ter_code": entry["ter_code"],
         })
@@ -72,11 +82,16 @@ def import_ter_brackets_to_doctype() -> None:
 
     frappe.db.sql("DELETE FROM `tabTER Bracket Table`")
 
+    settings = get_or_create_settings()
+
     for ter_code_data in ter_rate_data:
         ter_code = ter_code_data["ter_code"]
         for bracket in ter_code_data["brackets"]:
             doc = frappe.get_doc({
                 "doctype": "TER Bracket Table",
+                "parent": settings.name,
+                "parenttype": "Payroll Indonesia Settings",
+                "parentfield": "ter_bracket_table",
                 "ter_code": ter_code,
                 "min_income": bracket["min_income"],
                 "max_income": bracket["max_income"] if bracket["max_income"] is not None else 0,
@@ -199,6 +214,7 @@ def setup_default_settings() -> None:
     except Exception as e:
         frappe.db.rollback()
         frappe.logger().error(f"Error in Payroll Indonesia settings/data migration: {str(e)}")
+        raise
 
 @frappe.whitelist()
 def run_settings_migration() -> str:
