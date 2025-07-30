@@ -1,17 +1,25 @@
 import frappe
 from frappe.utils import flt
-from payroll_indonesia.config import get_ptkp_amount, get_ter_code, get_ter_rate
+from payroll_indonesia.config import (
+    get_ptkp_amount,
+    get_ter_code,
+    get_ter_rate
+)
 
 def sum_bruto_earnings(salary_slip):
     """
-    Menjumlahkan seluruh komponen earning yang menambah penghasilan bruto (termasuk natura taxable):
-    - is_tax_applicable = 1 (atau is_income_tax_component/variable_based_on_taxable_salary = 1)
-    - do_not_include_in_total = 0
-    - statistical_component = 0
-    - exempted_from_income_tax = 0 (jika field ada)
+    Sum all earning components contributing to bruto pay (including taxable natura).
+    Criteria:
+      - is_tax_applicable = 1
+      - OR is_income_tax_component = 1
+      - OR variable_based_on_taxable_salary = 1
+      - do_not_include_in_total = 0
+      - statistical_component = 0
+      - exempted_from_income_tax = 0 (if field exists)
     """
     total = 0.0
-    for row in salary_slip.get("earnings", []):
+    earnings = salary_slip.get("earnings", [])
+    for row in earnings:
         if (
             (row.get("is_tax_applicable", 0) == 1 or
              row.get("is_income_tax_component", 0) == 1 or
@@ -20,56 +28,50 @@ def sum_bruto_earnings(salary_slip):
             and row.get("statistical_component", 0) == 0
             and row.get("exempted_from_income_tax", 0) == 0
         ):
-            total += flt(row.amount)
+            total += flt(row.get("amount", 0))
     return total
 
 def sum_pengurang_netto(salary_slip):
     """
-    Menjumlahkan deduction pengurang netto (BPJS Kesehatan Employee, BPJS JHT Employee, BPJS JP Employee, dsb)
-    - is_income_tax_component = 1 atau variable_based_on_taxable_salary = 1
-    - do_not_include_in_total = 0
-    - statistical_component = 0
-    - exclude biaya jabatan!
+    Sum deductions that reduce netto (BPJS Employee etc).
+    Criteria:
+      - is_income_tax_component = 1 OR variable_based_on_taxable_salary = 1
+      - do_not_include_in_total = 0
+      - statistical_component = 0
+      - Exclude 'Biaya Jabatan'
     """
     total = 0.0
-    for row in salary_slip.get("deductions", []):
+    deductions = salary_slip.get("deductions", [])
+    for row in deductions:
         if (
             (row.get("is_income_tax_component", 0) == 1 or row.get("variable_based_on_taxable_salary", 0) == 1)
             and row.get("do_not_include_in_total", 0) == 0
             and row.get("statistical_component", 0) == 0
             and "biaya jabatan" not in row.get("salary_component", "").lower()
         ):
-            total += flt(row.amount)
+            total += flt(row.get("amount", 0))
     return total
 
 def get_biaya_jabatan_from_component(salary_slip):
     """
-    Ambil nilai biaya jabatan dari komponen deduction 'Biaya Jabatan' jika tersedia pada salary slip.
-    Jika tidak ditemukan, return 0.
+    Get 'Biaya Jabatan' deduction from salary slip, return 0 if not present.
     """
-    for row in salary_slip.get("deductions", []):
+    deductions = salary_slip.get("deductions", [])
+    for row in deductions:
         if "biaya jabatan" in row.get("salary_component", "").lower():
-            return flt(row.amount)
+            return flt(row.get("amount", 0))
     return 0.0
 
-
-
-def calculate_pph21_TER(employee, salary_slip):
+def calculate_pph21_TER(employee_doc, salary_slip):
     """
-    Hitung PPh 21 metode TER per bulan (PMK 168/2023):
-
-      - PTKP
-      - Penghasilan Bruto (termasuk natura)
-      - Pengurang Netto (exclude biaya jabatan)
-      - Biaya Jabatan (dari komponen deduction salary slip)
-      - PKP
-      - Hanya untuk Employment Type: Full-time
+    Calculate PPh21 TER logic for Indonesian payroll.
 
     Args:
-        employee: dict atau doc Employee (punya tax_status dan employment_type)
-        salary_slip: dict, wajib ada earnings dan deductions (list of dicts)
+        employee_doc: Employee Doc/dict with 'tax_status' and 'employment_type'
+        salary_slip: dict, must contain earnings and deductions (list of dicts)
+
     Returns:
-        dict: {
+        dict:
             'ptkp': float,
             'bruto': float,
             'pengurang_netto': float,
@@ -78,15 +80,12 @@ def calculate_pph21_TER(employee, salary_slip):
             'pkp': float,
             'rate': float,
             'pph21': float,
-            'employment_type_checked': bool
-        }
+            'employment_type_checked': bool,
+            'message': str (if not eligible)
     """
-    employment_type = None
-    if hasattr(employee, "employment_type"):
-        employment_type = getattr(employee, "employment_type")
-    elif isinstance(employee, dict):
-        employment_type = employee.get("employment_type")
-
+    # Employment type check
+    employment_type = getattr(employee_doc, "employment_type", None) \
+        if hasattr(employee_doc, "employment_type") else employee_doc.get("employment_type")
     if employment_type != "Full-time":
         return {
             "ptkp": 0.0,
@@ -101,32 +100,31 @@ def calculate_pph21_TER(employee, salary_slip):
             "message": "PPh21 TER hanya dihitung untuk Employment Type: Full-time"
         }
 
-    # 1. PTKP bulanan
-    tax_status = getattr(employee, "tax_status", None) if hasattr(employee, "tax_status") else employee.get("tax_status")
-    ptkp = get_ptkp_amount(tax_status) / 12
+    # PTKP bulanan
+    ptkp = get_ptkp_amount(employee_doc) / 12
 
-    # 2. Penghasilan Bruto (termasuk natura taxable)
+    # Earnings: penghasilan bruto (termasuk natura taxable)
     bruto = sum_bruto_earnings(salary_slip)
 
-    # 3. Pengurang Netto (exclude biaya jabatan)
+    # Deductions: pengurang netto (exclude biaya jabatan)
     pengurang_netto = sum_pengurang_netto(salary_slip)
 
-    # 4. Biaya Jabatan dari komponen deduction "Biaya Jabatan"
+    # Biaya Jabatan dari komponen deduction "Biaya Jabatan"
     biaya_jabatan = get_biaya_jabatan_from_component(salary_slip)
 
-    # 5. Netto
+    # Netto
     netto = bruto - pengurang_netto - biaya_jabatan
 
-    # 6. PKP (bulanan)
+    # PKP (bulanan)
     pkp = max(netto - ptkp, 0)
 
-    # 7. Cari kode TER & rate (strict table lookup)
-    ter_code = get_ter_code(employee)
+    # TER code & rate
+    ter_code = get_ter_code(employee_doc)
     rate = get_ter_rate(ter_code, pkp)
     frappe.logger().info(f"TER code: {ter_code}, rate: {rate}")
 
-    # 8. Hitung PPh 21
-    pph21 = round(pkp * rate / 100)
+    # PPh21
+    pph21 = round(pkp * (rate / 100))
 
     return {
         "ptkp": ptkp,

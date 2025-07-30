@@ -8,7 +8,7 @@ evaluating Salary Component formulas.
 try:
     from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
 except Exception:
-    SalarySlip = object 
+    SalarySlip = object
 
 import frappe
 from frappe.utils.safe_exec import safe_eval
@@ -49,13 +49,13 @@ class CustomSalarySlip(SalarySlip):
         return super().eval_condition_and_formula(struct_row, data)
 
     # -------------------------
-    # Income tax calculation
+    # Income tax calculation (PPh 21)
     # -------------------------
     def calculate_income_tax(self):
         """
-        Hitung pajak penghasilan sesuai mode payroll (TER atau Progressive/Desember).
-        Koreksi PPh21 minus: komponen pajak di slip akan minus, THP otomatis bertambah.
-        Sinkronisasi ke Annual Payroll History.
+        Calculate Indonesian PPh 21 tax for salary slip (TER/monthly or Progressive/December).
+        Will auto-correct negative PPh21 to increase THP.
+        Syncs result to Annual Payroll History.
         """
         # Mode: Progressive/Desember (final year/progressive)
         if getattr(self, "run_payroll_indonesia_december", False):
@@ -86,7 +86,7 @@ class CustomSalarySlip(SalarySlip):
             self.sync_to_annual_payroll_history(result, mode="monthly")
             return self.tax
 
-        # Default: fallback ke ERPNext asli
+        # Default: fallback to vanilla ERPNext
         return super().calculate_income_tax()
 
     # -------------------------
@@ -108,7 +108,7 @@ class CustomSalarySlip(SalarySlip):
     # Annual Payroll History sync
     # -------------------------
     def sync_to_annual_payroll_history(self, result, mode="monthly"):
-        """Sinkronisasi hasil slip ke Annual Payroll History."""
+        """Sync slip result to Annual Payroll History."""
         try:
             employee_doc = self.get_employee_doc()
             fiscal_year = getattr(self, "fiscal_year", None) or str(getattr(self, "start_date", ""))[:4]
@@ -153,7 +153,7 @@ class CustomSalarySlip(SalarySlip):
             frappe.logger().error(f"Failed to sync Annual Payroll History: {e}")
 
     def on_cancel(self):
-        """Saat slip dibatalkan, hapus baris terkait di Annual Payroll History."""
+        """When slip is cancelled, remove related row from Annual Payroll History."""
         try:
             employee_doc = self.get_employee_doc()
             fiscal_year = getattr(self, "fiscal_year", None) or str(getattr(self, "start_date", ""))[:4]
