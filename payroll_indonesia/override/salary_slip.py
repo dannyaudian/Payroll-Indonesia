@@ -12,6 +12,7 @@ except Exception:
 
 import frappe
 from frappe.utils.safe_exec import safe_eval
+import json
 
 from payroll_indonesia.config import pph21_ter, pph21_ter_december
 from payroll_indonesia.utils import sync_annual_payroll_history
@@ -69,7 +70,7 @@ class CustomSalarySlip(SalarySlip):
                 salary_slips,
                 pph21_paid_jan_nov=pph21_paid_jan_nov,
             )
-            self.pph21_info = result
+            self.pph21_info = json.dumps(result)
             self.tax = result.get("koreksi_pph21", 0)
             self.tax_type = "DECEMBER"
             self.sync_to_annual_payroll_history(result, mode="december")
@@ -80,7 +81,7 @@ class CustomSalarySlip(SalarySlip):
             frappe.logger().info("Salary Slip: calculating PPh21 TER mode.")
             employee_doc = self.get_employee_doc()
             result = pph21_ter.calculate_pph21_TER(employee_doc, self)
-            self.pph21_info = result
+            self.pph21_info = json.dumps(result)
             self.tax = result.get("pph21", 0)
             self.tax_type = "TER"
             self.sync_to_annual_payroll_history(result, mode="monthly")
