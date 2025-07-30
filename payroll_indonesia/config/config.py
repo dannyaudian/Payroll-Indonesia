@@ -61,7 +61,13 @@ def get_ptkp_amount(employee_doc) -> float:
     """
     Return PTKP amount for employee_doc using field tax_status.
     """
-    tax_status = getattr(employee_doc, "tax_status", None) or employee_doc.get("tax_status") if isinstance(employee_doc, dict) else None
+    if hasattr(employee_doc, "tax_status"):
+        tax_status = getattr(employee_doc, "tax_status")
+    elif isinstance(employee_doc, dict):
+        tax_status = employee_doc.get("tax_status")
+    else:
+        tax_status = None
+
     return get_ptkp_amount_from_tax_status(tax_status)
 
 def get_ter_code(employee_doc) -> str | None:
@@ -69,7 +75,12 @@ def get_ter_code(employee_doc) -> str | None:
     Get TER code for employee from TER Mapping Table based on tax_status.
     Returns None if not found.
     """
-    tax_status = getattr(employee_doc, "tax_status", None) or employee_doc.get("tax_status") if isinstance(employee_doc, dict) else None
+    if hasattr(employee_doc, "tax_status"):
+        tax_status = getattr(employee_doc, "tax_status")
+    elif isinstance(employee_doc, dict):
+        tax_status = employee_doc.get("tax_status")
+    else:
+        tax_status = None
     if not tax_status:
         frappe.logger().warning("TER code lookup: Employee tax_status is empty.")
         return None
