@@ -123,6 +123,17 @@ class CustomSalarySlip(SalarySlip):
         ])
         self.net_pay = (self.gross_pay or 0) - self.total_deduction
 
+    def validate(self):
+        """Ensure PPh 21 deduction row updated before saving."""
+        try:
+            super().validate()
+        except Exception:
+            pass
+
+        tax_amount = self.calculate_income_tax()
+        self.update_pph21_row(tax_amount)
+        frappe.logger().info(f"Validate: Updated PPh21 deduction row to {tax_amount}")
+
     # -------------------------
     # Helpers
     # -------------------------
