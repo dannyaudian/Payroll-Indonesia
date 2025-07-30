@@ -36,7 +36,7 @@ def import_ptkp_table_to_doctype() -> None:
         doc = frappe.get_doc({
             "doctype": "PTKP Table",
             "tax_status": entry["tax_status"],
-            "amount": entry["ptkp_amount"],
+            "ptkp_amount": entry["ptkp_amount"],
         })
         doc.insert(ignore_permissions=True)
     frappe.logger().info("Imported default PTKP Table DocType")
