@@ -194,7 +194,7 @@ def after_sync() -> None:
     except Exception:
         frappe.logger().error(f"Error creating GL accounts\n{traceback.format_exc()}")
         frappe.db.rollback()
-        return
+        raise
 
     try:
         assign_gl_accounts_to_salary_components_all()
@@ -204,7 +204,7 @@ def after_sync() -> None:
             f"Error assigning GL accounts to salary components\n{traceback.format_exc()}"
         )
         frappe.db.rollback()
-        return
+        raise
 
     try:
         create_salary_structures_from_json()
@@ -212,7 +212,7 @@ def after_sync() -> None:
     except Exception:
         frappe.logger().error(f"Error creating Salary Structures\n{traceback.format_exc()}")
         frappe.db.rollback()
-        return
+        raise
 
     try:
         setup_default_settings()  # Includes DocType master data migration
@@ -223,3 +223,4 @@ def after_sync() -> None:
             f"Error setting up default Payroll Indonesia settings\n{traceback.format_exc()}"
         )
         frappe.db.rollback()
+        raise
