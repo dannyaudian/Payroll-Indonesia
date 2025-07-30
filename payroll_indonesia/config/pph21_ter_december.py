@@ -1,4 +1,5 @@
 import frappe
+from frappe import ValidationError
 from frappe.utils import flt
 from payroll_indonesia.config import (
     config,
@@ -170,7 +171,11 @@ def calculate_pph21_TER_december(employee_doc, salary_slips, pph21_paid_jan_nov=
 
     netto_total = bruto_total - pengurang_netto_total - biaya_jabatan_total
 
-    ptkp_annual = get_ptkp_amount(employee_doc)
+    try:
+        ptkp_annual = get_ptkp_amount(employee_doc)
+    except ValidationError as e:
+        frappe.logger().warning(str(e))
+        ptkp_annual = 0.0
     pkp_annual = calculate_pkp_annual(netto_total, ptkp_annual)
     pph21_annual = calculate_pph21_progressive(pkp_annual)
     koreksi_pph21 = pph21_annual - pph21_paid_jan_nov
@@ -270,7 +275,11 @@ def calculate_pph21_TER_december_from_annual_payroll(annual_payroll_history, emp
         if bulan and int(bulan) < 12:
             pph21_paid_jan_nov += float(pph21 or 0)
 
-    ptkp_annual = get_ptkp_amount(employee_doc)
+    try:
+        ptkp_annual = get_ptkp_amount(employee_doc)
+    except ValidationError as e:
+        frappe.logger().warning(str(e))
+        ptkp_annual = 0.0
     pkp_annual = calculate_pkp_annual(netto_total, ptkp_annual)
     pph21_annual = calculate_pph21_progressive(pkp_annual)
     koreksi_pph21 = pph21_annual - pph21_paid_jan_nov
