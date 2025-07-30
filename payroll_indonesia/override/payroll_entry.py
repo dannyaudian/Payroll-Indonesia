@@ -15,15 +15,14 @@ class CustomPayrollEntry(PayrollEntry):
 
     def validate(self):
         super().validate()
-        # Custom validation for Payroll Indonesia
+        # Payroll Indonesia custom validation
         if getattr(self, "run_payroll_indonesia", False):
             frappe.logger().info("Payroll Entry: Run Payroll Indonesia is checked.")
-            # Auto set pph21_method from settings if not set
             if hasattr(self, "pph21_method") and not self.pph21_method:
                 self.pph21_method = get_value("pph21_method", "TER")
         if getattr(self, "run_payroll_indonesia_december", False):
             frappe.logger().info("Payroll Entry: Run Payroll Indonesia DECEMBER mode is checked.")
-            # Add any December-specific validation if needed
+            # Add December-specific validation if needed
 
     def create_salary_slips(self):
         """
@@ -82,7 +81,7 @@ class CustomPayrollEntry(PayrollEntry):
         Helper: get or construct a SalarySlip (or CustomSalarySlip) object for calculation.
         """
         if hasattr(slip, "calculate_income_tax"):
-            return slip  # already a slip object
+            return slip  # Already an object
         elif isinstance(slip, dict):
             # Try fetch from DB if possible, else construct from dict
             if "name" in slip:
