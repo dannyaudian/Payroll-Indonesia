@@ -1,11 +1,8 @@
 """Custom Salary Slip override for Payroll Indonesia.
 
-Adds Indonesian income tax logic and patches ``eval_condition_and_formula`` so
-that helper functions defined in ``hooks.salary_slip_globals`` are available when
-evaluating Salary Component formulas.
-
-Rewrite: After computing self.tax, ensure a row exists in self.deductions with
-salary_component = "PPh 21" and amount = self.tax. Update the row if already present.
+This module extends the standard ``Salary Slip`` doctype with Indonesian
+income tax logic (PPh 21) and adds helper globals for salary component
+formula evaluation.
 """
 
 try:
@@ -14,8 +11,8 @@ except Exception:
     SalarySlip = object
 
 import frappe
+from frappe.utils import flt
 from frappe.utils.safe_exec import safe_eval
-import json
 
 from payroll_indonesia.config import pph21_ter, pph21_ter_december
 from payroll_indonesia.utils import sync_annual_payroll_history
@@ -88,16 +85,13 @@ class CustomSalarySlip(SalarySlip):
             "pph21": tax_amount,
         }
 
-        # Update komponen PPh 21 di deductions
-        self.set_income_tax_component(tax_amount)
+        # Ensure PPh 21 deduction row exists and update amount
+        self.update_pph21_row(tax_amount)
 
         return tax_amount
 
-    def set_income_tax_component(self, tax_amount: float):
-        """
-        Pastikan komponen "PPh 21" selalu ada di deductions,
-        update amount sesuai hasil kalkulasi Python.
-        """
+    def update_pph21_row(self, tax_amount: float):
+        """Ensure the ``PPh 21`` deduction row exists and update its amount."""
         target_component = "PPh 21"
         found = False
 
@@ -108,10 +102,13 @@ class CustomSalarySlip(SalarySlip):
                 break
 
         if not found:
-            self.append("deductions", {
-                "salary_component": target_component,
-                "amount": tax_amount,
-            })
+            self.append(
+                "deductions",
+                {
+                    "salary_component": target_component,
+                    "amount": tax_amount,
+                },
+            )
 
         # Refresh total deduction dan net pay
         self.total_deduction = sum([row.amount for row in self.deductions])
@@ -139,14 +136,18 @@ class CustomSalarySlip(SalarySlip):
         """Sync slip result to Annual Payroll History."""
         try:
             employee_doc = self.get_employee_doc()
-            fiscal_year = getattr(self, "fiscal_year", None) or str(getattr(self, "start_date", ""))[:4]
+            fiscal_year = (
+                getattr(self, "fiscal_year", None) or str(getattr(self, "start_date", ""))[:4]
+            )
             if not fiscal_year:
                 return
 
             monthly_result = {
                 "bulan": getattr(self, "month", None) or getattr(self, "bulan", None),
                 "bruto": result.get("bruto", result.get("bruto_total", 0)),
-                "pengurang_netto": result.get("pengurang_netto", result.get("income_tax_deduction_total", 0)),
+                "pengurang_netto": result.get(
+                    "pengurang_netto", result.get("income_tax_deduction_total", 0)
+                ),
                 "biaya_jabatan": result.get("biaya_jabatan", result.get("biaya_jabatan_total", 0)),
                 "netto": result.get("netto", result.get("netto_total", 0)),
                 "pkp": result.get("pkp", result.get("pkp_annual", 0)),
@@ -184,7 +185,9 @@ class CustomSalarySlip(SalarySlip):
         """When slip is cancelled, remove related row from Annual Payroll History."""
         try:
             employee_doc = self.get_employee_doc()
-            fiscal_year = getattr(self, "fiscal_year", None) or str(getattr(self, "start_date", ""))[:4]
+            fiscal_year = (
+                getattr(self, "fiscal_year", None) or str(getattr(self, "start_date", ""))[:4]
+            )
             if not fiscal_year:
                 return
             sync_annual_payroll_history.sync_annual_payroll_history(
