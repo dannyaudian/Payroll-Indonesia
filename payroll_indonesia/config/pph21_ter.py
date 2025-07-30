@@ -3,8 +3,9 @@ from frappe.utils import flt
 from payroll_indonesia.config import (
     get_ptkp_amount,
     get_ter_code,
-    get_ter_rate
+    get_ter_rate,
 )
+from payroll_indonesia.utils import round_half_up
 
 def sum_bruto_earnings(salary_slip):
     """
@@ -124,7 +125,7 @@ def calculate_pph21_TER(employee_doc, salary_slip):
     frappe.logger().info(f"TER code: {ter_code}, rate: {rate}")
 
     # PPh21
-    pph21 = round(pkp * (rate / 100))
+    pph21 = round_half_up(pkp * (rate / 100))
 
     return {
         "ptkp": ptkp,
