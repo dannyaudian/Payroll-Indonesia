@@ -1,4 +1,5 @@
 import frappe
+from frappe import ValidationError
 from frappe.utils import flt
 from payroll_indonesia.config import (
     get_ptkp_amount,
@@ -101,7 +102,11 @@ def calculate_pph21_TER(employee_doc, salary_slip):
         }
 
     # PTKP bulanan
-    ptkp = get_ptkp_amount(employee_doc) / 12
+    try:
+        ptkp = get_ptkp_amount(employee_doc) / 12
+    except ValidationError as e:
+        frappe.logger().warning(str(e))
+        ptkp = 0.0
 
     # Earnings: penghasilan bruto (termasuk natura taxable)
     bruto = sum_bruto_earnings(salary_slip)
@@ -120,7 +125,11 @@ def calculate_pph21_TER(employee_doc, salary_slip):
 
     # TER code & rate
     ter_code = get_ter_code(employee_doc)
-    rate = get_ter_rate(ter_code, pkp)
+    try:
+        rate = get_ter_rate(ter_code, pkp)
+    except ValidationError as e:
+        frappe.logger().warning(str(e))
+        rate = 0.0
     frappe.logger().info(f"TER code: {ter_code}, rate: {rate}")
 
     # PPh21

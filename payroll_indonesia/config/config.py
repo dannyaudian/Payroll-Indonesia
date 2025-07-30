@@ -40,11 +40,9 @@ def get_ptkp_amount_from_tax_status(tax_status: str) -> float:
     Return PTKP amount for the given tax_status from PTKP Table.
     """
     if not tax_status:
-        frappe.logger().warning("PTKP amount lookup: tax_status is empty.")
-        return 0.0
+        raise ValidationError("PTKP amount lookup: tax_status is empty.")
     if not frappe.db.exists("PTKP Table", {"tax_status": tax_status}):
-        frappe.logger().warning(f"PTKP Table: tax_status '{tax_status}' not found.")
-        return 0.0
+        raise ValidationError(f"PTKP Table: tax_status '{tax_status}' not found.")
     row = frappe.get_value(
         "PTKP Table",
         {"tax_status": tax_status},
@@ -102,8 +100,9 @@ def get_ter_rate(ter_code: str, monthly_income: float) -> float:
         order_by="min_income asc",
     )
     if not brackets:
-        frappe.logger().warning(f"TER Bracket Table: No brackets found for ter_code '{ter_code}'.")
-        return 0.0
+        raise ValidationError(
+            f"TER Bracket Table: No brackets found for ter_code '{ter_code}'."
+        )
     for row in brackets:
         min_income = flt(row.get("min_income") or 0)
         max_income = flt(row.get("max_income") or 0)
@@ -111,10 +110,9 @@ def get_ter_rate(ter_code: str, monthly_income: float) -> float:
         # If max_income == 0, treat as infinity
         if monthly_income >= min_income and (max_income == 0 or monthly_income <= max_income):
             return rate
-    frappe.logger().warning(
+    raise ValidationError(
         f"TER Bracket Table: No bracket match for ter_code '{ter_code}' and monthly_income {monthly_income}."
     )
-    return 0.0
 
 def is_auto_queue_salary_slip() -> bool:
     """
