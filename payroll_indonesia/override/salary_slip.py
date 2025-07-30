@@ -5,6 +5,7 @@ income tax logic (PPh 21) and adds helper globals for salary component
 formula evaluation.
 
 Rewrite: Ensure PPh 21 row in deductions updates and syncs with UI using attribute-safe operations.
+Fix: Do not assign dict directly to DocType field (pph21_info), use JSON string.
 """
 
 try:
@@ -13,6 +14,7 @@ except Exception:
     SalarySlip = object
 
 import frappe
+import json
 from frappe.utils import flt
 from frappe.utils.safe_exec import safe_eval
 
@@ -60,7 +62,10 @@ class CustomSalarySlip(SalarySlip):
         Setelah dihitung, update komponen PPh 21 di deductions agar muncul di UI.
         """
         employee_doc = self.get_employee_doc()
-        gross_income = self.gross_pay or sum([getattr(row, "amount", getattr(row, "amount", 0)) for row in self.earnings])
+        gross_income = self.gross_pay or sum([
+            getattr(row, "amount", row.get("amount", 0)) if hasattr(row, "amount") else row.get("amount", 0)
+            for row in self.earnings
+        ])
 
         # Hitung PTKP
         ptkp = pph21_ter.get_ptkp_amount(employee_doc)
@@ -77,15 +82,15 @@ class CustomSalarySlip(SalarySlip):
 
         tax_amount = flt((pkp * rate) / 100)
 
-        # Simpan detail di info
-        self.pph21_info = {
+        # Simpan detail di info (as JSON string, NOT dict)
+        self.pph21_info = json.dumps({
             "ptkp": ptkp,
             "bruto": gross_income,
             "netto": netto,
             "pkp": pkp,
             "rate": rate,
             "pph21": tax_amount,
-        }
+        })
 
         self.update_pph21_row(tax_amount)
         return tax_amount
@@ -97,7 +102,6 @@ class CustomSalarySlip(SalarySlip):
 
         # Handle both child table object and dict cases for ERPNext/Frappe
         for d in self.deductions:
-            # Try object attribute first, fallback to dict
             sc = getattr(d, "salary_component", None) if hasattr(d, "salary_component") else d.get("salary_component")
             if sc == target_component:
                 if hasattr(d, "amount"):
@@ -219,3 +223,4 @@ class CustomSalarySlip(SalarySlip):
             )
         except Exception as e:
             frappe.logger().error(f"Failed to remove from Annual Payroll History on cancel: {e}")
+            
