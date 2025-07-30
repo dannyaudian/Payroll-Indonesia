@@ -3,7 +3,6 @@
 import json
 import os
 import traceback
-
 import frappe
 
 from .gl_account_mapper import assign_gl_accounts_to_salary_components_all
@@ -11,10 +10,9 @@ from .settings_migration import setup_default_settings
 
 __all__ = ["after_sync"]
 
-
 def ensure_parent(name: str, company: str, root_type: str, report_type: str) -> bool:
     """
-    Create parent account if missing or update mismatched metadata.
+    Ensure parent account exists or update its metadata.
     'name' MUST be in the format "Nama Parent - {company_abbr}".
     """
     if frappe.db.exists("Account", name):
@@ -33,9 +31,7 @@ def ensure_parent(name: str, company: str, root_type: str, report_type: str) -> 
         doc = frappe.get_doc(
             {
                 "doctype": "Account",
-                "account_name": name.rsplit(" - ", 1)[
-                    0
-                ],  # Extract plain name for account_name field
+                "account_name": name.rsplit(" - ", 1)[0],  # Extract plain name
                 "name": name,
                 "company": company,
                 "is_group": 1,
@@ -52,15 +48,9 @@ def ensure_parent(name: str, company: str, root_type: str, report_type: str) -> 
         )
         return False
 
-
 def create_accounts_from_json() -> None:
-    """Create GL accounts for every company from JSON template.
-    All parent_account references must be in format 'Nama Parent - {company_abbr}'."""
-    path = frappe.get_app_path(
-        "payroll_indonesia",
-        "setup",
-        "default_gl_accounts.json",
-    )
+    """Create GL accounts for each company from JSON template."""
+    path = frappe.get_app_path("payroll_indonesia", "setup", "default_gl_accounts.json")
     if not os.path.exists(path):
         frappe.logger().error(f"GL account template not found: {path}")
         return
@@ -86,7 +76,6 @@ def create_accounts_from_json() -> None:
         for acc in accounts:
             parent = acc.get("parent_account")
             if parent:
-                # Always convert to ERPNext format: "Nama Parent - {abbr}"
                 parent_account_full = f"{parent} - {abbr}"
                 if not ensure_parent(
                     parent_account_full,
@@ -98,12 +87,7 @@ def create_accounts_from_json() -> None:
                         f"Skipped account {acc.get('account_name')} for {company} because parent {parent_account_full} is missing"
                     )
                     continue
-                # Always update the field for insert
                 acc["parent_account"] = parent_account_full
-
-            # If the account itself is a group, also ensure its own name follows ERPNext format
-            # But account_name field should NOT have abbr, only .name
-            # The default_gl_accounts.json should supply proper account_name and name if needed
 
             try:
                 doc = frappe.get_doc({"doctype": "Account", **acc})
@@ -115,9 +99,8 @@ def create_accounts_from_json() -> None:
                 )
         frappe.db.commit()
 
-
-def create_salary_structures_from_json():
-    """Create Salary Structure from JSON template if not exists. Inject formula from salary component."""
+def create_salary_structures_from_json() -> None:
+    """Create Salary Structures from JSON template if missing. Populate formula/fields from Salary Component."""
     path = frappe.get_app_path("payroll_indonesia", "setup", "salary_structure.json")
     if not os.path.exists(path):
         frappe.logger().error(f"Salary Structure template not found: {path}")
@@ -141,7 +124,6 @@ def create_salary_structures_from_json():
             continue
 
         def map_component(detail: dict) -> None:
-            """Populate fields from the linked Salary Component."""
             comp_name = detail.get("salary_component")
             if not comp_name:
                 return
@@ -193,7 +175,6 @@ def create_salary_structures_from_json():
 
         for earning in struct.get("earnings", []):
             map_component(earning)
-
         for deduction in struct.get("deductions", []):
             map_component(deduction)
 
@@ -203,7 +184,6 @@ def create_salary_structures_from_json():
             frappe.logger().info(f"Created Salary Structure: {doc.name}")
         except Exception:
             frappe.logger().error(f"Skipped Salary Structure {name}\n{traceback.format_exc()}")
-
 
 def after_sync() -> None:
     """Entry point executed on migrate and sync."""
@@ -226,7 +206,6 @@ def after_sync() -> None:
         frappe.db.rollback()
         return
 
-    # Tambahkan pemanggilan salary structure di sini
     try:
         create_salary_structures_from_json()
         frappe.db.commit()
@@ -236,7 +215,7 @@ def after_sync() -> None:
         return
 
     try:
-        setup_default_settings()
+        setup_default_settings()  # Includes DocType master data migration
         frappe.db.commit()
         frappe.logger().info("✅ Payroll GL Setup completed")
     except Exception:
