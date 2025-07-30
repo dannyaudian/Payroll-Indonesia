@@ -1,3 +1,4 @@
+import frappe
 from frappe.utils import flt
 from payroll_indonesia.config import get_ptkp_amount, get_ter_code, get_ter_rate
 
@@ -50,6 +51,8 @@ def get_biaya_jabatan_from_component(salary_slip):
         if "biaya jabatan" in row.get("salary_component", "").lower():
             return flt(row.amount)
     return 0.0
+
+
 
 def calculate_pph21_TER(employee, salary_slip):
     """
@@ -117,9 +120,10 @@ def calculate_pph21_TER(employee, salary_slip):
     # 6. PKP (bulanan)
     pkp = max(netto - ptkp, 0)
 
-    # 7. Cari kode TER & rate
-    ter_code = get_ter_code(tax_status)
+    # 7. Cari kode TER & rate (strict table lookup)
+    ter_code = get_ter_code(employee)
     rate = get_ter_rate(ter_code, pkp)
+    frappe.logger().info(f"TER code: {ter_code}, rate: {rate}")
 
     # 8. Hitung PPh 21
     pph21 = round(pkp * rate / 100)
