@@ -25,11 +25,15 @@ class ValidationError(Exception):
 class DummyDB:
     def __init__(self):
         self.records = {}
+        self.ter_records = {}
 
     def exists(self, doctype, filters):
         if doctype == "PTKP Table":
             tax_status = filters.get("tax_status")
             return tax_status in self.records
+        if doctype == "TER Mapping Table":
+            tax_status = filters.get("tax_status")
+            return tax_status in self.ter_records
         return False
 
 dummy_db = DummyDB()
@@ -40,6 +44,14 @@ def get_value(doctype, filters, fields, as_dict=False):
         tax_status = filters.get("tax_status")
         if tax_status in dummy_db.records:
             record = dummy_db.records[tax_status]
+            field = fields[0] if isinstance(fields, (list, tuple)) else fields
+            if as_dict:
+                return {field: record.get(field)}
+            return record.get(field)
+    if doctype == "TER Mapping Table":
+        tax_status = filters.get("tax_status")
+        if tax_status in dummy_db.ter_records:
+            record = dummy_db.ter_records[tax_status]
             field = fields[0] if isinstance(fields, (list, tuple)) else fields
             if as_dict:
                 return {field: record.get(field)}
@@ -90,3 +102,24 @@ def test_get_ptkp_amount_from_tax_status_missing_field():
     assert any(
         "No ptkp_amount" in msg for msg in dummy_logger.warning_messages
     )
+
+
+def test_get_ptkp_and_ter_code_with_dict():
+    frappe.db.records = {"TK0": {"ptkp_amount": 54000000}}
+    frappe.db.ter_records = {"TK0": {"ter_code": "A"}}
+    employee = {"tax_status": "TK0"}
+    assert config.get_ptkp_amount(employee) == 54000000.0
+    assert config.get_ter_code(employee) == "A"
+
+
+def test_get_ptkp_and_ter_code_with_object():
+    frappe.db.records = {"TK0": {"ptkp_amount": 54000000}}
+    frappe.db.ter_records = {"TK0": {"ter_code": "A"}}
+
+    class Emp:
+        def __init__(self, tax_status):
+            self.tax_status = tax_status
+
+    employee = Emp("TK0")
+    assert config.get_ptkp_amount(employee) == 54000000.0
+    assert config.get_ter_code(employee) == "A"
