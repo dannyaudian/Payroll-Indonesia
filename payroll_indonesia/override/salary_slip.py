@@ -57,69 +57,65 @@ class CustomSalarySlip(SalarySlip):
     # -------------------------
     def calculate_income_tax(self):
         """
-        Calculate Indonesian PPh 21 tax for salary slip (TER/monthly or Progressive/December).
-        Will auto-correct negative PPh21 to increase THP.
-        Syncs result to Annual Payroll History.
-
-        After computing self.tax, ensure a row exists in self.deductions with
-        salary_component = "PPh 21" and amount = self.tax. Update the row if already present.
+        Override perhitungan PPh 21 (TER/Progresif).
+        Setelah dihitung, update komponen PPh 21 di deductions agar muncul di UI.
         """
-        # Mode: Progressive/Desember (final year/progressive)
-        if getattr(self, "run_payroll_indonesia_december", False):
-            frappe.logger().info("Salary Slip: calculating PPh21 December (progressive) mode.")
-            employee_doc = self.get_employee_doc()
-            salary_slips = getattr(self, "salary_slips_this_year", [self])
-            pph21_paid_jan_nov = getattr(self, "pph21_paid_jan_nov", 0)
+        employee_doc = self.get_employee_doc()
+        gross_income = self.gross_pay or sum([row.amount for row in self.earnings])
 
-            result = pph21_ter_december.calculate_pph21_TER_december(
-                employee_doc,
-                salary_slips,
-                pph21_paid_jan_nov=pph21_paid_jan_nov,
-            )
-            self.pph21_info = json.dumps(result)
-            self.tax = result.get("koreksi_pph21", 0)
-            self.tax_type = "DECEMBER"
-            self.sync_to_annual_payroll_history(result, mode="december")
-            self._ensure_pph21_deduction()  # Ensure PPh 21 deduction row
-            return self.tax
+        # Hitung PTKP
+        ptkp = pph21_ter.get_ptkp_amount(employee_doc)
+        netto = gross_income  # sementara tanpa biaya jabatan
+        pkp = max(netto - ptkp, 0)
 
-        # Mode: TER (bulanan/flat)
-        if getattr(self, "run_payroll_indonesia", False):
-            frappe.logger().info("Salary Slip: calculating PPh21 TER mode.")
-            employee_doc = self.get_employee_doc()
-            result = pph21_ter.calculate_pph21_TER(employee_doc, self)
-            self.pph21_info = json.dumps(result)
-            self.tax = result.get("pph21", 0)
-            self.tax_type = "TER"
-            self.sync_to_annual_payroll_history(result, mode="monthly")
-            self._ensure_pph21_deduction()  # Ensure PPh 21 deduction row
-            return self.tax
+        # Ambil kode TER dari Employee
+        ter_code = pph21_ter.get_ter_code(employee_doc)
 
-        # Default: fallback to vanilla ERPNext
-        tax = super().calculate_income_tax()
-        self._ensure_pph21_deduction()  # Ensure PPh 21 deduction row
-        return tax
+        # Hitung rate berdasarkan TER
+        rate = 0.0
+        if ter_code:
+            rate = pph21_ter.get_ter_rate(ter_code, gross_income)
 
-    def _ensure_pph21_deduction(self):
+        tax_amount = flt((pkp * rate) / 100)
+
+        # Simpan detail di info
+        self.pph21_info = {
+            "ptkp": ptkp,
+            "bruto": gross_income,
+            "netto": netto,
+            "pkp": pkp,
+            "rate": rate,
+            "pph21": tax_amount,
+        }
+
+        # Update komponen PPh 21 di deductions
+        self.set_income_tax_component(tax_amount)
+
+        return tax_amount
+
+    def set_income_tax_component(self, tax_amount: float):
         """
-        Ensure a row exists in self.deductions with salary_component = "PPh 21" and amount = self.tax.
-        Update the row if already present, else append.
+        Pastikan komponen "PPh 21" selalu ada di deductions,
+        update amount sesuai hasil kalkulasi Python.
         """
-        if not hasattr(self, "deductions") or self.deductions is None:
-            self.deductions = []
+        target_component = "PPh 21"
+        found = False
 
-        updated = False
-        for row in self.deductions:
-            if row.get("salary_component") == "PPh 21":
-                row["amount"] = self.tax
-                updated = True
+        for d in self.deductions:
+            if d.salary_component == target_component:
+                d.amount = tax_amount
+                found = True
                 break
-        if not updated:
-            # Append new deduction row for PPh 21
-            self.deductions.append({
-                "salary_component": "PPh 21",
-                "amount": self.tax
+
+        if not found:
+            self.append("deductions", {
+                "salary_component": target_component,
+                "amount": tax_amount,
             })
+
+        # Refresh total deduction dan net pay
+        self.total_deduction = sum([row.amount for row in self.deductions])
+        self.net_pay = (self.gross_pay or 0) - self.total_deduction
 
     # -------------------------
     # Helpers
