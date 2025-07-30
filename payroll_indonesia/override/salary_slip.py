@@ -3,6 +3,8 @@
 This module extends the standard ``Salary Slip`` doctype with Indonesian
 income tax logic (PPh 21) and adds helper globals for salary component
 formula evaluation.
+
+Rewrite: Ensure PPh 21 row in deductions updates and syncs with UI using attribute-safe operations.
 """
 
 try:
@@ -58,7 +60,7 @@ class CustomSalarySlip(SalarySlip):
         Setelah dihitung, update komponen PPh 21 di deductions agar muncul di UI.
         """
         employee_doc = self.get_employee_doc()
-        gross_income = self.gross_pay or sum([row.amount for row in self.earnings])
+        gross_income = self.gross_pay or sum([getattr(row, "amount", getattr(row, "amount", 0)) for row in self.earnings])
 
         # Hitung PTKP
         ptkp = pph21_ter.get_ptkp_amount(employee_doc)
@@ -85,19 +87,23 @@ class CustomSalarySlip(SalarySlip):
             "pph21": tax_amount,
         }
 
-        # Ensure PPh 21 deduction row exists and update amount
         self.update_pph21_row(tax_amount)
-
         return tax_amount
 
     def update_pph21_row(self, tax_amount: float):
-        """Ensure the ``PPh 21`` deduction row exists and update its amount."""
+        """Ensure the ``PPh 21`` deduction row exists and update its amount (sync with UI)."""
         target_component = "PPh 21"
         found = False
 
+        # Handle both child table object and dict cases for ERPNext/Frappe
         for d in self.deductions:
-            if d.salary_component == target_component:
-                d.amount = tax_amount
+            # Try object attribute first, fallback to dict
+            sc = getattr(d, "salary_component", None) if hasattr(d, "salary_component") else d.get("salary_component")
+            if sc == target_component:
+                if hasattr(d, "amount"):
+                    d.amount = tax_amount
+                else:
+                    d["amount"] = tax_amount
                 found = True
                 break
 
@@ -110,8 +116,11 @@ class CustomSalarySlip(SalarySlip):
                 },
             )
 
-        # Refresh total deduction dan net pay
-        self.total_deduction = sum([row.amount for row in self.deductions])
+        # Refresh total deduction dan net pay, attribute/dict safe
+        self.total_deduction = sum([
+            getattr(row, "amount", row.get("amount", 0)) if hasattr(row, "amount") else row.get("amount", 0)
+            for row in self.deductions
+        ])
         self.net_pay = (self.gross_pay or 0) - self.total_deduction
 
     # -------------------------
