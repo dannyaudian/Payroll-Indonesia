@@ -138,8 +138,6 @@ def calculate_pph21_TER_december(employee_doc, salary_slips, pph21_paid_jan_nov=
     """
     employment_type = getattr(employee_doc, "employment_type", None) \
         if hasattr(employee_doc, "employment_type") else employee_doc.get("employment_type")
-    tax_status = getattr(employee_doc, "tax_status", None) \
-        if hasattr(employee_doc, "tax_status") else employee_doc.get("tax_status")
 
     if employment_type != "Full-time":
         return {
@@ -216,8 +214,6 @@ def calculate_pph21_TER_december_from_annual_payroll(annual_payroll_history, emp
 
     employment_type = getattr(employee_doc, "employment_type", None) \
         if hasattr(employee_doc, "employment_type") else employee_doc.get("employment_type")
-    tax_status = getattr(employee_doc, "tax_status", None) \
-        if hasattr(employee_doc, "tax_status") else employee_doc.get("tax_status")
 
     if employment_type != "Full-time":
         return {
