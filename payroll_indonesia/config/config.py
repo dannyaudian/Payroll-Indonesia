@@ -38,6 +38,7 @@ def get_bpjs_cap(fieldname: str) -> float:
 def get_ptkp_amount_from_tax_status(tax_status: str) -> float:
     """
     Return PTKP amount for the given tax_status from PTKP Table.
+    Uses field 'amount' as per latest migration.
     """
     if not tax_status:
         raise ValidationError("PTKP amount lookup: tax_status is empty.")
@@ -46,13 +47,13 @@ def get_ptkp_amount_from_tax_status(tax_status: str) -> float:
     row = frappe.get_value(
         "PTKP Table",
         {"tax_status": tax_status},
-        ["ptkp_amount"],
+        ["amount"],
         as_dict=True,
     )
-    if row and row.get("ptkp_amount") is not None:
-        return flt(row["ptkp_amount"])
+    if row and row.get("amount") is not None:
+        return flt(row["amount"])
     frappe.logger().warning(
-        f"PTKP Table: No ptkp_amount found for tax_status '{tax_status}'."
+        f"PTKP Table: No amount found for tax_status '{tax_status}'."
     )
     return 0.0
 
@@ -72,7 +73,6 @@ def get_ter_code(employee_doc) -> str | None:
     if not tax_status:
         frappe.logger().warning("TER code lookup: Employee tax_status is empty.")
         return None
-    # Check if mapping exists
     if not frappe.db.exists("TER Mapping Table", {"tax_status": tax_status}):
         frappe.logger().warning(f"TER Mapping Table: tax_status '{tax_status}' not found.")
         return None
