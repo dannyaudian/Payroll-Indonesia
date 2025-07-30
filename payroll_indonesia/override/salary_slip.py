@@ -3,6 +3,9 @@
 Adds Indonesian income tax logic and patches ``eval_condition_and_formula`` so
 that helper functions defined in ``hooks.salary_slip_globals`` are available when
 evaluating Salary Component formulas.
+
+Rewrite: After computing self.tax, ensure a row exists in self.deductions with
+salary_component = "PPh 21" and amount = self.tax. Update the row if already present.
 """
 
 try:
@@ -57,6 +60,9 @@ class CustomSalarySlip(SalarySlip):
         Calculate Indonesian PPh 21 tax for salary slip (TER/monthly or Progressive/December).
         Will auto-correct negative PPh21 to increase THP.
         Syncs result to Annual Payroll History.
+
+        After computing self.tax, ensure a row exists in self.deductions with
+        salary_component = "PPh 21" and amount = self.tax. Update the row if already present.
         """
         # Mode: Progressive/Desember (final year/progressive)
         if getattr(self, "run_payroll_indonesia_december", False):
@@ -74,6 +80,7 @@ class CustomSalarySlip(SalarySlip):
             self.tax = result.get("koreksi_pph21", 0)
             self.tax_type = "DECEMBER"
             self.sync_to_annual_payroll_history(result, mode="december")
+            self._ensure_pph21_deduction()  # Ensure PPh 21 deduction row
             return self.tax
 
         # Mode: TER (bulanan/flat)
@@ -85,10 +92,34 @@ class CustomSalarySlip(SalarySlip):
             self.tax = result.get("pph21", 0)
             self.tax_type = "TER"
             self.sync_to_annual_payroll_history(result, mode="monthly")
+            self._ensure_pph21_deduction()  # Ensure PPh 21 deduction row
             return self.tax
 
         # Default: fallback to vanilla ERPNext
-        return super().calculate_income_tax()
+        tax = super().calculate_income_tax()
+        self._ensure_pph21_deduction()  # Ensure PPh 21 deduction row
+        return tax
+
+    def _ensure_pph21_deduction(self):
+        """
+        Ensure a row exists in self.deductions with salary_component = "PPh 21" and amount = self.tax.
+        Update the row if already present, else append.
+        """
+        if not hasattr(self, "deductions") or self.deductions is None:
+            self.deductions = []
+
+        updated = False
+        for row in self.deductions:
+            if row.get("salary_component") == "PPh 21":
+                row["amount"] = self.tax
+                updated = True
+                break
+        if not updated:
+            # Append new deduction row for PPh 21
+            self.deductions.append({
+                "salary_component": "PPh 21",
+                "amount": self.tax
+            })
 
     # -------------------------
     # Helpers
