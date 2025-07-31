@@ -69,7 +69,7 @@ class CustomPayrollEntry(PayrollEntry):
             slips = []
         for slip in slips:
             slip_obj = self._get_salary_slip_obj(slip)
-            slip_obj.calculate_income_tax()
+            slip_obj.calculate_income_tax_december()
             if isinstance(slip, dict):
                 slip["pph21_info"] = getattr(slip_obj, "pph21_info", {})
                 slip["tax"] = getattr(slip_obj, "tax", 0)

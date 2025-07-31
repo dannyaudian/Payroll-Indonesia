@@ -81,6 +81,29 @@ class CustomSalarySlip(SalarySlip):
         self.update_pph21_row(tax_amount)
         return tax_amount
 
+    def calculate_income_tax_december(self):
+        """Calculate annual progressive PPh21 for December."""
+        employee_doc = self.get_employee_doc()
+
+        slip_data = {
+            "earnings": getattr(self, "earnings", []),
+            "deductions": getattr(self, "deductions", []),
+        }
+
+        result = pph21_ter_december.calculate_pph21_TER_december(
+            employee_doc, [slip_data]
+        )
+        tax_amount = flt(result.get("pph21_month", 0.0))
+
+        self.pph21_info = json.dumps(result)
+
+        self.tax = tax_amount
+        self.tax_type = "DECEMBER"
+
+        self.update_pph21_row(tax_amount)
+        self.sync_to_annual_payroll_history(result, mode="december")
+        return tax_amount
+
     def update_pph21_row(self, tax_amount: float):
         """Ensure the ``PPh 21`` deduction row exists and update its amount (sync with UI)."""
         target_component = "PPh 21"
@@ -120,7 +143,10 @@ class CustomSalarySlip(SalarySlip):
         except Exception:
             pass
 
-        tax_amount = self.calculate_income_tax()
+        if getattr(self, "tax_type", "") == "DECEMBER":
+            tax_amount = self.calculate_income_tax_december()
+        else:
+            tax_amount = self.calculate_income_tax()
         self.update_pph21_row(tax_amount)
         frappe.logger().info(f"Validate: Updated PPh21 deduction row to {tax_amount}")
 
