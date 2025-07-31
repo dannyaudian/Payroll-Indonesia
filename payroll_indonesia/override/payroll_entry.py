@@ -69,7 +69,22 @@ class CustomPayrollEntry(PayrollEntry):
             slips = []
         for slip in slips:
             slip_obj = self._get_salary_slip_obj(slip)
+            # Ensure December tax type is set before validation or calculation
+            setattr(slip_obj, "tax_type", "DECEMBER")
+
+            # Calculate December (annual progressive) tax on first pass
             slip_obj.calculate_income_tax_december()
+
+            # Persist tax-related fields so subsequent operations use the new values
+            try:
+                slip_obj.db_set("tax", getattr(slip_obj, "tax", 0))
+                slip_obj.db_set("tax_type", getattr(slip_obj, "tax_type", "DECEMBER"))
+                slip_obj.db_set("pph21_info", getattr(slip_obj, "pph21_info", {}))
+            except Exception:
+                # Fallback if db_set fails (e.g. unsaved doc)
+                slip_obj.save(ignore_permissions=True)
+
+            # If a dict representation was returned, update it with persisted values
             if isinstance(slip, dict):
                 slip["pph21_info"] = getattr(slip_obj, "pph21_info", {})
                 slip["tax"] = getattr(slip_obj, "tax", 0)
