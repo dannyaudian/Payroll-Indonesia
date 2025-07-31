@@ -31,8 +31,44 @@ def test_create_slip_in_december_mode(monkeypatch):
 
     frappe.utils = utils_mod
     frappe.logger = logger
-    frappe.get_doc = lambda *args, **kwargs: {}
-    frappe.get_cached_doc = frappe.get_doc
+
+    # Store slip data so get_doc can build a CustomSalarySlip later
+    frappe._slip_data = {
+        "employee": {"employment_type": "Full-time", "tax_status": "TK/0"},
+        "earnings": [
+            {
+                "amount": 1000,
+                "is_tax_applicable": 1,
+                "do_not_include_in_total": 0,
+                "statistical_component": 0,
+                "exempted_from_income_tax": 0,
+            }
+        ],
+        "deductions": [
+            {
+                "salary_component": "BPJS",
+                "amount": 100,
+                "is_income_tax_component": 1,
+                "do_not_include_in_total": 0,
+                "statistical_component": 0,
+            }
+        ],
+    }
+
+    frappe._docs = {}
+
+    def get_doc(doctype, name=None, **kwargs):
+        assert doctype == "Salary Slip"
+        doc_name = name or "SS1"
+        if doc_name not in frappe._docs:
+            data = frappe._slip_data.copy()
+            data["name"] = doc_name
+            frappe._docs[doc_name] = CustomSalarySlip(**data)
+        return frappe._docs[doc_name]
+
+    frappe.get_doc = get_doc
+    frappe.get_cached_doc = get_doc
+    frappe.get_all = lambda *args, **kwargs: ["SS1"]
     frappe.ValidationError = type("ValidationError", (Exception,), {})
     utils_mod.flt = flt
     utils_mod.safe_exec = safe_exec_mod
@@ -85,41 +121,21 @@ def test_create_slip_in_december_mode(monkeypatch):
 
     class DummyBase:
         def create_salary_slips(self):
-            slip = {
-                "employee": {"employment_type": "Full-time", "tax_status": "TK/0"},
-                "earnings": [
-                    {
-                        "amount": 1000,
-                        "is_tax_applicable": 1,
-                        "do_not_include_in_total": 0,
-                        "statistical_component": 0,
-                        "exempted_from_income_tax": 0,
-                    }
-                ],
-                "deductions": [
-                    {
-                        "salary_component": "BPJS",
-                        "amount": 100,
-                        "is_income_tax_component": 1,
-                        "do_not_include_in_total": 0,
-                        "statistical_component": 0,
-                    }
-                ],
-            }
-            return [slip]
+            return ["SS1"]
 
     class TestPayrollEntry(payroll_entry.CustomPayrollEntry, DummyBase):
         pass
 
     entry = TestPayrollEntry()
     entry.run_payroll_indonesia_december = True
+    entry.name = "PE-DEC"
 
     slips = entry.create_salary_slips()
 
-    assert slips, "Expected one slip to be generated"
-    slip = slips[0]
-    assert slip["tax_type"] == "DECEMBER"
-    info = json.loads(slip["pph21_info"])
+    assert slips == ["SS1"], "Expected one slip to be generated"
+    slip = frappe.get_doc("Salary Slip", "SS1")
+    assert slip.tax_type == "DECEMBER"
+    info = json.loads(slip.pph21_info)
     assert "pkp_annual" in info and "pph21_month" in info
 
     # Cleanup so other tests can import fresh modules
