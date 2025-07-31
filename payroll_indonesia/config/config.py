@@ -4,6 +4,8 @@ from frappe.utils import flt
 
 SETTINGS_DOCTYPE = "Payroll Indonesia Settings"
 SETTINGS_NAME = "Payroll Indonesia Settings"
+DEFAULT_BIAYA_JABATAN_RATE = 5.0          # persen
+DEFAULT_BIAYA_JABATAN_CAP_YEARLY = 6_000_000.0  # rupiah 6 jt
 
 def get_settings():
     """
@@ -126,6 +128,26 @@ def get_ter_rate(ter_code: str, monthly_income: float) -> float:
     raise ValidationError(
         f"TER Bracket Table: No bracket match for ter_code '{ter_code}' and monthly_income {monthly_income}."
     )
+    
+def get_biaya_jabatan_rate() -> float:
+    """
+    Persentase biaya jabatan (%).
+    Bisa diganti di DocType 'Payroll Indonesia Settings'
+    field biaya_jabatan_rate.
+    """
+    return flt(get_value("biaya_jabatan_rate", DEFAULT_BIAYA_JABATAN_RATE))
+
+def get_biaya_jabatan_cap_yearly() -> float:
+    """
+    Batas maksimum biaya jabatan setahun (Rp).
+    Disimpan di field biaya_jabatan_cap_yearly.
+    """
+    return flt(get_value("biaya_jabatan_cap_yearly",
+                         DEFAULT_BIAYA_JABATAN_CAP_YEARLY))
+
+def get_biaya_jabatan_cap_monthly() -> float:
+    """Hitung cap per bulan = cap tahunan / 12."""
+    return get_biaya_jabatan_cap_yearly() / 12.0
 
 def is_auto_queue_salary_slip() -> bool:
     """

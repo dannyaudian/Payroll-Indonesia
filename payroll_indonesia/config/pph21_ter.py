@@ -5,6 +5,8 @@ from payroll_indonesia.config import (
     get_ptkp_amount,
     get_ter_code,
     get_ter_rate,
+    get_biaya_jabatan_rate,
+    get_biaya_jabatan_cap_monthly,
 )
 from payroll_indonesia.utils import round_half_up
 
@@ -66,76 +68,59 @@ def get_biaya_jabatan_from_component(salary_slip):
 
 def calculate_pph21_TER(employee_doc, salary_slip):
     """
-    Calculate PPh21 TER logic for Indonesian payroll.
-
-    Args:
-        employee_doc: Employee Doc/dict with 'tax_status' and 'employment_type'
-        salary_slip: dict, must contain earnings and deductions (list of dicts)
-
-    Returns:
-        dict:
-            'ptkp': float,
-            'bruto': float,
-            'pengurang_netto': float,
-            'biaya_jabatan': float,
-            'netto': float,
-            'pkp': float,
-            'rate': float,
-            'pph21': float,
-            'employment_type_checked': bool,
-            'message': str (if not eligible)
+    PPh21 TER – tarif × BRUTO.
+    Semua angka (ptkp, pkp, dll.) tetap dikembalikan untuk keperluan tampilan.
     """
-    # Employment type check
-    employment_type = getattr(employee_doc, "employment_type", None) \
-        if hasattr(employee_doc, "employment_type") else employee_doc.get("employment_type")
-    if employment_type != "Full-time":
-        return {
-            "ptkp": 0.0,
-            "bruto": 0.0,
-            "pengurang_netto": 0.0,
-            "biaya_jabatan": 0.0,
-            "netto": 0.0,
-            "pkp": 0.0,
-            "rate": 0.0,
-            "pph21": 0.0,
-            "employment_type_checked": False,
-            "message": "PPh21 TER hanya dihitung untuk Employment Type: Full-time"
-        }
+    # -------------------------------------------------------------
+    # 1) Validasi employment type
+    # -------------------------------------------------------------
+    emp_type = (
+        employee_doc["employment_type"]
+        if isinstance(employee_doc, dict)
+        else employee_doc.employment_type
+    )
+    if emp_type != "Full-time":
+        return {"employment_type_checked": False, "pph21": 0.0}
 
-    # PTKP bulanan
-    try:
-        ptkp = get_ptkp_amount(employee_doc) / 12
-    except ValidationError as e:
-        frappe.logger().warning(str(e))
-        ptkp = 0.0
-
-    # Earnings: penghasilan bruto (termasuk natura taxable)
+    # -------------------------------------------------------------
+    # 2) Bruto dan biaya jabatan (hanya info)
+    # -------------------------------------------------------------
     bruto = sum_bruto_earnings(salary_slip)
 
-    # Deductions: pengurang netto (exclude biaya jabatan)
+    bj_rate = get_biaya_jabatan_rate()
+    bj_cap  = get_biaya_jabatan_cap_monthly()
+    biaya_jabatan = min(bruto * bj_rate / 100, bj_cap)
+
+    # -------------------------------------------------------------
+    # 3) Pengurang lain & netto (info)
+    # -------------------------------------------------------------
     pengurang_netto = sum_pengurang_netto(salary_slip)
+    netto = bruto - biaya_jabatan - pengurang_netto
 
-    # Biaya Jabatan dari komponen deduction "Biaya Jabatan"
-    biaya_jabatan = get_biaya_jabatan_from_component(salary_slip)
+    # -------------------------------------------------------------
+    # 4) PTKP & PKP (info; tidak dipakai rumus pajak)
+    # -------------------------------------------------------------
+    ptkp = flt(get_ptkp_amount(employee_doc) / 12)  # PTKP bulanan
+    pkp  = max(netto - ptkp, 0)
 
-    # Netto
-    netto = bruto - pengurang_netto - biaya_jabatan
-
-    # PKP (bulanan)
-    pkp = max(netto - ptkp, 0)
-
-    # TER code & rate
+    # -------------------------------------------------------------
+    # 5) Tarif TER berdasarkan BRUTO
+    # -------------------------------------------------------------
     ter_code = get_ter_code(employee_doc)
     try:
-        rate = get_ter_rate(ter_code, pkp)
+        rate = get_ter_rate(ter_code, bruto)   # lookup pakai bruto
     except ValidationError as e:
         frappe.logger().warning(str(e))
         rate = 0.0
-    frappe.logger().info(f"TER code: {ter_code}, rate: {rate}")
 
-    # PPh21
-    pph21 = round_half_up(pkp * (rate / 100))
+    # -------------------------------------------------------------
+    # 6) Pajak = BRUTO × rate %
+    # -------------------------------------------------------------
+    pph21 = round_half_up(bruto * rate / 100)
 
+    # -------------------------------------------------------------
+    # 7) Return lengkap untuk tampilan / debug
+    # -------------------------------------------------------------
     return {
         "ptkp": ptkp,
         "bruto": bruto,
@@ -145,5 +130,5 @@ def calculate_pph21_TER(employee_doc, salary_slip):
         "pkp": pkp,
         "rate": rate,
         "pph21": pph21,
-        "employment_type_checked": True
+        "employment_type_checked": True,
     }
