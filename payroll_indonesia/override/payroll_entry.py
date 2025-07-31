@@ -75,14 +75,20 @@ class CustomPayrollEntry(PayrollEntry):
             # Calculate December (annual progressive) tax on first pass
             slip_obj.calculate_income_tax_december()
 
-            # Persist tax-related fields so subsequent operations use the new values
+            # Persist tax-related fields (tax, tax_type, pph21_info) so
+            # subsequent operations use the new values
+            for field in ("tax", "tax_type", "pph21_info"):
+                try:
+                    slip_obj.db_set(field, getattr(slip_obj, field))
+                except Exception:
+                    # Best effort: attribute might not be saved yet
+                    setattr(slip_obj, field, getattr(slip_obj, field))
+
+            # Always save the slip to persist deduction rows (e.g. PPh 21)
             try:
-                slip_obj.db_set("tax", getattr(slip_obj, "tax", 0))
-                slip_obj.db_set("tax_type", getattr(slip_obj, "tax_type", "DECEMBER"))
-                slip_obj.db_set("pph21_info", getattr(slip_obj, "pph21_info", {}))
-            except Exception:
-                # Fallback if db_set fails (e.g. unsaved doc)
                 slip_obj.save(ignore_permissions=True)
+            except Exception:
+                pass
 
             # If a dict representation was returned, update it with persisted values
             if isinstance(slip, dict):
