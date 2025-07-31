@@ -53,16 +53,15 @@ class CustomPayrollEntry(PayrollEntry):
         Generate salary slips with PPh21 TER (monthly) logic.
         Always return a list (empty if no slip).
         """
-        slips = super().create_salary_slips()
-        if slips is None:
-            slips = []
-        for slip in slips:
-            slip_obj = self._get_salary_slip_obj(slip)
+        super().create_salary_slips()
+        slips = self.get_salary_slips() or []
+        for name in slips:
+            slip_obj = frappe.get_doc("Salary Slip", name)
             slip_obj.calculate_income_tax()
-            if isinstance(slip, dict):
-                slip["pph21_info"] = getattr(slip_obj, "pph21_info", {})
-                slip["tax"] = getattr(slip_obj, "tax", 0)
-                slip["tax_type"] = getattr(slip_obj, "tax_type", "TER")
+            try:
+                slip_obj.save(ignore_permissions=True)
+            except Exception:
+                pass
         return slips
 
     def _create_salary_slips_indonesia_december(self):
@@ -70,11 +69,10 @@ class CustomPayrollEntry(PayrollEntry):
         Generate salary slips with PPh21 Desember (annual progressive) logic.
         Always return a list (empty if no slip).
         """
-        slips = super().create_salary_slips()
-        if slips is None:
-            slips = []
-        for slip in slips:
-            slip_obj = self._get_salary_slip_obj(slip)
+        super().create_salary_slips()
+        slips = self.get_salary_slips() or []
+        for name in slips:
+            slip_obj = frappe.get_doc("Salary Slip", name)
             # Ensure December tax type is set before validation or calculation
             setattr(slip_obj, "tax_type", "DECEMBER")
 
@@ -95,32 +93,7 @@ class CustomPayrollEntry(PayrollEntry):
                 slip_obj.save(ignore_permissions=True)
             except Exception:
                 pass
-
-            # If a dict representation was returned, update it with persisted values
-            if isinstance(slip, dict):
-                slip["pph21_info"] = getattr(slip_obj, "pph21_info", {})
-                slip["tax"] = getattr(slip_obj, "tax", 0)
-                slip["tax_type"] = getattr(slip_obj, "tax_type", "DECEMBER")
         return slips
-
-    def _get_salary_slip_obj(self, slip):
-        """
-        Helper: get or construct a SalarySlip (or CustomSalarySlip) object for calculation.
-        """
-        if hasattr(slip, "calculate_income_tax"):
-            return slip  # Already an object
-        elif isinstance(slip, dict):
-            # Try fetch from DB if possible, else construct from dict
-            if "name" in slip:
-                try:
-                    slip_obj = frappe.get_doc("Salary Slip", slip["name"])
-                except Exception:
-                    slip_obj = CustomSalarySlip(**slip)
-            else:
-                slip_obj = CustomSalarySlip(**slip)
-            return slip_obj
-        else:
-            return slip  # fallback
 
     def _get_employee_doc(self, slip):
         """
