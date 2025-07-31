@@ -6,6 +6,9 @@ from .config import (
     get_ter_code,
     get_ter_rate,
     get_value,
+    get_biaya_jabatan_rate,
+    get_biaya_jabatan_cap_yearly,
+    get_biaya_jabatan_cap_monthly,
 )
 
 __all__ = [
@@ -16,4 +19,7 @@ __all__ = [
     "get_ptkp_amount",
     "get_ter_code",
     "get_ter_rate",
+    "get_biaya_jabatan_rate",
+    "get_biaya_jabatan_cap_yearly",
+    "get_biaya_jabatan_cap_monthly",
 ]
