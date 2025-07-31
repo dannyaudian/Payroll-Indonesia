@@ -42,6 +42,12 @@ class CustomPayrollEntry(PayrollEntry):
             result = super().create_salary_slips()
             return result if result is not None else []
 
+    def get_salary_slips(self):
+        """Return list of Salary Slip names linked to this Payroll Entry."""
+        return frappe.get_all(
+            "Salary Slip", filters={"payroll_entry": self.name}, pluck="name"
+        )
+
     def _create_salary_slips_indonesia(self):
         """
         Generate salary slips with PPh21 TER (monthly) logic.
