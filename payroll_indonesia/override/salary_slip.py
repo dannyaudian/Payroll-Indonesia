@@ -79,6 +79,7 @@ class CustomSalarySlip(SalarySlip):
         self.tax_type = "TER"
 
         self.update_pph21_row(tax_amount)
+        self.sync_to_annual_payroll_history(result, mode="monthly")
         return tax_amount
 
     def calculate_income_tax_december(self):
