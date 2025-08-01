@@ -55,14 +55,28 @@ class CustomPayrollEntry(PayrollEntry):
         """
         super().create_salary_slips()
         slips = self.get_salary_slips() or []
+        processed_slips = []
         for name in slips:
-            slip_obj = frappe.get_doc("Salary Slip", name)
+            try:
+                slip_obj = frappe.get_doc("Salary Slip", name)
+            except frappe.DoesNotExistError:
+                frappe.logger().warning(
+                    f"Payroll Entry: Salary Slip '{name}' not found. Skipping."
+                )
+                continue
+            except Exception:
+                frappe.logger().warning(
+                    f"Payroll Entry: Error fetching Salary Slip '{name}'. Skipping."
+                )
+                continue
+
             slip_obj.calculate_income_tax()
             try:
                 slip_obj.save(ignore_permissions=True)
             except Exception:
                 pass
-        return slips
+            processed_slips.append(name)
+        return processed_slips
 
     def _create_salary_slips_indonesia_december(self):
         """
@@ -71,8 +85,21 @@ class CustomPayrollEntry(PayrollEntry):
         """
         super().create_salary_slips()
         slips = self.get_salary_slips() or []
+        processed_slips = []
         for name in slips:
-            slip_obj = frappe.get_doc("Salary Slip", name)
+            try:
+                slip_obj = frappe.get_doc("Salary Slip", name)
+            except frappe.DoesNotExistError:
+                frappe.logger().warning(
+                    f"Payroll Entry: Salary Slip '{name}' not found. Skipping."
+                )
+                continue
+            except Exception:
+                frappe.logger().warning(
+                    f"Payroll Entry: Error fetching Salary Slip '{name}'. Skipping."
+                )
+                continue
+
             # Ensure December tax type is set before validation or calculation
             setattr(slip_obj, "tax_type", "DECEMBER")
 
@@ -93,7 +120,8 @@ class CustomPayrollEntry(PayrollEntry):
                 slip_obj.save(ignore_permissions=True)
             except Exception:
                 pass
-        return slips
+            processed_slips.append(name)
+        return processed_slips
 
     def _get_employee_doc(self, slip):
         """
