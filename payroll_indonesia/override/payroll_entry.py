@@ -4,6 +4,7 @@ except Exception:
     PayrollEntry = object  # fallback for tests/static analysis
 
 import frappe
+import traceback
 from payroll_indonesia.override.salary_slip import CustomSalarySlip
 from payroll_indonesia.config import get_value
 
@@ -56,26 +57,52 @@ class CustomPayrollEntry(PayrollEntry):
         super().create_salary_slips()
         slips = self.get_salary_slips() or []
         processed_slips = []
+        invalid_slips = []
+        
         for name in slips:
+            # First check if the slip exists to avoid unnecessary exceptions
+            if not frappe.db.exists("Salary Slip", name):
+                frappe.logger().warning(
+                    f"Payroll Entry: Salary Slip '{name}' not found. Removing from list."
+                )
+                invalid_slips.append(name)
+                continue
+                
             try:
                 slip_obj = frappe.get_doc("Salary Slip", name)
-            except frappe.DoesNotExistError:
+            except Exception as e:
                 frappe.logger().warning(
-                    f"Payroll Entry: Salary Slip '{name}' not found. Skipping."
+                    f"Payroll Entry: Error fetching Salary Slip '{name}': {str(e)}. Skipping."
                 )
-                continue
-            except Exception:
-                frappe.logger().warning(
-                    f"Payroll Entry: Error fetching Salary Slip '{name}'. Skipping."
-                )
+                invalid_slips.append(name)
                 continue
 
-            slip_obj.calculate_income_tax()
             try:
+                slip_obj.calculate_income_tax()
                 slip_obj.save(ignore_permissions=True)
-            except Exception:
-                pass
-            processed_slips.append(name)
+                processed_slips.append(name)
+            except Exception as e:
+                error_trace = traceback.format_exc()
+                frappe.log_error(
+                    message=f"Failed to process Salary Slip '{name}': {str(e)}\n{error_trace}",
+                    title="Payroll Indonesia TER Processing Error"
+                )
+                frappe.logger().error(
+                    f"Payroll Entry: Error processing Salary Slip '{name}': {str(e)}"
+                )
+                invalid_slips.append(name)
+        
+        # Remove invalid slips from the salary_slips child table
+        if invalid_slips and hasattr(self, "salary_slips"):
+            for i, row in reversed(list(enumerate(self.salary_slips))):
+                if hasattr(row, "salary_slip") and row.salary_slip in invalid_slips:
+                    self.salary_slips.pop(i)
+        
+        # Update the salary_slips_created field based on actual successful slips
+        if hasattr(self, "salary_slips_created"):
+            self.salary_slips_created = len(processed_slips)
+            self.db_set("salary_slips_created", self.salary_slips_created, update_modified=False)
+        
         return processed_slips
 
     def _create_salary_slips_indonesia_december(self):
@@ -86,41 +113,72 @@ class CustomPayrollEntry(PayrollEntry):
         super().create_salary_slips()
         slips = self.get_salary_slips() or []
         processed_slips = []
+        invalid_slips = []
+        
         for name in slips:
+            # First check if the slip exists to avoid unnecessary exceptions
+            if not frappe.db.exists("Salary Slip", name):
+                frappe.logger().warning(
+                    f"Payroll Entry: Salary Slip '{name}' not found. Removing from list."
+                )
+                invalid_slips.append(name)
+                continue
+                
             try:
                 slip_obj = frappe.get_doc("Salary Slip", name)
-            except frappe.DoesNotExistError:
+            except Exception as e:
                 frappe.logger().warning(
-                    f"Payroll Entry: Salary Slip '{name}' not found. Skipping."
+                    f"Payroll Entry: Error fetching Salary Slip '{name}': {str(e)}. Skipping."
                 )
-                continue
-            except Exception:
-                frappe.logger().warning(
-                    f"Payroll Entry: Error fetching Salary Slip '{name}'. Skipping."
-                )
+                invalid_slips.append(name)
                 continue
 
-            # Ensure December tax type is set before validation or calculation
-            setattr(slip_obj, "tax_type", "DECEMBER")
-
-            # Calculate December (annual progressive) tax on first pass
-            slip_obj.calculate_income_tax_december()
-
-            # Persist tax-related fields (tax, tax_type, pph21_info) so
-            # subsequent operations use the new values
-            for field in ("tax", "tax_type", "pph21_info"):
-                try:
-                    slip_obj.db_set(field, getattr(slip_obj, field))
-                except Exception:
-                    # Best effort: attribute might not be saved yet
-                    setattr(slip_obj, field, getattr(slip_obj, field))
-
-            # Always save the slip to persist deduction rows (e.g. PPh 21)
             try:
+                # Ensure December tax type is set before validation or calculation
+                setattr(slip_obj, "tax_type", "DECEMBER")
+
+                # Calculate December (annual progressive) tax on first pass
+                slip_obj.calculate_income_tax_december()
+
+                # Persist tax-related fields (tax, tax_type, pph21_info) so
+                # subsequent operations use the new values
+                for field in ("tax", "tax_type", "pph21_info"):
+                    try:
+                        slip_obj.db_set(field, getattr(slip_obj, field))
+                    except Exception as field_error:
+                        error_trace = traceback.format_exc()
+                        frappe.log_error(
+                            message=f"Failed to set field {field} on Salary Slip '{name}': {str(field_error)}\n{error_trace}",
+                            title="Payroll Indonesia December Field Update Error"
+                        )
+                        # Best effort: attribute might not be saved yet
+                        setattr(slip_obj, field, getattr(slip_obj, field))
+
+                # Always save the slip to persist deduction rows (e.g. PPh 21)
                 slip_obj.save(ignore_permissions=True)
-            except Exception:
-                pass
-            processed_slips.append(name)
+                processed_slips.append(name)
+            except Exception as e:
+                error_trace = traceback.format_exc()
+                frappe.log_error(
+                    message=f"Failed to process December Salary Slip '{name}': {str(e)}\n{error_trace}",
+                    title="Payroll Indonesia December Processing Error"
+                )
+                frappe.logger().error(
+                    f"Payroll Entry: Error processing December Salary Slip '{name}': {str(e)}"
+                )
+                invalid_slips.append(name)
+
+        # Remove invalid slips from the salary_slips child table
+        if invalid_slips and hasattr(self, "salary_slips"):
+            for i, row in reversed(list(enumerate(self.salary_slips))):
+                if hasattr(row, "salary_slip") and row.salary_slip in invalid_slips:
+                    self.salary_slips.pop(i)
+        
+        # Update the salary_slips_created field based on actual successful slips
+        if hasattr(self, "salary_slips_created"):
+            self.salary_slips_created = len(processed_slips)
+            self.db_set("salary_slips_created", self.salary_slips_created, update_modified=False)
+        
         return processed_slips
 
     def _get_employee_doc(self, slip):
