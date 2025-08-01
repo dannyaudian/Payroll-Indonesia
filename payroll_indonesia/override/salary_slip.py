@@ -16,6 +16,13 @@ except Exception:
 import frappe
 import json
 from frappe.utils import flt
+try:
+    from frappe.utils import getdate
+except Exception:  # pragma: no cover - fallback for test stubs without getdate
+    from datetime import datetime
+
+    def getdate(value):
+        return datetime.strptime(str(value), "%Y-%m-%d")
 from frappe.utils.safe_exec import safe_eval
 
 from payroll_indonesia.config import pph21_ter, pph21_ter_december
@@ -179,8 +186,54 @@ class CustomSalarySlip(SalarySlip):
             if not fiscal_year:
                 return
 
+            month_number = None
+            start = getattr(self, "start_date", None)
+            if start:
+                try:
+                    month_number = getdate(start).month
+                except Exception:
+                    month_number = None
+            if not month_number:
+                month_name = getattr(self, "month", None) or getattr(self, "bulan", None)
+                if month_name:
+                    month_map = {
+                        "january": 1,
+                        "jan": 1,
+                        "januari": 1,
+                        "february": 2,
+                        "feb": 2,
+                        "februari": 2,
+                        "march": 3,
+                        "mar": 3,
+                        "maret": 3,
+                        "april": 4,
+                        "may": 5,
+                        "mei": 5,
+                        "june": 6,
+                        "jun": 6,
+                        "juni": 6,
+                        "july": 7,
+                        "jul": 7,
+                        "juli": 7,
+                        "august": 8,
+                        "aug": 8,
+                        "agustus": 8,
+                        "september": 9,
+                        "sep": 9,
+                        "october": 10,
+                        "oct": 10,
+                        "oktober": 10,
+                        "november": 11,
+                        "nov": 11,
+                        "december": 12,
+                        "dec": 12,
+                        "desember": 12,
+                    }
+                    month_number = month_map.get(str(month_name).strip().lower())
+            month_number = month_number or 0
+
             monthly_result = {
-                "bulan": getattr(self, "month", None) or getattr(self, "bulan", None),
+                "bulan": month_number,
                 "bruto": result.get("bruto", result.get("bruto_total", 0)),
                 "pengurang_netto": result.get(
                     "pengurang_netto", result.get("income_tax_deduction_total", 0)
