@@ -138,12 +138,11 @@ class CustomSalarySlip(SalarySlip):
             )
 
         # Refresh total deduction dan net pay, attribute/dict safe
-        self.total_deduction = sum([
-            getattr(row, "amount", row.get("amount", 0)) if hasattr(row, "amount") else row.get("amount", 0)
+        self.total_deduction = sum(
+            getattr(row, "amount", 0) if hasattr(row, "amount") else row.get("amount", 0)
             for row in self.deductions
-        ])
+        )
         self.net_pay = (self.gross_pay or 0) - self.total_deduction
-
     def validate(self):
         """Ensure PPh 21 deduction row updated before saving."""
         try:
