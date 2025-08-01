@@ -8,6 +8,7 @@ Rewrite: Ensure PPh 21 row in deductions updates and syncs with UI using attribu
 Fix: Do not assign dict directly to DocType field (pph21_info), use JSON string.
 Update: Replace manual total calculations with ERPNext/Frappe's built-in methods.
 Update: Improve exception handling to catch specific expected exceptions and re-raise unexpected ones.
+Update: Fix circular import issues by using lazy imports and restructuring the sync logic.
 """
 
 try:
@@ -29,7 +30,7 @@ except Exception:  # pragma: no cover - fallback for test stubs without getdate
 from frappe.utils.safe_exec import safe_eval
 
 from payroll_indonesia.config import pph21_ter, pph21_ter_december
-from payroll_indonesia.utils import sync_annual_payroll_history
+# Import utils module but not the specific function to avoid circular imports
 from payroll_indonesia import _patch_salary_slip_globals
 
 
@@ -390,13 +391,31 @@ class CustomSalarySlip(SalarySlip):
     def sync_to_annual_payroll_history(self, result, mode="monthly"):
         """Sync slip result to Annual Payroll History."""
         try:
+            # Import the sync module here to avoid circular imports
+            from payroll_indonesia.utils import sync_annual_payroll_history
+            
+            # Check if employee exists
+            if not hasattr(self, "employee") or not self.employee:
+                frappe.logger().warning(
+                    f"No employee found for Salary Slip {getattr(self, 'name', 'unknown')}, skipping sync"
+                )
+                return
+
             employee_doc = self.get_employee_doc()
+
+            # Check if employee doc is valid/loaded
+            if not employee_doc or not employee_doc.get('name', None):
+                frappe.logger().warning(
+                    f"Invalid employee data for Salary Slip {self.name}, skipping sync"
+            )
+                return
+
             fiscal_year = getattr(self, "fiscal_year", None) or str(
                 getattr(self, "start_date", None) or ""
             )[:4]
             if not fiscal_year:
                 frappe.logger().warning(
-                    f"Could not determine fiscal year for Salary Slip {self.name}"
+                    f"Could not determine fiscal year for Salary Slip {self.name}, skipping sync"
                 )
                 return
 
@@ -444,6 +463,12 @@ class CustomSalarySlip(SalarySlip):
                         "desember": 12,
                     }
                     month_number = month_map.get(str(month_name).strip().lower())
+
+            if not month_number:
+                frappe.logger().warning(
+                    f"Could not determine month for Salary Slip {self.name}, using default 0"
+                )
+
             month_number = month_number or 0
 
             # Ensure numeric rate for Annual Payroll History child
@@ -501,17 +526,34 @@ class CustomSalarySlip(SalarySlip):
             frappe.logger().warning(
                 f"Annual Payroll History sync failed for {self.name}: {str(e)}"
             )
-
     def on_cancel(self):
         """When slip is cancelled, remove related row from Annual Payroll History."""
         try:
+            # Import the sync module here to avoid circular imports
+            from payroll_indonesia.utils import sync_annual_payroll_history
+            
+            # Check if employee exists
+            if not hasattr(self, "employee") or not self.employee:
+                frappe.logger().warning(
+                    f"No employee found for cancelled Salary Slip {getattr(self, 'name', 'unknown')}, skipping sync"
+                )
+                return
+                
             employee_doc = self.get_employee_doc()
+
+            # Check if employee doc is valid/loaded
+            if not employee_doc or not employee_doc.get('name', None):
+                frappe.logger().warning(
+                    f"Invalid employee data for cancelled Salary Slip {self.name}, skipping sync"
+            )
+            return
+
             fiscal_year = (
                 getattr(self, "fiscal_year", None) or str(getattr(self, "start_date", ""))[:4]
             )
             if not fiscal_year:
                 frappe.logger().warning(
-                    f"Could not determine fiscal year for cancelled Salary Slip {self.name}"
+                    f"Could not determine fiscal year for cancelled Salary Slip {self.name}, skipping sync"
                 )
                 return
                 

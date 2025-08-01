@@ -7,22 +7,31 @@ def get_or_create_annual_payroll_history(employee_name, fiscal_year, create_if_m
     Jika tidak ada dan ``create_if_missing`` bernilai ``True`` akan membuat doc baru.
     Bila ``create_if_missing`` ``False`` dan dokumen tidak ditemukan, kembalikan ``None``.
     """
-
-    doc = frappe.get_all(
+    # Menggunakan frappe.db.exists untuk pengecekan cepat keberadaan dokumen
+    doc_name = frappe.db.get_value(
         "Annual Payroll History",
-        filters={"employee": employee_name, "fiscal_year": fiscal_year},
-        fields=["name"],
+        {"employee": employee_name, "fiscal_year": fiscal_year},
+        "name"
     )
-    if doc:
-        return frappe.get_doc("Annual Payroll History", doc[0]["name"])
+    
+    if doc_name:
+        return frappe.get_doc("Annual Payroll History", doc_name)
 
     if not create_if_missing:
         return None
 
+    # Buat dokumen baru
     history = frappe.new_doc("Annual Payroll History")
     history.employee = employee_name
     history.fiscal_year = fiscal_year
+    
+    # Set name ke kombinasi unik employee-fiscal_year jika skema doctype mendukung
+    # Catatan: Ini hanya akan berhasil jika Annual Payroll History DocType dikonfigurasi
+    # untuk menerima nama kustom (autoname: field:employee-field:fiscal_year atau prompt)
+    history.name = f"{employee_name}-{fiscal_year}"
+    
     return history
+
 
 def update_annual_payroll_summary(history, summary):
     """
@@ -73,7 +82,7 @@ def remove_monthly_detail_by_salary_slip(history, salary_slip):
             to_remove.append(i)
     # Hapus dari belakang supaya index tidak bergeser
     for i in reversed(to_remove):
-        del history.get("monthly_details")[i]
+        history.monthly_details.pop(i)
 
 def sync_annual_payroll_history(employee, fiscal_year, monthly_results=None, summary=None, cancelled_salary_slip=None):
     """
@@ -92,9 +101,16 @@ def sync_annual_payroll_history(employee, fiscal_year, monthly_results=None, sum
             - bruto_total, netto_total, ptkp_annual, pkp_annual, pph21_annual, koreksi_pph21
         cancelled_salary_slip: str, optional, jika ingin menghapus baris berdasarkan salary_slip
     """
-    employee_name = employee.get("name") if isinstance(employee, dict) else getattr(employee, "name", None)
+    # Extract employee name safely without assuming specific object structure
+    employee_name = None
+    if isinstance(employee, dict) and "name" in employee:
+        employee_name = employee["name"]
+    elif hasattr(employee, "name"):
+        employee_name = employee.name
+    
     if not employee_name:
-        raise Exception("Employee harus punya field 'name'!")
+        # Strict validation to prevent processing with invalid employee data
+        frappe.throw("Employee harus punya field 'name'!", title="Validation Error")
 
     only_cancel = cancelled_salary_slip and not monthly_results and not summary
     history = get_or_create_annual_payroll_history(
@@ -131,6 +147,20 @@ def sync_annual_payroll_history(employee, fiscal_year, monthly_results=None, sum
             if history.get(field) is None:
                 history.set(field, 0)
 
-    history.save(ignore_permissions=True)
-    # No commit here; let caller manage DB transaction (e.g., salary slip submit/cancel)
-    return history.name
+    # Save with error handling
+    try:
+        # Log untuk debug
+        frappe.logger().debug(
+            f"[{frappe.session.user}] Saving Annual Payroll History '{history.name}' "
+            f"for employee '{employee_name}', fiscal year {fiscal_year} "
+            f"at {frappe.utils.now()}"
+        )
+        history.save(ignore_permissions=True)
+        return history.name
+    except Exception as e:
+        frappe.log_error(
+            message=f"Failed to save Annual Payroll History: {str(e)}",
+            title="Annual Payroll History Save Error"
+        )
+        # Re-raise as a more specific error for better handling by the caller
+        frappe.throw(f"Gagal menyimpan Annual Payroll History: {str(e)}")
