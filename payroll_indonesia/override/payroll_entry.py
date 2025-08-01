@@ -57,6 +57,27 @@ class CustomPayrollEntry(PayrollEntry):
         slips = self.get_salary_slips() or []
         processed_slips = []
         for name in slips:
+            exists = True
+            try:
+                exists = frappe.db.exists("Salary Slip", name)
+            except Exception:
+                # Fallback if frappe.db is not available (e.g. tests)
+                exists = True
+            if not exists:
+                frappe.logger().warning(
+                    f"Payroll Entry: Salary Slip '{name}' not found. Removing from child table."
+                )
+                try:
+                    if hasattr(self, "salary_slips"):
+                        self.salary_slips = [
+                            row
+                            for row in self.salary_slips
+                            if getattr(row, "salary_slip", "") != name
+                        ]
+                except Exception:
+                    pass
+                continue
+
             try:
                 slip_obj = frappe.get_doc("Salary Slip", name)
             except frappe.DoesNotExistError:
@@ -74,8 +95,17 @@ class CustomPayrollEntry(PayrollEntry):
             try:
                 slip_obj.save(ignore_permissions=True)
             except Exception:
-                pass
+                frappe.logger().warning(
+                    f"Payroll Entry: Failed saving Salary Slip '{name}'."
+                )
+                continue
             processed_slips.append(name)
+
+        count = len(processed_slips)
+        try:
+            self.db_set("salary_slips_created", count)
+        except Exception:
+            setattr(self, "salary_slips_created", count)
         return processed_slips
 
     def _create_salary_slips_indonesia_december(self):
@@ -87,6 +117,26 @@ class CustomPayrollEntry(PayrollEntry):
         slips = self.get_salary_slips() or []
         processed_slips = []
         for name in slips:
+            exists = True
+            try:
+                exists = frappe.db.exists("Salary Slip", name)
+            except Exception:
+                exists = True
+            if not exists:
+                frappe.logger().warning(
+                    f"Payroll Entry: Salary Slip '{name}' not found. Removing from child table."
+                )
+                try:
+                    if hasattr(self, "salary_slips"):
+                        self.salary_slips = [
+                            row
+                            for row in self.salary_slips
+                            if getattr(row, "salary_slip", "") != name
+                        ]
+                except Exception:
+                    pass
+                continue
+
             try:
                 slip_obj = frappe.get_doc("Salary Slip", name)
             except frappe.DoesNotExistError:
@@ -119,8 +169,17 @@ class CustomPayrollEntry(PayrollEntry):
             try:
                 slip_obj.save(ignore_permissions=True)
             except Exception:
-                pass
+                frappe.logger().warning(
+                    f"Payroll Entry: Failed saving Salary Slip '{name}'."
+                )
+                continue
             processed_slips.append(name)
+
+        count = len(processed_slips)
+        try:
+            self.db_set("salary_slips_created", count)
+        except Exception:
+            setattr(self, "salary_slips_created", count)
         return processed_slips
 
     def _get_employee_doc(self, slip):
