@@ -232,6 +232,9 @@ class CustomSalarySlip(SalarySlip):
                     month_number = month_map.get(str(month_name).strip().lower())
             month_number = month_number or 0
 
+            # Ensure numeric rate for Annual Payroll History child
+            raw_rate = result.get("rate", 0)
+            numeric_rate = raw_rate if isinstance(raw_rate, (int, float)) else 0
             monthly_result = {
                 "bulan": month_number,
                 "bruto": result.get("bruto", result.get("bruto_total", 0)),
@@ -241,7 +244,7 @@ class CustomSalarySlip(SalarySlip):
                 "biaya_jabatan": result.get("biaya_jabatan", result.get("biaya_jabatan_total", 0)),
                 "netto": result.get("netto", result.get("netto_total", 0)),
                 "pkp": result.get("pkp", result.get("pkp_annual", 0)),
-                "rate": result.get("rate", ""),
+                "rate": flt(numeric_rate),
                 "pph21": result.get("pph21", result.get("pph21_month", 0)),
                 "salary_slip": self.name,
             }
@@ -262,6 +265,9 @@ class CustomSalarySlip(SalarySlip):
                     "pph21_annual": result.get("pph21_annual", 0),
                     "koreksi_pph21": result.get("koreksi_pph21", 0),
                 }
+                # Preserve slab string separately for reporting if available
+                if isinstance(raw_rate, str) and raw_rate:
+                    summary["rate_slab"] = raw_rate
                 sync_annual_payroll_history.sync_annual_payroll_history(
                     employee=employee_doc,
                     fiscal_year=fiscal_year,
