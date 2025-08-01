@@ -1,22 +1,28 @@
 import frappe
 
-def get_or_create_annual_payroll_history(employee_name, fiscal_year):
+
+def get_or_create_annual_payroll_history(employee_name, fiscal_year, create_if_missing=True):
+    """Ambil doc Annual Payroll History berdasarkan employee dan fiscal_year.
+
+    Jika tidak ada dan ``create_if_missing`` bernilai ``True`` akan membuat doc baru.
+    Bila ``create_if_missing`` ``False`` dan dokumen tidak ditemukan, kembalikan ``None``.
     """
-    Ambil doc Annual Payroll History berdasarkan employee dan fiscal_year.
-    Jika tidak ada, create baru.
-    """
+
     doc = frappe.get_all(
         "Annual Payroll History",
         filters={"employee": employee_name, "fiscal_year": fiscal_year},
-        fields=["name"]
+        fields=["name"],
     )
     if doc:
         return frappe.get_doc("Annual Payroll History", doc[0]["name"])
-    else:
-        history = frappe.new_doc("Annual Payroll History")
-        history.employee = employee_name
-        history.fiscal_year = fiscal_year
-        return history
+
+    if not create_if_missing:
+        return None
+
+    history = frappe.new_doc("Annual Payroll History")
+    history.employee = employee_name
+    history.fiscal_year = fiscal_year
+    return history
 
 def update_annual_payroll_summary(history, summary):
     """
@@ -89,7 +95,15 @@ def sync_annual_payroll_history(employee, fiscal_year, monthly_results=None, sum
     if not employee_name:
         raise Exception("Employee harus punya field 'name'!")
 
-    history = get_or_create_annual_payroll_history(employee_name, fiscal_year)
+    only_cancel = cancelled_salary_slip and not monthly_results and not summary
+    history = get_or_create_annual_payroll_history(
+        employee_name, fiscal_year, create_if_missing=not only_cancel
+    )
+
+    if not history:
+        return
+
+    is_new_doc = history.is_new()
 
     # Cancel: hapus baris child berdasarkan salary_slip
     if cancelled_salary_slip:
@@ -103,6 +117,18 @@ def sync_annual_payroll_history(employee, fiscal_year, monthly_results=None, sum
     # Update summary/parent
     if summary:
         update_annual_payroll_summary(history, summary)
+
+    if is_new_doc:
+        for field in [
+            "bruto_total",
+            "netto_total",
+            "ptkp_annual",
+            "pkp_annual",
+            "pph21_annual",
+            "koreksi_pph21",
+        ]:
+            if history.get(field) is None:
+                history.set(field, 0)
 
     history.save(ignore_permissions=True)
     frappe.db.commit()
