@@ -81,6 +81,7 @@ def sync_annual_payroll_history(employee, fiscal_year, monthly_results=None, sum
     - Jika dokumen sudah ada untuk employee & fiscal_year, update.
     - Jika belum ada, create baru.
     - Jika salary_slip dicancel, hapus baris terkait pada child.
+    - Fungsi ini tidak melakukan ``frappe.db.commit``; transaksi ditangani oleh pemanggil.
 
     Args:
         employee: dict/obj Employee (harus ada `name`)
@@ -131,5 +132,5 @@ def sync_annual_payroll_history(employee, fiscal_year, monthly_results=None, sum
                 history.set(field, 0)
 
     history.save(ignore_permissions=True)
-    frappe.db.commit()
+    # No commit here; let caller manage DB transaction (e.g., salary slip submit/cancel)
     return history.name
