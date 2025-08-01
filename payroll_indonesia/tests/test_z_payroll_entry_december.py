@@ -31,6 +31,7 @@ def test_create_slip_in_december_mode(monkeypatch):
 
     frappe.utils = utils_mod
     frappe.logger = logger
+    frappe.db = types.SimpleNamespace(exists=lambda doctype, name: True)
 
     # Store slip data so get_doc can build a CustomSalarySlip later
     frappe._slip_data = {

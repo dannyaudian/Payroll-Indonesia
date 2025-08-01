@@ -46,6 +46,18 @@ class CustomSalarySlip(SalarySlip):
         context = data.copy()
         context.update(_patch_salary_slip_globals())
 
+        # Inject custom allowance fields so formulas can reference them
+        ssa = getattr(self, "salary_structure_assignment", None)
+        for field in ("meal_allowance", "transport_allowance"):
+            value = getattr(self, field, None)
+            if value is None and ssa:
+                if isinstance(ssa, dict):
+                    value = ssa.get(field)
+                else:
+                    value = getattr(ssa, field, None)
+            if value is not None:
+                context[field] = value
+
         try:
             if getattr(struct_row, "condition", None):
                 if not safe_eval(struct_row.condition, context):
