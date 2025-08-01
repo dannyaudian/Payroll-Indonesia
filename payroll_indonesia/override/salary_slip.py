@@ -6,6 +6,8 @@ formula evaluation.
 
 Rewrite: Ensure PPh 21 row in deductions updates and syncs with UI using attribute-safe operations.
 Fix: Do not assign dict directly to DocType field (pph21_info), use JSON string.
+Update: Replace manual total calculations with ERPNext/Frappe's built-in methods.
+Update: Improve exception handling to catch specific expected exceptions and re-raise unexpected ones.
 """
 
 try:
@@ -67,6 +69,7 @@ class CustomSalarySlip(SalarySlip):
                 return safe_eval(struct_row.formula, context)
 
         except Exception as e:
+            # Formula evaluation failures are critical and should always stop processing
             frappe.throw(
                 f"Failed evaluating formula for {getattr(struct_row, 'salary_component', 'component')}: {e}"
             )
@@ -102,12 +105,22 @@ class CustomSalarySlip(SalarySlip):
             self.update_pph21_row(tax_amount)
             self.sync_to_annual_payroll_history(result, mode="monthly")
             return tax_amount
+            
+        except frappe.ValidationError as ve:
+            # Expected validation errors - re-raise to stop processing
+            frappe.logger().warning(
+                f"Validation error in TER calculation for {self.name}: {str(ve)}"
+            )
+            raise
+            
         except Exception as e:
             error_trace = traceback.format_exc()
+            error_msg = f"Failed to calculate income tax (TER): {str(e)}"
             frappe.log_error(
-                message=f"Failed to calculate income tax (TER): {str(e)}\n{error_trace}",
-                title="Payroll Indonesia TER Calculation Error"
+                message=f"{error_msg}\n{error_trace}",
+                title=f"Payroll Indonesia TER Calculation Error - {self.name}"
             )
+            # Unexpected errors are converted to ValidationError to stop processing
             raise frappe.ValidationError(f"Error in PPh21 calculation: {str(e)}")
 
     def calculate_income_tax_december(self):
@@ -133,61 +146,197 @@ class CustomSalarySlip(SalarySlip):
             self.update_pph21_row(tax_amount)
             self.sync_to_annual_payroll_history(result, mode="december")
             return tax_amount
+            
+        except frappe.ValidationError as ve:
+            # Expected validation errors - re-raise to stop processing
+            frappe.logger().warning(
+                f"Validation error in December calculation for {self.name}: {str(ve)}"
+            )
+            raise
+            
         except Exception as e:
             error_trace = traceback.format_exc()
+            error_msg = f"Failed to calculate December income tax: {str(e)}"
             frappe.log_error(
-                message=f"Failed to calculate December income tax: {str(e)}\n{error_trace}",
-                title="Payroll Indonesia December Calculation Error"
+                message=f"{error_msg}\n{error_trace}",
+                title=f"Payroll Indonesia December Calculation Error - {self.name}"
             )
+            # Unexpected errors are converted to ValidationError to stop processing
             raise frappe.ValidationError(f"Error in December PPh21 calculation: {str(e)}")
 
     def update_pph21_row(self, tax_amount: float):
-        """Ensure the ``PPh 21`` deduction row exists and update its amount (sync with UI)."""
-        target_component = "PPh 21"
-        found = False
+        """
+        Ensure the ``PPh 21`` deduction row exists and update its amount (sync with UI).
+        Uses ERPNext/Frappe's built-in methods to recalculate totals.
+        """
+        try:
+            target_component = "PPh 21"
+            found = False
 
-        # Handle both child table object and dict cases for ERPNext/Frappe
-        for d in self.deductions:
-            sc = getattr(d, "salary_component", None) if hasattr(d, "salary_component") else d.get("salary_component")
-            if sc == target_component:
-                if hasattr(d, "amount"):
-                    d.amount = tax_amount
-                else:
-                    d["amount"] = tax_amount
-                found = True
-                break
+            # Handle both child table object and dict cases for ERPNext/Frappe
+            for d in self.deductions:
+                sc = getattr(d, "salary_component", None) if hasattr(d, "salary_component") else d.get("salary_component")
+                if sc == target_component:
+                    if hasattr(d, "amount"):
+                        d.amount = tax_amount
+                    else:
+                        d["amount"] = tax_amount
+                    found = True
+                    break
 
-        if not found:
-            self.append(
-                "deductions",
-                {
-                    "salary_component": target_component,
-                    "amount": tax_amount,
-                },
+            if not found:
+                self.append(
+                    "deductions",
+                    {
+                        "salary_component": target_component,
+                        "amount": tax_amount,
+                    },
+                )
+
+            # Use built-in methods to recalculate totals
+            self._recalculate_totals()
+            
+        except Exception as e:
+            error_trace = traceback.format_exc()
+            frappe.log_error(
+                message=f"Failed to update PPh21 row for {self.name}: {str(e)}\n{error_trace}",
+                title="Payroll Indonesia PPh21 Row Update Error"
             )
+            # This function is critical for correct salary slip values, so we must raise
+            raise frappe.ValidationError(f"Error updating PPh21 component: {str(e)}")
 
-        # Refresh total deduction dan net pay, attribute/dict safe
-        self.total_deduction = sum(
-            getattr(row, "amount", 0) if hasattr(row, "amount") else row.get("amount", 0)
-            for row in self.deductions
-        )
-        self.net_pay = (self.gross_pay or 0) - self.total_deduction
+    def _recalculate_totals(self):
+        """
+        Recalculate all totals using built-in methods where available.
+        Falls back to manual calculation if built-in methods are not available.
+        """
+        try:
+            # Try to use built-in ERPNext/Frappe methods for recalculation
+            if hasattr(self, "set_totals") and callable(getattr(self, "set_totals")):
+                self.set_totals()
+            elif hasattr(self, "calculate_totals") and callable(getattr(self, "calculate_totals")):
+                self.calculate_totals()
+            else:
+                # Fallback to calculate_net_pay if available
+                if hasattr(self, "calculate_net_pay") and callable(getattr(self, "calculate_net_pay")):
+                    self.calculate_net_pay()
+                else:
+                    # Last resort: manual calculation (legacy fallback)
+                    self._manual_totals_calculation()
+                    
+            # Ensure rounded values are also updated
+            self._update_rounded_values()
+            
+        except frappe.ValidationError as ve:
+            # Pass through validation errors (expected)
+            raise
+            
+        except Exception as e:
+            error_trace = traceback.format_exc()
+            frappe.log_error(
+                message=f"Failed to recalculate totals for {getattr(self, 'name', 'unknown')}: {str(e)}\n{error_trace}",
+                title="Payroll Indonesia Totals Calculation Error"
+            )
+            # Fallback to manual calculation
+            try:
+                self._manual_totals_calculation()
+            except Exception as manual_error:
+                # If even manual calculation fails, we need to stop processing
+                raise frappe.ValidationError(f"Cannot calculate salary slip totals: {str(manual_error)}")
+
+    def _manual_totals_calculation(self):
+        """
+        Manual calculation of totals as a fallback when built-in methods fail.
+        """
+        try:
+            # Calculate total deduction
+            self.total_deduction = sum(
+                getattr(row, "amount", 0) if hasattr(row, "amount") else row.get("amount", 0)
+                for row in self.deductions
+            )
+            
+            # Calculate net pay
+            self.net_pay = (self.gross_pay or 0) - self.total_deduction
+            
+            # Update other fields that might depend on these calculations
+            if hasattr(self, "rounded_total"):
+                self.rounded_total = round(self.total_deduction)
+            
+            if hasattr(self, "net_pay_in_words"):
+                # Try to use money_in_words if available
+                try:
+                    from frappe.utils import money_in_words
+                    self.net_pay_in_words = money_in_words(self.net_pay, getattr(self, "currency", "IDR"))
+                except ImportError:
+                    # Skip if money_in_words is not available
+                    pass
+                    
+        except Exception as e:
+            error_trace = traceback.format_exc()
+            frappe.log_error(
+                message=f"Manual totals calculation failed for {self.name}: {str(e)}\n{error_trace}",
+                title="Payroll Indonesia Manual Calculation Error"
+            )
+            # This is a critical error as it means we can't calculate the slip correctly
+            raise frappe.ValidationError(f"Failed to calculate salary slip totals: {str(e)}")
+
+    def _update_rounded_values(self):
+        """
+        Update rounded values to ensure they're synchronized with calculated values.
+        """
+        try:
+            # Update rounded_total if it exists
+            if hasattr(self, "rounded_total") and hasattr(self, "total"):
+                self.rounded_total = round(getattr(self, "total", self.net_pay))
+                
+            # Update rounded net pay if applicable
+            if hasattr(self, "rounded_net_pay"):
+                self.rounded_net_pay = round(self.net_pay)
+                
+            # Update total in words if applicable
+            if hasattr(self, "total_in_words") and hasattr(self, "total"):
+                try:
+                    from frappe.utils import money_in_words
+                    currency = getattr(self, "currency", "IDR")
+                    self.total_in_words = money_in_words(getattr(self, "total", 0), currency)
+                except ImportError:
+                    pass
+                    
+            # Update net pay in words if applicable
+            if hasattr(self, "net_pay_in_words"):
+                try:
+                    from frappe.utils import money_in_words
+                    currency = getattr(self, "currency", "IDR")
+                    self.net_pay_in_words = money_in_words(self.net_pay, currency)
+                except ImportError:
+                    pass
+                    
+        except Exception as e:
+            # Rounding/words conversion errors aren't critical to slip validity
+            frappe.logger().warning(
+                f"Failed to update rounded values for {self.name}: {str(e)}"
+            )
 
     def validate(self):
         """Ensure PPh 21 deduction row updated before saving."""
         try:
-            super().validate()
-        except Exception as e:
-            error_trace = traceback.format_exc()
-            frappe.log_error(
-                message=f"Error in parent validate for Salary Slip {self.name}: {str(e)}\n{error_trace}",
-                title="Payroll Indonesia Validation Error"
-            )
-            # We continue because we want to calculate tax even if base validation fails
-            # This allows our tax calculation to run in environments where the parent
-            # class might be different or missing certain methods
+            # Try to run parent validation
+            try:
+                super().validate()
+            except frappe.ValidationError as ve:
+                # Let validation errors propagate up
+                raise
+            except Exception as e:
+                error_trace = traceback.format_exc()
+                frappe.log_error(
+                    message=f"Error in parent validate for Salary Slip {self.name}: {str(e)}\n{error_trace}",
+                    title="Payroll Indonesia Validation Error"
+                )
+                # We continue because we want to calculate tax even if base validation fails
+                # This allows our tax calculation to run in environments where the parent
+                # class might be different or missing certain methods
 
-        try:
+            # Calculate PPh21 based on tax type
             if getattr(self, "tax_type", "") == "DECEMBER":
                 tax_amount = self.calculate_income_tax_december()
             else:
@@ -195,6 +344,11 @@ class CustomSalarySlip(SalarySlip):
                 
             self.update_pph21_row(tax_amount)
             frappe.logger().info(f"Validate: Updated PPh21 deduction row to {tax_amount}")
+            
+        except frappe.ValidationError as ve:
+            # Expected validation errors from tax calculations - re-raise to stop processing
+            raise
+            
         except Exception as e:
             error_trace = traceback.format_exc()
             frappe.log_error(
@@ -215,12 +369,19 @@ class CustomSalarySlip(SalarySlip):
                 return emp
             try:
                 return frappe.get_doc("Employee", emp)
+            except frappe.DoesNotExistError:
+                # Specific handling for missing employee record
+                frappe.log_error(
+                    message=f"Employee '{emp}' not found for Salary Slip {self.name}",
+                    title="Payroll Indonesia Missing Employee Error"
+                )
+                raise frappe.ValidationError(f"Employee '{emp}' not found. Please check employee record.")
             except Exception as e:
                 frappe.log_error(
                     message=f"Failed to get Employee document for {emp}: {str(e)}",
                     title="Payroll Indonesia Employee Error"
                 )
-                return {}
+                raise frappe.ValidationError(f"Error fetching employee data: {str(e)}")
         return {}
 
     # -------------------------
@@ -234,6 +395,9 @@ class CustomSalarySlip(SalarySlip):
                 getattr(self, "start_date", None) or ""
             )[:4]
             if not fiscal_year:
+                frappe.logger().warning(
+                    f"Could not determine fiscal year for Salary Slip {self.name}"
+                )
                 return
 
             month_number = None
@@ -324,11 +488,18 @@ class CustomSalarySlip(SalarySlip):
                     monthly_results=[monthly_result],
                     summary=summary,
                 )
+        except frappe.ValidationError as ve:
+            # Let validation errors propagate as they indicate data problems
+            raise
         except Exception as e:
             error_trace = traceback.format_exc()
             frappe.log_error(
                 message=f"Failed to sync Annual Payroll History for {getattr(self, 'name', 'unknown')}: {str(e)}\n{error_trace}",
                 title="Payroll Indonesia Annual History Sync Error"
+            )
+            # History sync failures shouldn't stop slip creation, so we log but don't raise
+            frappe.logger().warning(
+                f"Annual Payroll History sync failed for {self.name}: {str(e)}"
             )
 
     def on_cancel(self):
@@ -339,7 +510,11 @@ class CustomSalarySlip(SalarySlip):
                 getattr(self, "fiscal_year", None) or str(getattr(self, "start_date", ""))[:4]
             )
             if not fiscal_year:
+                frappe.logger().warning(
+                    f"Could not determine fiscal year for cancelled Salary Slip {self.name}"
+                )
                 return
+                
             sync_annual_payroll_history.sync_annual_payroll_history(
                 employee=employee_doc,
                 fiscal_year=fiscal_year,
@@ -347,9 +522,16 @@ class CustomSalarySlip(SalarySlip):
                 summary=None,
                 cancelled_salary_slip=self.name,
             )
+        except frappe.ValidationError as ve:
+            # Pass through validation errors
+            raise
         except Exception as e:
             error_trace = traceback.format_exc()
             frappe.log_error(
                 message=f"Failed to remove from Annual Payroll History on cancel for {getattr(self, 'name', 'unknown')}: {str(e)}\n{error_trace}",
                 title="Payroll Indonesia Annual History Cancel Error"
+            )
+            # History sync failures shouldn't stop slip cancellation, so we log but don't raise
+            frappe.logger().warning(
+                f"Failed to update Annual Payroll History when cancelling {self.name}: {str(e)}"
             )
