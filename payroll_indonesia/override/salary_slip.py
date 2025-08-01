@@ -15,6 +15,7 @@ except Exception:
 
 import frappe
 import json
+import traceback
 from frappe.utils import flt
 try:
     from frappe.utils import getdate
@@ -68,49 +69,65 @@ class CustomSalarySlip(SalarySlip):
         Override perhitungan PPh 21 (TER/Progresif).
         Setelah dihitung, update komponen PPh 21 di deductions agar muncul di UI.
         """
-        employee_doc = self.get_employee_doc()
+        try:
+            employee_doc = self.get_employee_doc()
 
-        slip_data = {
-            "earnings": getattr(self, "earnings", []),
-            "deductions": getattr(self, "deductions", []),
-        }
+            slip_data = {
+                "earnings": getattr(self, "earnings", []),
+                "deductions": getattr(self, "deductions", []),
+            }
 
-        result = pph21_ter.calculate_pph21_TER(employee_doc, slip_data)
-        tax_amount = flt(result.get("pph21", 0.0))
+            result = pph21_ter.calculate_pph21_TER(employee_doc, slip_data)
+            tax_amount = flt(result.get("pph21", 0.0))
 
-        # Store details as JSON string (pph21_info field is Text)
-        self.pph21_info = json.dumps(result)
+            # Store details as JSON string (pph21_info field is Text)
+            self.pph21_info = json.dumps(result)
 
-        # Set standard Salary Slip fields
-        self.tax = tax_amount
-        self.tax_type = "TER"
+            # Set standard Salary Slip fields
+            self.tax = tax_amount
+            self.tax_type = "TER"
 
-        self.update_pph21_row(tax_amount)
-        self.sync_to_annual_payroll_history(result, mode="monthly")
-        return tax_amount
+            self.update_pph21_row(tax_amount)
+            self.sync_to_annual_payroll_history(result, mode="monthly")
+            return tax_amount
+        except Exception as e:
+            error_trace = traceback.format_exc()
+            frappe.log_error(
+                message=f"Failed to calculate income tax (TER): {str(e)}\n{error_trace}",
+                title="Payroll Indonesia TER Calculation Error"
+            )
+            raise frappe.ValidationError(f"Error in PPh21 calculation: {str(e)}")
 
     def calculate_income_tax_december(self):
         """Calculate annual progressive PPh21 for December."""
-        employee_doc = self.get_employee_doc()
+        try:
+            employee_doc = self.get_employee_doc()
 
-        slip_data = {
-            "earnings": getattr(self, "earnings", []),
-            "deductions": getattr(self, "deductions", []),
-        }
+            slip_data = {
+                "earnings": getattr(self, "earnings", []),
+                "deductions": getattr(self, "deductions", []),
+            }
 
-        result = pph21_ter_december.calculate_pph21_TER_december(
-            employee_doc, [slip_data]
-        )
-        tax_amount = flt(result.get("pph21_month", 0.0))
+            result = pph21_ter_december.calculate_pph21_TER_december(
+                employee_doc, [slip_data]
+            )
+            tax_amount = flt(result.get("pph21_month", 0.0))
 
-        self.pph21_info = json.dumps(result)
+            self.pph21_info = json.dumps(result)
 
-        self.tax = tax_amount
-        self.tax_type = "DECEMBER"
+            self.tax = tax_amount
+            self.tax_type = "DECEMBER"
 
-        self.update_pph21_row(tax_amount)
-        self.sync_to_annual_payroll_history(result, mode="december")
-        return tax_amount
+            self.update_pph21_row(tax_amount)
+            self.sync_to_annual_payroll_history(result, mode="december")
+            return tax_amount
+        except Exception as e:
+            error_trace = traceback.format_exc()
+            frappe.log_error(
+                message=f"Failed to calculate December income tax: {str(e)}\n{error_trace}",
+                title="Payroll Indonesia December Calculation Error"
+            )
+            raise frappe.ValidationError(f"Error in December PPh21 calculation: {str(e)}")
 
     def update_pph21_row(self, tax_amount: float):
         """Ensure the ``PPh 21`` deduction row exists and update its amount (sync with UI)."""
@@ -143,19 +160,37 @@ class CustomSalarySlip(SalarySlip):
             for row in self.deductions
         )
         self.net_pay = (self.gross_pay or 0) - self.total_deduction
+
     def validate(self):
         """Ensure PPh 21 deduction row updated before saving."""
         try:
             super().validate()
-        except Exception:
-            pass
+        except Exception as e:
+            error_trace = traceback.format_exc()
+            frappe.log_error(
+                message=f"Error in parent validate for Salary Slip {self.name}: {str(e)}\n{error_trace}",
+                title="Payroll Indonesia Validation Error"
+            )
+            # We continue because we want to calculate tax even if base validation fails
+            # This allows our tax calculation to run in environments where the parent
+            # class might be different or missing certain methods
 
-        if getattr(self, "tax_type", "") == "DECEMBER":
-            tax_amount = self.calculate_income_tax_december()
-        else:
-            tax_amount = self.calculate_income_tax()
-        self.update_pph21_row(tax_amount)
-        frappe.logger().info(f"Validate: Updated PPh21 deduction row to {tax_amount}")
+        try:
+            if getattr(self, "tax_type", "") == "DECEMBER":
+                tax_amount = self.calculate_income_tax_december()
+            else:
+                tax_amount = self.calculate_income_tax()
+                
+            self.update_pph21_row(tax_amount)
+            frappe.logger().info(f"Validate: Updated PPh21 deduction row to {tax_amount}")
+        except Exception as e:
+            error_trace = traceback.format_exc()
+            frappe.log_error(
+                message=f"Failed to update PPh21 in validate for Salary Slip {self.name}: {str(e)}\n{error_trace}",
+                title="Payroll Indonesia PPh21 Update Error"
+            )
+            # Re-raise to prevent saving a slip with incorrect tax calculation
+            raise frappe.ValidationError(f"Error calculating PPh21: {str(e)}")
 
     # -------------------------
     # Helpers
@@ -168,7 +203,11 @@ class CustomSalarySlip(SalarySlip):
                 return emp
             try:
                 return frappe.get_doc("Employee", emp)
-            except Exception:
+            except Exception as e:
+                frappe.log_error(
+                    message=f"Failed to get Employee document for {emp}: {str(e)}",
+                    title="Payroll Indonesia Employee Error"
+                )
                 return {}
         return {}
 
@@ -274,7 +313,11 @@ class CustomSalarySlip(SalarySlip):
                     summary=summary,
                 )
         except Exception as e:
-            frappe.logger().error(f"Failed to sync Annual Payroll History: {e}")
+            error_trace = traceback.format_exc()
+            frappe.log_error(
+                message=f"Failed to sync Annual Payroll History for {getattr(self, 'name', 'unknown')}: {str(e)}\n{error_trace}",
+                title="Payroll Indonesia Annual History Sync Error"
+            )
 
     def on_cancel(self):
         """When slip is cancelled, remove related row from Annual Payroll History."""
@@ -293,5 +336,8 @@ class CustomSalarySlip(SalarySlip):
                 cancelled_salary_slip=self.name,
             )
         except Exception as e:
-            frappe.logger().error(f"Failed to remove from Annual Payroll History on cancel: {e}")
-            
+            error_trace = traceback.format_exc()
+            frappe.log_error(
+                message=f"Failed to remove from Annual Payroll History on cancel for {getattr(self, 'name', 'unknown')}: {str(e)}\n{error_trace}",
+                title="Payroll Indonesia Annual History Cancel Error"
+            )
