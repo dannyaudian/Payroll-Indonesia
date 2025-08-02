@@ -64,6 +64,12 @@
       "description": "pph21_annual - total pph21 Jan-Nov"
     },
     {
+      "fieldname": "error_state",
+      "fieldtype": "Small Text",
+      "label": "Error State",
+      "description": "Informasi error terakhir terkait proses slip gaji"
+    },
+    {
       "fieldname": "monthly_details",
       "fieldtype": "Table",
       "label": "Monthly Detail",
