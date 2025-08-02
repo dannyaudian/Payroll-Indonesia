@@ -238,8 +238,8 @@
   },
   {
     "doctype": "Custom Field",
-    "dt": "Bulk Salary Structure Assignment Employee",
-    "name": "Bulk Salary Structure Assignment Employee-meal_allowance",
+    "dt": "Bulk Salary Structure Assignment",
+    "name": "Bulk Salary Structure Assignment-meal_allowance",
     "fieldname": "meal_allowance",
     "label": "Uang Makan",
     "fieldtype": "Currency",
@@ -258,8 +258,8 @@
   },
   {
     "doctype": "Custom Field",
-    "dt": "Bulk Salary Structure Assignment Employee",
-    "name": "Bulk Salary Structure Assignment Employee-transport_allowance",
+    "dt": "Bulk Salary Structure Assignment",
+    "name": "Bulk Salary Structure Assignment-transport_allowance",
     "fieldname": "transport_allowance",
     "label": "Uang Transport",
     "fieldtype": "Currency",
