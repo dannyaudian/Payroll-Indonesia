@@ -158,7 +158,17 @@ class CustomSalarySlip(SalarySlip):
             self.tax_type = "TER"
 
             self.update_pph21_row(tax_amount)
-            self.sync_to_annual_payroll_history(result, mode="monthly")
+
+            if not getattr(self, "_annual_history_synced", False):
+                self._annual_history_synced = True
+                _sync_ok = False
+                try:
+                    self.sync_to_annual_payroll_history(result, mode="monthly")
+                    _sync_ok = True
+                finally:
+                    if not _sync_ok:
+                        self._annual_history_synced = False
+
             return tax_amount
             
         except frappe.ValidationError as ve:
@@ -213,7 +223,17 @@ class CustomSalarySlip(SalarySlip):
             self.tax_type = "DECEMBER"
 
             self.update_pph21_row(tax_amount)
-            self.sync_to_annual_payroll_history(result, mode="december")
+
+            if not getattr(self, "_annual_history_synced", False):
+                self._annual_history_synced = True
+                _sync_ok = False
+                try:
+                    self.sync_to_annual_payroll_history(result, mode="december")
+                    _sync_ok = True
+                finally:
+                    if not _sync_ok:
+                        self._annual_history_synced = False
+
             return tax_amount
             
         except frappe.ValidationError as ve:
@@ -516,10 +536,6 @@ class CustomSalarySlip(SalarySlip):
     # -------------------------
     def sync_to_annual_payroll_history(self, result, mode="monthly"):
         """Sync slip result to Annual Payroll History."""
-        # Prevent duplicate sync when validate() is called multiple times
-        if getattr(self, "_annual_history_synced", False):
-            return
-
         try:
             # Check if employee exists
             if not hasattr(self, "employee") or not self.employee:
@@ -622,7 +638,6 @@ class CustomSalarySlip(SalarySlip):
                     monthly_results=[monthly_result],
                     summary=summary,
                 )
-            self._annual_history_synced = True
         except frappe.ValidationError as ve:
             # Let validation errors propagate as they indicate data problems
             raise
