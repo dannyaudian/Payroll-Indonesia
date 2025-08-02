@@ -19,6 +19,13 @@
       "reqd": 1
     },
     {
+      "fieldname": "employee_name",
+      "fieldtype": "Data",
+      "label": "Employee Name",
+      "fetch_from": "employee.employee_name",
+      "read_only": 1
+    },
+    {
       "fieldname": "employee",
       "fieldtype": "Link",
       "label": "Employee",
