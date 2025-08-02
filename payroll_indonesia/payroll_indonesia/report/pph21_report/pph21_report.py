@@ -169,20 +169,44 @@ def get_salary_slips(filters):
     """
     conditions = get_conditions(filters)
     
+    # Dynamically include optional tax columns if they exist to avoid SQL errors
+    fields = [
+        "ss.name",
+        "ss.employee",
+        "ss.employee_name",
+        "ss.start_date",
+        "ss.end_date",
+        "ss.posting_date",
+        "ss.gross_pay",
+        "ss.total_deduction",
+        "ss.net_pay",
+        "ss.docstatus",
+        "ss.pph21_info",
+        "e.tax_status",
+    ]
+
+    if frappe.db.has_column("Salary Slip", "tax"):
+        fields.insert(9, "ss.tax")
+
+    if frappe.db.has_column("Salary Slip", "tax_type"):
+        fields.insert(10, "ss.tax_type")
+
+    select_fields = ", ".join(fields)
+
+    where_clause = "WHERE ss.docstatus = 1"
+    if conditions:
+        where_clause += f" AND {conditions}"
+
     salary_slips = frappe.db.sql(
-        """
-        SELECT ss.name, ss.employee, ss.employee_name, ss.start_date, ss.end_date,
-               ss.posting_date, ss.gross_pay, ss.total_deduction, ss.net_pay,
-               ss.tax, ss.tax_type, ss.docstatus, ss.pph21_info,
-               e.tax_status
+        f"""
+        SELECT {select_fields}
         FROM `tabSalary Slip` ss
         LEFT JOIN `tabEmployee` e ON ss.employee = e.name
-        WHERE ss.docstatus = 1 
-        AND {conditions}
+        {where_clause}
         ORDER BY ss.employee, ss.start_date
-        """.format(conditions=conditions),
+        """,
         filters,
-        as_dict=1
+        as_dict=1,
     )
     
     return salary_slips
@@ -234,7 +258,7 @@ def process_salary_slip(slip):
     netto = pph21_data.get("netto", 0)
     pkp = pph21_data.get("pkp", 0)
     tax_rate = pph21_data.get("rate", 0)
-    pph21 = pph21_data.get("pph21", slip.tax or 0)
+    pph21 = pph21_data.get("pph21") or slip.get("tax") or 0
     
     # Set the calculation method
     method = "TER"
