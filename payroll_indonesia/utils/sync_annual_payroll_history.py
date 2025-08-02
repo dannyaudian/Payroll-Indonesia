@@ -422,10 +422,10 @@ def sync_annual_payroll_history_for_bulan(
         if error_state is not None:
             history.set("error_state", frappe.as_json(error_state))
 
-        # Skip saving only when no changes occurred and no error state recorded
-        if rows_updated == 0 and rows_deleted == 0 and error_state is None:
+        # Skip saving only when no changes occurred, no summary provided, and no error state recorded
+        if rows_updated == 0 and rows_deleted == 0 and error_state is None and not summary:
             frappe.logger().info(
-                f"No rows updated or deleted in Annual Payroll History for {employee_name}, skipping save"
+                f"No rows updated, deleted, or summary provided in Annual Payroll History for {employee_name}, skipping save"
             )
             return None
 
