@@ -50,8 +50,14 @@ model_mod = types.ModuleType("frappe.model")
 document_mod = types.ModuleType("frappe.model.document")
 document_mod.Document = type("Document", (object,), {})
 model_mod.document = document_mod
+frappe.model = model_mod
 sys.modules.setdefault("frappe.model", model_mod)
 sys.modules.setdefault("frappe.model.document", document_mod)
+# Provide minimal implementation for frappe.model.naming.make_autoname used in tests
+naming_mod = types.ModuleType("frappe.model.naming")
+naming_mod.make_autoname = lambda value: value
+model_mod.naming = naming_mod
+sys.modules.setdefault("frappe.model.naming", naming_mod)
 payroll_entry_mod = types.ModuleType("hrms.payroll.doctype.payroll_entry.payroll_entry")
 payroll_entry_mod.PayrollEntry = type("PayrollEntry", (object,), {})
 sys.modules.setdefault("hrms.payroll.doctype.payroll_entry.payroll_entry", payroll_entry_mod)

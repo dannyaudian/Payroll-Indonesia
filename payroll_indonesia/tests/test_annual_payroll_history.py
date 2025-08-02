@@ -9,9 +9,20 @@ def test_get_or_create_creates(monkeypatch):
         get_or_create_annual_payroll_history,
     )
 
+    captured = {}
+
+    def fake_make_autoname(key):
+        captured["key"] = key
+        return f"AUTO-{key}"
+
+    monkeypatch.setattr(
+        "payroll_indonesia.utils.sync_annual_payroll_history.make_autoname",
+        fake_make_autoname,
+    )
+
     doc = get_or_create_annual_payroll_history("EMP001", "2024")
-    expected_name = "-".join(["EMP001", "2024"])
-    assert doc.name == expected_name
+    assert doc.name == "AUTO-EMP001-2024"
+    assert captured["key"] == "EMP001-2024"
     assert doc.fiscal_year == "2024"
 
 
@@ -24,8 +35,22 @@ def test_get_or_create_returns_existing(monkeypatch):
 
     expected_name = "-".join(["EMP001", "2024"])
     existing = types.SimpleNamespace(name=expected_name)
-    frappe.get_doc = lambda dt, name: existing
-    frappe.db.get_value = lambda dt, filters, field: expected_name
+    monkeypatch.setattr(frappe, "get_doc", lambda dt, name: existing)
+    monkeypatch.setattr(
+        frappe.db, "get_value", lambda dt, filters, field: expected_name
+    )
+
+    calls = {"count": 0}
+
+    def fake_make_autoname(key):
+        calls["count"] += 1
+        return key
+
+    monkeypatch.setattr(
+        "payroll_indonesia.utils.sync_annual_payroll_history.make_autoname",
+        fake_make_autoname,
+    )
 
     doc = get_or_create_annual_payroll_history("EMP001", "2024")
     assert doc is existing
+    assert calls["count"] == 0

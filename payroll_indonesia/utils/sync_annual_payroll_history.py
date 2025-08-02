@@ -9,6 +9,7 @@ except Exception:  # pragma: no cover - fallback for test stubs without cint
             return int(value)
         except Exception:
             return 0
+from frappe.model.naming import make_autoname
 
 
 def get_or_create_annual_payroll_history(employee_name, fiscal_year, create_if_missing=True):
@@ -35,10 +36,9 @@ def get_or_create_annual_payroll_history(employee_name, fiscal_year, create_if_m
     history.employee = employee_name
     history.fiscal_year = fiscal_year
 
-    # Set name ke kombinasi unik employee-fiscal_year jika skema doctype mendukung
-    # Catatan: Ini hanya akan berhasil jika Annual Payroll History DocType dikonfigurasi
-    # untuk menerima nama kustom (autoname: format:{employee}-{fiscal_year} atau prompt)
-    history.name = f"{employee_name}-{fiscal_year}"
+    # Gunakan utilitas penamaan Frappe untuk membuat nama unik berdasarkan pola yang diinginkan
+    # Depend pada konfigurasi DocType atau pola yang diberikan agar menghasilkan identifier valid
+    history.name = make_autoname(f"{employee_name}-{fiscal_year}")
     
     return history
 
