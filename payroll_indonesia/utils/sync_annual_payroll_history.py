@@ -163,11 +163,101 @@ def remove_monthly_detail_by_salary_slip(history, salary_slip):
     # Hapus dari belakang supaya index tidak bergeser
     for i in reversed(to_remove):
         history.monthly_details.pop(i)
-        
+
     return len(to_remove)
 
 
 def sync_annual_payroll_history(
+    employee,
+    fiscal_year,
+    monthly_results=None,
+    summary=None,
+    cancelled_salary_slip=None,
+    error_state=None,
+):
+    """Sync Annual Payroll History for one or more months.
+
+    Iterasi setiap entri ``monthly_results`` berdasarkan field ``bulan`` dan
+    delegasikan ke :func:`sync_annual_payroll_history_for_month`.
+
+    Fungsi lama dengan parameter ``month`` tetap tersedia sebagai
+    :func:`sync_annual_payroll_history_for_month` untuk kompatibilitas
+    sementara."""
+
+    monthly_results = monthly_results or []
+    last_doc = None
+
+    # Proses setiap hasil bulanan secara terpisah agar fungsi lama dapat
+    # melakukan validasi dan penyimpanan seperti sebelumnya.
+    for idx, row in enumerate(monthly_results):
+        month = row.get("bulan")
+        is_last = idx == len(monthly_results) - 1
+        last_doc = sync_annual_payroll_history_for_month(
+            employee=employee,
+            fiscal_year=fiscal_year,
+            month=month,
+            monthly_results=[row],
+            summary=summary if is_last else None,
+            cancelled_salary_slip=None,
+            error_state=error_state if is_last else None,
+        )
+
+    # Jika tidak ada monthly_results, tetap panggil fungsi lama untuk
+    # menangani summary/cancel/error_state.
+    if not monthly_results or cancelled_salary_slip:
+        last_doc = sync_annual_payroll_history_for_month(
+            employee=employee,
+            fiscal_year=fiscal_year,
+            month=None,
+            monthly_results=None,
+            summary=summary if not monthly_results else None,
+            cancelled_salary_slip=cancelled_salary_slip,
+            error_state=error_state if not monthly_results else None,
+        )
+
+    return last_doc
+
+
+def sync_annual_payroll_history_legacy(
+    employee,
+    fiscal_year,
+    month,
+    monthly_results=None,
+    summary=None,
+    cancelled_salary_slip=None,
+    error_state=None,
+):
+    """Wrapper untuk kompatibilitas lama yang menerima parameter ``month``.
+
+    Gunakan :func:`sync_annual_payroll_history` tanpa parameter ``month``
+    untuk implementasi baru."""
+
+    if monthly_results:
+        enriched = []
+        for row in monthly_results:
+            if "bulan" not in row:
+                row = dict(row)
+                row["bulan"] = month
+            enriched.append(row)
+        monthly_results = enriched
+    elif month is not None:
+        monthly_results = [{"bulan": month}]
+
+    return sync_annual_payroll_history(
+        employee=employee,
+        fiscal_year=fiscal_year,
+        monthly_results=monthly_results,
+        summary=summary,
+        cancelled_salary_slip=cancelled_salary_slip,
+        error_state=error_state,
+    )
+
+# Alias for backward compatibility
+sync_annual_payroll_history_with_month = sync_annual_payroll_history_legacy
+
+
+
+def sync_annual_payroll_history_for_month(
     employee,
     fiscal_year,
     month,

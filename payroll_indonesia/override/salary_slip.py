@@ -594,7 +594,6 @@ class CustomSalarySlip(SalarySlip):
                 docname = sync_annual_payroll_history.sync_annual_payroll_history(
                     employee=employee_doc,
                     fiscal_year=fiscal_year,
-                    month=month_number,
                     monthly_results=[monthly_result],
                     summary=None,
                 )
@@ -613,7 +612,6 @@ class CustomSalarySlip(SalarySlip):
                 docname = sync_annual_payroll_history.sync_annual_payroll_history(
                     employee=employee_doc,
                     fiscal_year=fiscal_year,
-                    month=month_number,
                     monthly_results=[monthly_result],
                     summary=summary,
                 )
@@ -677,7 +675,6 @@ class CustomSalarySlip(SalarySlip):
             sync_annual_payroll_history.sync_annual_payroll_history(
                 employee=employee_doc,
                 fiscal_year=fiscal_year,
-                month=month_number,
                 monthly_results=None,
                 summary=None,
                 cancelled_salary_slip=self.name,

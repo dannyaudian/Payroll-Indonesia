@@ -59,7 +59,6 @@ def test_sync_error_state_forces_save(monkeypatch):
     result = sync_mod.sync_annual_payroll_history(
         employee={"name": "EMP1"},
         fiscal_year="2024",
-        month=5,
         error_state={"detail": "failure"},
     )
 
