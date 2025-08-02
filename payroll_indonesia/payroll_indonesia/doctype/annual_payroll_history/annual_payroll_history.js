@@ -32,20 +32,16 @@ frappe.ui.form.on('Annual Payroll History Child', {
 });
 
 function calculate_totals(frm) {
-    let bruto = 0, pengurang_netto = 0, biaya_jabatan = 0, netto = 0, pkp = 0, pph21 = 0;
+    let bruto = 0, netto = 0, pkp = 0, pph21 = 0;
     $.each(frm.doc.monthly_details || [], function(i, row) {
         bruto += flt(row.bruto);
-        pengurang_netto += flt(row.pengurang_netto);
-        biaya_jabatan += flt(row.biaya_jabatan);
         netto += flt(row.netto);
         pkp += flt(row.pkp);
         pph21 += flt(row.pph21);
     });
-    frm.set_value('total_bruto', bruto);
-    frm.set_value('total_pengurang_netto', pengurang_netto);
-    frm.set_value('total_biaya_jabatan', biaya_jabatan);
-    frm.set_value('total_netto', netto);
-    frm.set_value('total_pkp', pkp);
-    frm.set_value('total_pph21', pph21);
-    frm.refresh_fields(['total_bruto', 'total_pengurang_netto', 'total_biaya_jabatan', 'total_netto', 'total_pkp', 'total_pph21']);
+    frm.set_value('bruto_total', bruto);
+    frm.set_value('netto_total', netto);
+    frm.set_value('pkp_annual', pkp);
+    frm.set_value('pph21_annual', pph21);
+    frm.refresh_fields(['bruto_total', 'netto_total', 'pkp_annual', 'pph21_annual']);
 }
