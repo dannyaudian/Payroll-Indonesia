@@ -175,6 +175,7 @@ def sync_annual_payroll_history(
     monthly_results=None,
     summary=None,
     cancelled_salary_slip=None,
+    error_state=None,
 ):
     """
     Sinkronisasi data hasil kalkulasi PPh21 TER ke Annual Payroll History dan child-nya.
@@ -197,6 +198,7 @@ def sync_annual_payroll_history(
         summary: dict, optional, berisi field parent seperti:
             - bruto_total, netto_total, ptkp_annual, pkp_annual, pph21_annual, koreksi_pph21
         cancelled_salary_slip: str, optional, jika ingin menghapus baris berdasarkan salary_slip
+        error_state: optional, struktur untuk menyimpan informasi error secara persisten
 
     Returns:
         str: Nama dokumen Annual Payroll History yang diupdate/dibuat, atau None jika gagal
@@ -293,8 +295,12 @@ def sync_annual_payroll_history(
                 if upsert_monthly_detail(history, row):
                     rows_updated += 1
                     
-        # Skip saving if no rows were actually updated or deleted
-        if rows_updated == 0 and rows_deleted == 0:
+        # Persist provided error state for auditing
+        if error_state is not None:
+            history.set("error_state", frappe.as_json(error_state))
+
+        # Skip saving only when no changes occurred and no error state recorded
+        if rows_updated == 0 and rows_deleted == 0 and error_state is None:
             frappe.logger().info(
                 f"No rows updated or deleted in Annual Payroll History for {employee_name}, skipping save"
             )
