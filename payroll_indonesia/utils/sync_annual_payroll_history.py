@@ -36,7 +36,7 @@ def get_or_create_annual_payroll_history(employee_name, fiscal_year, create_if_m
 
     # Set name ke kombinasi unik employee-fiscal_year jika skema doctype mendukung
     # Catatan: Ini hanya akan berhasil jika Annual Payroll History DocType dikonfigurasi
-    # untuk menerima nama kustom (autoname: field:employee-field:fiscal_year atau prompt)
+    # untuk menerima nama kustom (autoname: format:{employee}-{fiscal_year} atau prompt)
     history.name = f"{employee_name}-{fiscal_year}"
     
     return history

@@ -9,7 +9,7 @@
   "is_creatable": 1,
   "show_in_module_section": 1,
   "route": "annual-payroll-history",
-  "autoname": "field:employee-field:fiscal_year",
+  "autoname": "format:{employee}-{fiscal_year}",
   "fields": [
     {
       "fieldname": "fiscal_year",
