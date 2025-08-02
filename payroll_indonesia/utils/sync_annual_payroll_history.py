@@ -132,13 +132,35 @@ def upsert_monthly_detail(history, month_data):
     if found:
         # Update existing record
         for k, v in month_data.items():
-            if k in ["bulan", "bruto", "pengurang_netto", "biaya_jabatan", "netto", "pkp", "rate", "pph21", "salary_slip"]:
+            if k in [
+                "bulan",
+                "bruto",
+                "pengurang_netto",
+                "biaya_jabatan",
+                "netto",
+                "pkp",
+                "rate",
+                "pph21",
+                "salary_slip",
+                "error_state",
+            ]:
                 found.set(k, v)
     else:
         # Create new record
         detail = history.append("monthly_details", {})
         for k, v in month_data.items():
-            if k in ["bulan", "bruto", "pengurang_netto", "biaya_jabatan", "netto", "pkp", "rate", "pph21", "salary_slip"]:
+            if k in [
+                "bulan",
+                "bruto",
+                "pengurang_netto",
+                "biaya_jabatan",
+                "netto",
+                "pkp",
+                "rate",
+                "pph21",
+                "salary_slip",
+                "error_state",
+            ]:
                 detail.set(k, v)
                 
     return True
