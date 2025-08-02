@@ -15,7 +15,8 @@ from typing import Callable, Dict, List, Any, Optional, Tuple
 from payroll_indonesia.override.salary_slip import CustomSalarySlip
 from payroll_indonesia.config import get_value
 
-# Setup global logger for consistent logging
+# Setup global logger for consistent logging.
+# This logs to logs/payroll_indonesia.log via the site's configured loggers.
 logger = frappe.logger("payroll_indonesia")
 
 class CustomPayrollEntry(PayrollEntry):

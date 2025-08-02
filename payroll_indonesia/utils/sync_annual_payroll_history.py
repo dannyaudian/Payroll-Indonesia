@@ -193,10 +193,22 @@ def sync_annual_payroll_history(employee, fiscal_year, monthly_results=None, sum
                 f"for employee '{employee_name}', fiscal year {fiscal_year} "
                 f"at {frappe.utils.now()}"
             )
-            # Salary Slip is unsaved during validate, so ignore link checks
-            # or move this sync to a post-insert hook
-            history.save(ignore_permissions=True, ignore_links=True)
+
+            # Alternatif pendekatan 1: Gunakan flags untuk mengabaikan validasi link
+            history.flags.ignore_links = True
+            history.save(ignore_permissions=True)
             return history.name
+        except frappe.LinkValidationError as e:
+            # Jika masih terjadi link validation error, coba simpan dengan opsi berbeda
+            frappe.logger().warning(
+                f"Link validation error when saving Annual Payroll History for {employee_name}. "
+                f"Error: {str(e)}"
+            )
+            frappe.throw(
+                f"Gagal menyimpan Annual Payroll History: Referensi link tidak valid. "
+                f"Kemungkinan Salary Slip belum tersimpan."
+            )
+
         except Exception as e:
             frappe.log_error(
                 message=f"Failed to save Annual Payroll History: {str(e)}",
