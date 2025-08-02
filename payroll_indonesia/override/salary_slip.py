@@ -36,8 +36,8 @@ except Exception:  # pragma: no cover - fallback for test stubs without getdate
 from frappe.utils.safe_exec import safe_eval
 
 # Import tax calculation functions directly (better pattern to avoid circular imports)
-from payroll_indonesia.payroll_indonesia.pph21_ter import calculate_pph21_TER
-from payroll_indonesia.payroll_indonesia.pph21_ter_december import calculate_pph21_december
+from payroll_indonesia.config.pph21_ter import calculate_pph21_TER
+from payroll_indonesia.config.pph21_ter_december import calculate_pph21_december
 # Import utils module so tests can monkeypatch its sync function easily
 from payroll_indonesia.utils import sync_annual_payroll_history
 from payroll_indonesia import _patch_salary_slip_globals
