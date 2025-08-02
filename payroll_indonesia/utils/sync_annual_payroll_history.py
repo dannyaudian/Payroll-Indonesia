@@ -1,5 +1,6 @@
 import frappe
 import re
+import json
 try:
     from frappe.utils import cint
 except Exception:  # pragma: no cover - fallback for test stubs without cint
@@ -166,22 +167,37 @@ def upsert_monthly_detail(history, month_data):
     return True
 
 
-def remove_monthly_detail_by_salary_slip(history, salary_slip):
+def remove_monthly_detail_by_salary_slip(history, salary_slip, error_state=None):
     """
-    Hapus baris child monthly_details berdasarkan nomor salary_slip.
-    Biasanya dipakai saat slip gaji dicancel.
-    
+    Hapus baris child ``monthly_details`` berdasarkan ``salary_slip``.
+    Bila ``error_state`` diberikan, baris tidak dihapus melainkan kolom
+    ``error_state`` pada detail diisi dengan JSON dari struktur yang
+    diberikan.
+
+    Args:
+        history: Dokumen Annual Payroll History.
+        salary_slip: Nama Salary Slip yang menjadi acuan.
+        error_state: Optional, struktur error yang ingin disimpan.
+
     Returns:
-        int: Jumlah baris yang dihapus
+        int: Jumlah baris yang dihapus.
     """
     if not salary_slip:
         return 0
-    
+
+    # Jika error_state diberikan, cari detail dan simpan error_state tanpa menghapus
+    if error_state is not None:
+        for detail in history.get("monthly_details", []):
+            if detail.salary_slip == salary_slip:
+                detail.error_state = json.dumps(error_state)
+                break
+        return 0
+
     to_remove = []
     for i, detail in enumerate(history.get("monthly_details", [])):
         if detail.salary_slip == salary_slip:
             to_remove.append(i)
-    
+
     # Hapus dari belakang supaya index tidak bergeser
     for i in reversed(to_remove):
         history.monthly_details.pop(i)
@@ -384,7 +400,9 @@ def sync_annual_payroll_history_for_bulan(
 
         # Process cancellations first
         if cancelled_salary_slip:
-            rows_deleted = remove_monthly_detail_by_salary_slip(history, cancelled_salary_slip)
+            rows_deleted = remove_monthly_detail_by_salary_slip(
+                history, cancelled_salary_slip, error_state=error_state
+            )
             if rows_deleted:
                 frappe.logger().info(
                     f"Removed {rows_deleted} entries for cancelled Salary Slip {cancelled_salary_slip}"
