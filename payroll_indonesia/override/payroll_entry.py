@@ -198,7 +198,7 @@ class CustomPayrollEntry(PayrollEntry):
             return []
             
         logger.info(f"Processing {len(slips)} salary slips for payroll entry {self.name}")
-        processed_slips = []
+        processed_slips: List[str] = []
         invalid_slips = []
         
         # Check if salary_slips child table exists before processing
