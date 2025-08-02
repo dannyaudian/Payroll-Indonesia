@@ -1,6 +1,13 @@
 import frappe
 import re
-from frappe.utils import cint
+try:
+    from frappe.utils import cint
+except Exception:  # pragma: no cover - fallback for test stubs without cint
+    def cint(value):
+        try:
+            return int(value)
+        except Exception:
+            return 0
 
 
 def get_or_create_annual_payroll_history(employee_name, fiscal_year, month, create_if_missing=True):

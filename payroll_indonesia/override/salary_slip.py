@@ -206,7 +206,6 @@ class CustomSalarySlip(SalarySlip):
             self.tax_type = "TER"
 
             self.update_pph21_row(tax_amount)
-            self.sync_to_annual_payroll_history(result, mode="monthly")
             return tax_amount
             
         except frappe.ValidationError as ve:
@@ -261,7 +260,6 @@ class CustomSalarySlip(SalarySlip):
             self.tax_type = "DECEMBER"
 
             self.update_pph21_row(tax_amount)
-            self.sync_to_annual_payroll_history(result, mode="december")
             return tax_amount
             
         except frappe.ValidationError as ve:
@@ -591,8 +589,9 @@ class CustomSalarySlip(SalarySlip):
                 "salary_slip": self.name,
             }
 
+            docname = None
             if mode == "monthly":
-                sync_annual_payroll_history.sync_annual_payroll_history(
+                docname = sync_annual_payroll_history.sync_annual_payroll_history(
                     employee=employee_doc,
                     fiscal_year=fiscal_year,
                     month=month_number,
@@ -611,14 +610,15 @@ class CustomSalarySlip(SalarySlip):
                 # Preserve slab string separately for reporting if available
                 if isinstance(raw_rate, str) and raw_rate:
                     summary["rate_slab"] = raw_rate
-                sync_annual_payroll_history.sync_annual_payroll_history(
+                docname = sync_annual_payroll_history.sync_annual_payroll_history(
                     employee=employee_doc,
                     fiscal_year=fiscal_year,
                     month=month_number,
                     monthly_results=[monthly_result],
                     summary=summary,
                 )
-            self._annual_history_synced = True
+            if docname:
+                self._annual_history_synced = True
         except frappe.ValidationError as ve:
             # Let validation errors propagate as they indicate data problems
             raise
@@ -630,7 +630,16 @@ class CustomSalarySlip(SalarySlip):
             )
             # History sync failures shouldn't stop slip creation, so we log but don't raise
             logger.warning(f"Annual Payroll History sync failed for {self.name}: {str(e)}")
-            
+
+    def on_submit(self):
+        """Sync Annual Payroll History after the Salary Slip is submitted."""
+        try:
+            info = json.loads(getattr(self, "pph21_info", "{}") or "{}")
+        except Exception:
+            info = {}
+        mode = "december" if getattr(self, "tax_type", "") == "DECEMBER" else "monthly"
+        self.sync_to_annual_payroll_history(info, mode=mode)
+
     def on_cancel(self):
         """When slip is cancelled, remove related row from Annual Payroll History."""
         try:
