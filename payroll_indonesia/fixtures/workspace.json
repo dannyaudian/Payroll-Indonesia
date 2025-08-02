@@ -36,7 +36,7 @@
       "links": [
         {
           "label": "Employee",
-          "link_to": "Employee", 
+          "link_to": "Employee",
           "type": "DocType"
         },
         {
@@ -130,23 +130,13 @@
           "type": "Report"
         },
         {
-          "label": "Tax Report",
+          "label": "PPh21 Report",
           "link_to": "PPh21 Report",
           "type": "Report"
         },
         {
           "label": "BPJS Report",
           "link_to": "BPJS Report",
-          "type": "Report"
-        }
-      ]
-    },
-    {
-      "label": "Deduction Reports",
-      "links": [
-        {
-          "label": "Employee Deduction Summary",
-          "link_to": "Employee Deduction Summary",
           "type": "Report"
         }
       ]
