@@ -1,8 +1,8 @@
 import frappe
 
 
-def get_or_create_annual_payroll_history(employee_name, fiscal_year, create_if_missing=True):
-    """Ambil doc Annual Payroll History berdasarkan employee dan fiscal_year.
+def get_or_create_annual_payroll_history(employee_name, fiscal_year, month, create_if_missing=True):
+    """Ambil doc Annual Payroll History berdasarkan employee, fiscal_year, dan month.
 
     Jika tidak ada dan ``create_if_missing`` bernilai ``True`` akan membuat doc baru.
     Bila ``create_if_missing`` ``False`` dan dokumen tidak ditemukan, kembalikan ``None``.
@@ -10,7 +10,7 @@ def get_or_create_annual_payroll_history(employee_name, fiscal_year, create_if_m
     # Menggunakan frappe.db.exists untuk pengecekan cepat keberadaan dokumen
     doc_name = frappe.db.get_value(
         "Annual Payroll History",
-        {"employee": employee_name, "fiscal_year": fiscal_year},
+        {"employee": employee_name, "fiscal_year": fiscal_year, "month": month},
         "name"
     )
     
@@ -24,11 +24,12 @@ def get_or_create_annual_payroll_history(employee_name, fiscal_year, create_if_m
     history = frappe.new_doc("Annual Payroll History")
     history.employee = employee_name
     history.fiscal_year = fiscal_year
-    
-    # Set name ke kombinasi unik employee-fiscal_year jika skema doctype mendukung
+    history.month = month
+
+    # Set name ke kombinasi unik employee-month jika skema doctype mendukung
     # Catatan: Ini hanya akan berhasil jika Annual Payroll History DocType dikonfigurasi
-    # untuk menerima nama kustom (autoname: field:employee-field:fiscal_year atau prompt)
-    history.name = f"{employee_name}-{fiscal_year}"
+    # untuk menerima nama kustom (autoname: field:employee-field:month atau prompt)
+    history.name = f"{employee_name}-{month}"
     
     return history
 
@@ -95,10 +96,17 @@ def remove_monthly_detail_by_salary_slip(history, salary_slip):
     for i in reversed(to_remove):
         history.monthly_details.pop(i)
 
-def sync_annual_payroll_history(employee, fiscal_year, monthly_results=None, summary=None, cancelled_salary_slip=None):
+def sync_annual_payroll_history(
+    employee,
+    fiscal_year,
+    month,
+    monthly_results=None,
+    summary=None,
+    cancelled_salary_slip=None,
+):
     """
     Sinkronisasi data hasil kalkulasi PPh21 TER ke Annual Payroll History dan child-nya.
-    - Jika dokumen sudah ada untuk employee & fiscal_year, update.
+    - Jika dokumen sudah ada untuk employee & fiscal_year & month, update.
     - Jika belum ada, create baru.
     - Jika salary_slip dicancel, hapus baris terkait pada child.
     - Fungsi ini tidak melakukan ``frappe.db.commit``; transaksi ditangani oleh pemanggil.
@@ -106,6 +114,7 @@ def sync_annual_payroll_history(employee, fiscal_year, monthly_results=None, sum
     Args:
         employee: dict/obj Employee (harus ada `name`)
         fiscal_year: str (misal "2025")
+        month: int (1-12)
         monthly_results: list of dict, masing-masing dict punya keys:
             - bulan, bruto, pengurang_netto, biaya_jabatan, netto, pkp, rate, pph21, salary_slip
         summary: dict, optional, berisi field parent seperti:
@@ -142,10 +151,10 @@ def sync_annual_payroll_history(employee, fiscal_year, monthly_results=None, sum
             return
 
     only_cancel = cancelled_salary_slip and not monthly_results and not summary
-    
+
     try:
         history = get_or_create_annual_payroll_history(
-            employee_name, fiscal_year, create_if_missing=not only_cancel
+            employee_name, fiscal_year, month, create_if_missing=not only_cancel
         )
 
         if not history:
@@ -190,7 +199,7 @@ def sync_annual_payroll_history(employee, fiscal_year, monthly_results=None, sum
             # Log untuk debug
             frappe.logger().debug(
                 f"[{frappe.session.user}] Saving Annual Payroll History '{history.name}' "
-                f"for employee '{employee_name}', fiscal year {fiscal_year} "
+                f"for employee '{employee_name}', fiscal year {fiscal_year}, month {month} "
                 f"at {frappe.utils.now()}"
             )
 

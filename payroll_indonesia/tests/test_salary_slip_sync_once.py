@@ -20,7 +20,7 @@ def test_salary_slip_validate_submit_sync_once(monkeypatch):
         def error(self, msg):
             pass
 
-    frappe.logger = lambda: DummyLogger()
+    frappe.logger = lambda *a, **k: DummyLogger()
     frappe.get_doc = lambda *args, **kwargs: {}
     frappe.throw = lambda *args, **kwargs: None
     frappe.ValidationError = type("ValidationError", (Exception,), {})
