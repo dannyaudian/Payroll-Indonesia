@@ -108,7 +108,7 @@ def upsert_monthly_detail(history, month_data):
     Returns:
         bool: True jika berhasil ditambah/diupdate, False jika dilewati karena invalid
     """
-    month = month_data.get("bulan")
+    bulan = month_data.get("bulan")
     salary_slip = month_data.get("salary_slip")
     
     # Validasi salary slip jika ada
@@ -123,9 +123,9 @@ def upsert_monthly_detail(history, month_data):
     # Cari child yang sama (by bulan atau salary_slip)
     found = None
     for detail in history.get("monthly_details", []):
-        # Match by exact salary slip match or (month match and no conflicting salary slip)
+        # Match by exact salary slip match or (bulan match and no conflicting salary slip)
         if (salary_slip and detail.salary_slip == salary_slip) or \
-           (month and detail.bulan == month and (not salary_slip or not detail.salary_slip)):
+           (bulan and detail.bulan == bulan and (not salary_slip or not detail.salary_slip)):
             found = detail
             break
             
@@ -175,13 +175,13 @@ def sync_annual_payroll_history(
     cancelled_salary_slip=None,
     error_state=None,
 ):
-    """Sync Annual Payroll History for one or more months.
+    """Sync Annual Payroll History untuk satu atau lebih bulan.
 
     Iterasi setiap entri ``monthly_results`` berdasarkan field ``bulan`` dan
-    delegasikan ke :func:`sync_annual_payroll_history_for_month`.
+    delegasikan ke :func:`sync_annual_payroll_history_for_bulan`.
 
-    Fungsi lama dengan parameter ``month`` tetap tersedia sebagai
-    :func:`sync_annual_payroll_history_for_month` untuk kompatibilitas
+    Fungsi lama dengan parameter ``bulan`` tetap tersedia sebagai
+    :func:`sync_annual_payroll_history_for_bulan` untuk kompatibilitas
     sementara."""
 
     monthly_results = monthly_results or []
@@ -190,12 +190,12 @@ def sync_annual_payroll_history(
     # Proses setiap hasil bulanan secara terpisah agar fungsi lama dapat
     # melakukan validasi dan penyimpanan seperti sebelumnya.
     for idx, row in enumerate(monthly_results):
-        month = row.get("bulan")
+        bulan = row.get("bulan")
         is_last = idx == len(monthly_results) - 1
-        last_doc = sync_annual_payroll_history_for_month(
+        last_doc = sync_annual_payroll_history_for_bulan(
             employee=employee,
             fiscal_year=fiscal_year,
-            month=month,
+            bulan=bulan,
             monthly_results=[row],
             summary=summary if is_last else None,
             cancelled_salary_slip=None,
@@ -205,10 +205,10 @@ def sync_annual_payroll_history(
     # Jika tidak ada monthly_results, tetap panggil fungsi lama untuk
     # menangani summary/cancel/error_state.
     if not monthly_results or cancelled_salary_slip:
-        last_doc = sync_annual_payroll_history_for_month(
+        last_doc = sync_annual_payroll_history_for_bulan(
             employee=employee,
             fiscal_year=fiscal_year,
-            month=None,
+            bulan=None,
             monthly_results=None,
             summary=summary if not monthly_results else None,
             cancelled_salary_slip=cancelled_salary_slip,
@@ -221,27 +221,24 @@ def sync_annual_payroll_history(
 def sync_annual_payroll_history_legacy(
     employee,
     fiscal_year,
-    month,
+    bulan,
     monthly_results=None,
     summary=None,
     cancelled_salary_slip=None,
     error_state=None,
 ):
-    """Wrapper untuk kompatibilitas lama yang menerima parameter ``month``.
-
-    Gunakan :func:`sync_annual_payroll_history` tanpa parameter ``month``
-    untuk implementasi baru."""
+    """Wrapper untuk kompatibilitas lama yang menerima parameter ``bulan``."""
 
     if monthly_results:
         enriched = []
         for row in monthly_results:
             if "bulan" not in row:
                 row = dict(row)
-                row["bulan"] = month
+                row["bulan"] = bulan
             enriched.append(row)
         monthly_results = enriched
-    elif month is not None:
-        monthly_results = [{"bulan": month}]
+    elif bulan is not None:
+        monthly_results = [{"bulan": bulan}]
 
     return sync_annual_payroll_history(
         employee=employee,
@@ -252,15 +249,12 @@ def sync_annual_payroll_history_legacy(
         error_state=error_state,
     )
 
-# Alias for backward compatibility
-sync_annual_payroll_history_with_month = sync_annual_payroll_history_legacy
 
 
-
-def sync_annual_payroll_history_for_month(
+def sync_annual_payroll_history_for_bulan(
     employee,
     fiscal_year,
-    month,
+    bulan,
     monthly_results=None,
     summary=None,
     cancelled_salary_slip=None,
@@ -281,7 +275,7 @@ def sync_annual_payroll_history_for_month(
     Args:
         employee: dict/obj Employee (harus ada `name`)
         fiscal_year: str (misal "2025")
-        month: int (1-12)
+        bulan: int (1-12)
         monthly_results: list of dict, masing-masing dict punya keys:
             - bulan, bruto, pengurang_netto, biaya_jabatan, netto, pkp, rate, pph21, salary_slip
         summary: dict, optional, berisi field parent seperti:
@@ -307,14 +301,14 @@ def sync_annual_payroll_history_for_month(
     if not fiscal_year or not isinstance(fiscal_year, str):
         frappe.throw("Fiscal year harus berupa string valid", title="Validation Error")
         
-    # Validate month
-    if month is not None:
+    # Validate bulan
+    if bulan is not None:
         try:
-            month = cint(month)
-            if month < 0 or month > 12:
-                frappe.throw(f"Month '{month}' harus 0-12", title="Validation Error")
+            bulan = cint(bulan)
+            if bulan < 0 or bulan > 12:
+                frappe.throw(f"Bulan '{bulan}' harus 0-12", title="Validation Error")
         except (ValueError, TypeError):
-            frappe.throw(f"Month '{month}' harus berupa integer", title="Validation Error")
+            frappe.throw(f"Bulan '{bulan}' harus berupa integer", title="Validation Error")
 
     # Check for invalid salary slips in monthly_results
     if monthly_results:
@@ -347,7 +341,7 @@ def sync_annual_payroll_history_for_month(
     only_cancel = cancelled_salary_slip and not monthly_results and not summary
 
     # Create a transaction savepoint to allow rollback if needed
-    savepoint_name = f"annual_history_sync_{employee_name}_{fiscal_year}_{month}"
+    savepoint_name = f"annual_history_sync_{employee_name}_{fiscal_year}_{bulan}"
     frappe.db.savepoint(savepoint_name)
 
     try:
@@ -417,7 +411,7 @@ def sync_annual_payroll_history_for_month(
             # Log detailed debug info
             frappe.logger().debug(
                 f"[{frappe.session.user}] Saving Annual Payroll History '{history.name}' "
-                f"for employee '{employee_name}', fiscal year {fiscal_year}, month {month} "
+                f"for employee '{employee_name}', fiscal year {fiscal_year}, bulan {bulan} "
                 f"with {rows_updated} rows updated and {rows_deleted} rows deleted "
                 f"at {frappe.utils.now()}"
             )

@@ -139,7 +139,7 @@ def calculate_pph21_progressive_year(employee, salary_slips, pph21_paid_jan_nov=
             'pkp_annual': float,
             'rate': str,       # range progresif
             'pph21_annual': float,
-            'pph21_month': float,
+            'pph21_bulan': float,
             'income_tax_deduction_total': float,
             'biaya_jabatan_total': float,
             'koreksi_pph21': float,
@@ -160,7 +160,7 @@ def calculate_pph21_progressive_year(employee, salary_slips, pph21_paid_jan_nov=
             "pkp_annual": 0.0,
             "rate": "",
             "pph21_annual": 0.0,
-            "pph21_month": 0.0,
+            "pph21_bulan": 0.0,
             "income_tax_deduction_total": 0.0,
             "biaya_jabatan_total": 0.0,
             "koreksi_pph21": 0.0,
@@ -196,9 +196,9 @@ def calculate_pph21_progressive_year(employee, salary_slips, pph21_paid_jan_nov=
     # 5. Pajak bulan Desember/final
     koreksi_pph21 = pph21_annual - pph21_paid_jan_nov
     if koreksi_pph21 > 0:
-        pph21_month = koreksi_pph21
+        pph21_bulan = koreksi_pph21
     else:
-        pph21_month = 0
+        pph21_bulan = 0
 
     # 6. Rate info (for audit only)
     rates = "/".join([f"{rate}%" for _, rate in get_tax_slabs()])
@@ -210,7 +210,7 @@ def calculate_pph21_progressive_year(employee, salary_slips, pph21_paid_jan_nov=
         "pkp_annual": pkp_annual,
         "rate": rates,
         "pph21_annual": pph21_annual,
-        "pph21_month": pph21_month,
+        "pph21_bulan": pph21_bulan,
         "income_tax_deduction_total": income_tax_deduction_total,
         "biaya_jabatan_total": biaya_jabatan_total,
         "koreksi_pph21": koreksi_pph21,

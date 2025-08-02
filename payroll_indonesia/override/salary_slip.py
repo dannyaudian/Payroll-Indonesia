@@ -55,31 +55,31 @@ class CustomSalarySlip(SalarySlip):
     # -------------------------
     # Helper methods
     # -------------------------
-    def _get_month_number(self, start_date=None, month_name=None):
+    def _get_bulan_number(self, start_date=None, nama_bulan=None):
         """
-        Extract month number from either a date or month name string.
-        
+        Ambil nomor bulan dari tanggal atau nama bulan.
+
         Args:
-            start_date: A date string in YYYY-MM-DD format or None
-            month_name: A string containing month name (e.g., 'January', 'Jan', 'Januari') or None
-            
+            start_date: String tanggal YYYY-MM-DD atau None
+            nama_bulan: Nama bulan (misal 'January', 'Jan', 'Januari') atau None
+
         Returns:
-            int: Month number (1-12) or current month if neither parameter yields a valid month
+            int: Nomor bulan (1-12) atau bulan saat ini jika keduanya tidak valid
         """
-        month = None
-        
-        # Try to get month from start_date first
+        bulan = None
+
+        # Coba dapatkan bulan dari start_date terlebih dahulu
         if start_date:
             try:
-                month = getdate(start_date).month
+                bulan = getdate(start_date).month
             except Exception:
-                # Log the exception for debugging but continue with fallbacks
-                logger.debug(f"Failed to extract month from date: {start_date}")
+                # Log kesalahan untuk debug tetapi lanjutkan ke fallback
+                logger.debug(f"Gagal mengambil bulan dari tanggal: {start_date}")
                 pass
-        
-        # If month is still None, try to get it from month_name
-        if not month and month_name:
-            month_map = {
+
+        # Jika masih None, coba dari nama_bulan
+        if not bulan and nama_bulan:
+            peta_bulan = {
                 "january": 1, "jan": 1, "januari": 1,
                 "february": 2, "feb": 2, "februari": 2,
                 "march": 3, "mar": 3, "maret": 3,
@@ -92,15 +92,15 @@ class CustomSalarySlip(SalarySlip):
                 "november": 11, "nov": 11,
                 "december": 12, "dec": 12, "desember": 12,
             }
-            month = month_map.get(str(month_name).strip().lower())
-            
-        # If we still don't have a month, default to current month
-        if not month:
+            bulan = peta_bulan.get(str(nama_bulan).strip().lower())
+
+        # Jika masih belum ada, gunakan bulan berjalan
+        if not bulan:
             from datetime import datetime
-            month = datetime.now().month
-            logger.debug(f"Using current month ({month}) as fallback")
-            
-        return month
+            bulan = datetime.now().month
+            logger.debug(f"Menggunakan bulan saat ini ({bulan}) sebagai fallback")
+
+        return bulan
 
     def get_employee_doc(self):
         """Helper: get employee doc/dict from self.employee (id, dict, or object)."""
@@ -179,10 +179,10 @@ class CustomSalarySlip(SalarySlip):
             
             employee_doc = self.get_employee_doc()
             
-            # Get month number using the helper method
-            month = self._get_month_number(
+            # Ambil nomor bulan menggunakan helper
+            bulan = self._get_bulan_number(
                 start_date=getattr(self, "start_date", None),
-                month_name=getattr(self, "month", None) or getattr(self, "bulan", None)
+                nama_bulan=getattr(self, "bulan", None)
             )
             
             # Calculate taxable income
@@ -193,7 +193,7 @@ class CustomSalarySlip(SalarySlip):
                 taxable_income=taxable_income,
                 employee=employee_doc,
                 company=self.company,
-                month=month
+                bulan=bulan
             )
             
             tax_amount = flt(result.get("pph21", 0.0))
@@ -235,7 +235,7 @@ class CustomSalarySlip(SalarySlip):
             
             employee_doc = self.get_employee_doc()
             
-            # Get the taxable income for the current month
+            # Ambil pendapatan kena pajak untuk bulan ini
             taxable_income = self._calculate_taxable_income()
             
             # Fetch YTD income and YTD tax paid
@@ -250,7 +250,7 @@ class CustomSalarySlip(SalarySlip):
                 ytd_tax_paid=ytd_tax_paid
             )
             
-            tax_amount = flt(result.get("pph21_month", 0.0))
+            tax_amount = flt(result.get("pph21_bulan", 0.0))
 
             # Store details as JSON string
             self.pph21_info = json.dumps(result)
@@ -291,9 +291,9 @@ class CustomSalarySlip(SalarySlip):
     
     def _get_ytd_income_and_tax(self):
         """
-        Get year-to-date income and tax paid (excluding current month).
-        Used for December tax calculation.
-        
+        Hitung pendapatan dan pajak tahun berjalan (tidak termasuk bulan ini).
+        Digunakan untuk perhitungan pajak Desember.
+
         Returns:
             tuple: (ytd_income, ytd_tax_paid)
         """
@@ -326,10 +326,10 @@ class CustomSalarySlip(SalarySlip):
                 # Get the first record (should be only one per employee per year)
                 history_doc = frappe.get_doc("Annual Payroll History", annual_history[0].name)
                 
-                # Sum up all monthly entries except December
+                # Jumlahkan seluruh entri bulanan kecuali Desember
                 for row in history_doc.get("monthly_details", []):
-                    month = getattr(row, "bulan", 0)
-                    if month < 12:  # Exclude December
+                    bulan = getattr(row, "bulan", 0)
+                    if bulan < 12:  # Exclude December
                         ytd_income += flt(getattr(row, "bruto", 0))
                         ytd_tax_paid += flt(getattr(row, "pph21", 0))
         
@@ -566,17 +566,17 @@ class CustomSalarySlip(SalarySlip):
                 )
                 return
 
-            # Get month number using the helper method
-            month_number = self._get_month_number(
+            # Ambil nomor bulan menggunakan helper
+            nomor_bulan = self._get_bulan_number(
                 start_date=getattr(self, "start_date", None),
-                month_name=getattr(self, "month", None) or getattr(self, "bulan", None)
+                nama_bulan=getattr(self, "bulan", None)
             )
 
             # Ensure numeric rate for Annual Payroll History child
             raw_rate = result.get("rate", 0)
             numeric_rate = raw_rate if isinstance(raw_rate, (int, float)) else 0
             monthly_result = {
-                "bulan": month_number,
+                "bulan": nomor_bulan,
                 "bruto": result.get("bruto", result.get("bruto_total", 0)),
                 "pengurang_netto": result.get(
                     "pengurang_netto", result.get("income_tax_deduction_total", 0)
@@ -585,7 +585,7 @@ class CustomSalarySlip(SalarySlip):
                 "netto": result.get("netto", result.get("netto_total", 0)),
                 "pkp": result.get("pkp", result.get("pkp_annual", 0)),
                 "rate": flt(numeric_rate),
-                "pph21": result.get("pph21", result.get("pph21_month", 0)),
+                "pph21": result.get("pph21", result.get("pph21_bulan", 0)),
                 "salary_slip": self.name,
             }
 
@@ -666,12 +666,6 @@ class CustomSalarySlip(SalarySlip):
                 )
                 return
                 
-            # Get month number using the helper method
-            month_number = self._get_month_number(
-                start_date=getattr(self, "start_date", None),
-                month_name=getattr(self, "month", None) or getattr(self, "bulan", None)
-            )
-
             sync_annual_payroll_history.sync_annual_payroll_history(
                 employee=employee_doc,
                 fiscal_year=fiscal_year,
