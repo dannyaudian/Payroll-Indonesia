@@ -233,4 +233,17 @@ fixtures = [
     "Workspace",
     "Annual Payroll History",
     "Annual Payroll History Child",
+    {
+        "doctype": "Report",
+        "filters": [
+            [
+                "name",
+                "in",
+                [
+                    "PPh21 Report",
+                    "BPJS Report"
+                ]
+            ]
+        ]
+    }
 ]
