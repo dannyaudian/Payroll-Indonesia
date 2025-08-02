@@ -45,17 +45,10 @@ class CustomPayrollEntry(PayrollEntry):
             return result if result is not None else []
 
     def get_salary_slips(self) -> List[str]:
-        """
-        Return list of Salary Slip names linked to this Payroll Entry.
-        Only includes draft (docstatus=0) and submitted (docstatus=1) salary slips, 
-        excluding cancelled ones (docstatus=2).
-        """
+        """Return list of Salary Slip names linked to this Payroll Entry."""
         return frappe.get_all(
-            "Salary Slip", 
-            filters={
-                "payroll_entry": self.name,
-                "docstatus": ["<", 2]  # Only draft (0) and submitted (1) slips
-            }, 
+            "Salary Slip",
+            filters={"payroll_entry": self.name},
             pluck="name"
         )
 
