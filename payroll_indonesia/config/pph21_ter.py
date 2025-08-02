@@ -1,6 +1,19 @@
+"""
+PPh21 TER (Tabel Pajak Bulanan) calculation module.
+
+This module handles the monthly income tax calculation for Indonesian payroll.
+It uses the TER method (monthly table) for tax calculation.
+
+IMPORTANT: This module only handles monthly TER calculations.
+           December/annual calculations must use pph21_ter_december.py
+"""
+
 import frappe
 from frappe import ValidationError
 from frappe.utils import flt
+from typing import Dict, Any, Optional, Union, List
+
+# Prevent circular imports - only import config constants
 from payroll_indonesia.config import (
     get_ptkp_amount,
     get_ter_code,
@@ -10,16 +23,133 @@ from payroll_indonesia.config import (
 )
 from payroll_indonesia.utils import round_half_up
 
+# Constants for component identification
 PENGURANG_NETTO_NAMES = {
-    "bpjs kesehatan employee",   # 1 % karyawan
-    "bpjs jht employee",         # 2 % karyawan
-    "bpjs jp employee",          # 1 % karyawan
+    "bpjs kesehatan employee",   # 1% karyawan
+    "bpjs jht employee",         # 2% karyawan
+    "bpjs jp employee",          # 1% karyawan
     # tambahkan jika ada iuran pensiun lain:
     "iuran pensiun",
     "dana pensiun",
 }
 
-def sum_bruto_earnings(salary_slip):
+def calculate_pph21_TER(taxable_income: Union[float, Dict[str, Any]], 
+                        employee: Union[Dict[str, Any], Any], 
+                        company: str, 
+                        month: int = None) -> Dict[str, Any]:
+    """
+    Calculate monthly PPh21 using TER (Tabel Pajak Bulanan) method.
+    
+    Args:
+        taxable_income: Either the gross income value or a dict containing slip data
+        employee: Employee document or dictionary with employee data
+        company: Company name or ID
+        month: Month number (1-12), optional if provided in taxable_income
+        
+    Returns:
+        Dictionary with calculation results including pph21 amount
+        
+    Raises:
+        frappe.ValidationError: For validation errors in input data
+    """
+    # Input validation
+    if not employee:
+        frappe.throw("Employee data is required for PPh21 calculation", title="Missing Employee")
+        
+    if not company:
+        frappe.throw("Company is required for PPh21 calculation", title="Missing Company")
+    
+    # Handle case where taxable_income is a salary slip dictionary
+    slip_data = None
+    if isinstance(taxable_income, dict) and taxable_income.get("earnings") is not None:
+        slip_data = taxable_income
+        # Extract month from slip if not provided
+        if not month and slip_data.get("start_date"):
+            try:
+                from frappe.utils import getdate
+                month = getdate(slip_data.get("start_date")).month
+            except Exception:
+                pass
+    
+    # Ensure month is valid or use default
+    if not month:
+        # Try to get month from employee data
+        if hasattr(employee, "month"):
+            month = employee.month
+        elif isinstance(employee, dict) and employee.get("month"):
+            month = employee.get("month")
+        else:
+            # Default to current month if not provided
+            from datetime import datetime
+            month = datetime.now().month
+    
+    # Employment type check - only process Full-time employees
+    emp_type = employee.get("employment_type") if isinstance(employee, dict) else getattr(employee, "employment_type", None)
+    if emp_type != "Full-time":
+        return {"employment_type_checked": False, "pph21": 0.0}
+    
+    # Calculate bruto income
+    if slip_data:
+        bruto = sum_bruto_earnings(slip_data)
+    else:
+        # Use provided taxable_income as gross value
+        bruto = flt(taxable_income)
+    
+    # Calculate biaya jabatan (occupational deduction)
+    bj_rate = get_biaya_jabatan_rate()
+    bj_cap = get_biaya_jabatan_cap_monthly()
+    
+    if slip_data:
+        biaya_jabatan = get_biaya_jabatan_from_component(slip_data) or min(
+            bruto * bj_rate / 100, bj_cap
+        )
+        # Calculate other deductions from slip
+        pengurang_netto = sum_pengurang_netto(slip_data)
+    else:
+        # Standard calculations if no slip data
+        biaya_jabatan = min(bruto * bj_rate / 100, bj_cap)
+        pengurang_netto = 0.0  # No deductions available without slip data
+    
+    # Calculate netto income
+    netto = bruto - biaya_jabatan - pengurang_netto
+    
+    # Get PTKP (non-taxable income threshold)
+    try:
+        ptkp = flt(get_ptkp_amount(employee) / 12)
+    except ValidationError as e:
+        frappe.logger().warning(str(e))
+        ptkp = 0.0
+    
+    # Calculate PKP (taxable income after PTKP)
+    pkp = max(netto - ptkp, 0)
+    
+    # Get TER rate based on employee code and bruto
+    ter_code = get_ter_code(employee)
+    try:
+        rate = get_ter_rate(ter_code, bruto)
+    except ValidationError as e:
+        frappe.logger().warning(str(e))
+        rate = 0.0
+    
+    # Calculate tax amount
+    pph21 = round_half_up(bruto * rate / 100)
+    
+    # Prepare result
+    result = {
+        "ptkp": ptkp,
+        "bruto": bruto,
+        "pengurang_netto": pengurang_netto,
+        "biaya_jabatan": biaya_jabatan,
+        "netto": netto,
+        "pkp": pkp,
+        "rate": rate,
+        "pph21": pph21,
+        "employment_type_checked": True,
+    }
+    
+    return result
+
+def sum_bruto_earnings(salary_slip: Dict[str, Any]) -> float:
     """
     Sum all earning components contributing to bruto pay (including taxable natura).
     Criteria:
@@ -44,7 +174,7 @@ def sum_bruto_earnings(salary_slip):
             total += flt(row.get("amount", 0))
     return total
 
-def sum_pengurang_netto(slip):
+def sum_pengurang_netto(slip: Dict[str, Any]) -> float:
     """
     Total pengurang netto:
       • baris deduction ber-flag is_pengurang_netto = 1  ──► fleksibel
@@ -62,7 +192,7 @@ def sum_pengurang_netto(slip):
             total += flt(row.get("amount", 0))
     return total
 
-def get_biaya_jabatan_from_component(salary_slip):
+def get_biaya_jabatan_from_component(salary_slip: Dict[str, Any]) -> float:
     """
     Get 'Biaya Jabatan' deduction from salary slip, return 0 if not present.
     """
@@ -71,59 +201,3 @@ def get_biaya_jabatan_from_component(salary_slip):
         if "biaya jabatan" in row.get("salary_component", "").lower():
             return flt(row.get("amount", 0))
     return 0.0
-
-def calculate_pph21_TER(employee_doc, slip):
-    """
-    Hitung PPh-21 metode TER (varian: tarif × bruto).
-    Mengembalikan dict lengkap utk debugging / tampilan.
-    """
-    # 0. Validasi jenis kepegawaian
-    emp_type = (
-        employee_doc["employment_type"]
-        if isinstance(employee_doc, dict)
-        else employee_doc.employment_type
-    )
-    if emp_type != "Full-time":
-        return {"employment_type_checked": False, "pph21": 0.0}
-
-    # 1. Bruto
-    bruto = sum_bruto_earnings(slip)
-
-    # 2. Biaya jabatan (info saja)
-    bj_rate = get_biaya_jabatan_rate()
-    bj_cap = get_biaya_jabatan_cap_monthly()
-    biaya_jabatan = get_biaya_jabatan_from_component(slip) or min(
-        bruto * bj_rate / 100, bj_cap
-    )
-
-    # 3. Pengurang netto & netto
-    pengurang_netto = sum_pengurang_netto(slip)
-    netto = bruto - biaya_jabatan - pengurang_netto
-
-    # 4. PTKP & PKP (hanya info)
-    ptkp = flt(get_ptkp_amount(employee_doc) / 12)
-    pkp = max(netto - ptkp, 0)
-
-    # 5. Tarif TER (lookup pakai BRUTO)
-    ter_code = get_ter_code(employee_doc)
-    try:
-        rate = get_ter_rate(ter_code, bruto)
-    except ValidationError as e:
-        frappe.logger().warning(str(e))
-        rate = 0.0
-
-    # 6. Pajak = BRUTO × rate %
-    pph21 = round_half_up(bruto * rate / 100)
-
-    # 7. Return
-    return {
-        "ptkp": ptkp,
-        "bruto": bruto,
-        "pengurang_netto": pengurang_netto,
-        "biaya_jabatan": biaya_jabatan,
-        "netto": netto,
-        "pkp": pkp,
-        "rate": rate,
-        "pph21": pph21,
-        "employment_type_checked": True,
-    }

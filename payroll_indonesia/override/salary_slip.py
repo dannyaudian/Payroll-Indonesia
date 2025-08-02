@@ -8,13 +8,19 @@ Rewrite: Ensure PPh 21 row in deductions updates and syncs with UI using attribu
 Fix: Do not assign dict directly to DocType field (pph21_info), use JSON string.
 Update: Replace manual total calculations with ERPNext/Frappe's built-in methods.
 Update: Improve exception handling to catch specific expected exceptions and re-raise unexpected ones.
-Update: Fix circular import issues by using lazy imports and restructuring the sync logic.
+Update: Fix circular import issues by using direct imports for tax calculation functions.
 """
 
 try:
     from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
-except Exception:
-    SalarySlip = object
+except ImportError:
+    from frappe.model.document import Document
+    SalarySlip = Document  # safer fallback for tests/static analysis
+    import frappe
+    frappe.log_error(
+        message="Failed to import SalarySlip from hrms.payroll. Using Document fallback.",
+        title="Payroll Indonesia Import Warning"
+    )
 
 import frappe
 import json
@@ -29,11 +35,15 @@ except Exception:  # pragma: no cover - fallback for test stubs without getdate
         return datetime.strptime(str(value), "%Y-%m-%d")
 from frappe.utils.safe_exec import safe_eval
 
-from payroll_indonesia.config import pph21_ter, pph21_ter_december
+# Import tax calculation functions directly (better pattern to avoid circular imports)
+from payroll_indonesia.payroll_indonesia.pph21_ter import calculate_pph21_TER
+from payroll_indonesia.payroll_indonesia.pph21_ter_december import calculate_pph21_december
 # Import utils module so tests can monkeypatch its sync function easily
 from payroll_indonesia.utils import sync_annual_payroll_history
 from payroll_indonesia import _patch_salary_slip_globals
 
+# Setup global logger for consistent logging
+logger = frappe.logger("payroll_indonesia")
 
 class CustomSalarySlip(SalarySlip):
     """
@@ -87,14 +97,57 @@ class CustomSalarySlip(SalarySlip):
         Setelah dihitung, update komponen PPh 21 di deductions agar muncul di UI.
         """
         try:
+            # Basic validation
+            if not hasattr(self, "employee") or not self.employee:
+                frappe.throw("Employee data is required for PPh21 calculation", title="Missing Employee")
+                
+            if not hasattr(self, "company") or not self.company:
+                frappe.throw("Company is required for PPh21 calculation", title="Missing Company")
+            
             employee_doc = self.get_employee_doc()
+            
+            # Get month number from start_date or default
+            month = None
+            if hasattr(self, "start_date") and self.start_date:
+                try:
+                    month = getdate(self.start_date).month
+                except Exception:
+                    pass
+            
+            if not month:
+                month_name = getattr(self, "month", None) or getattr(self, "bulan", None)
+                if month_name:
+                    month_map = {
+                        "january": 1, "jan": 1, "januari": 1,
+                        "february": 2, "feb": 2, "februari": 2,
+                        "march": 3, "mar": 3, "maret": 3,
+                        "april": 4, "may": 5, "mei": 5,
+                        "june": 6, "jun": 6, "juni": 6,
+                        "july": 7, "jul": 7, "juli": 7,
+                        "august": 8, "aug": 8, "agustus": 8,
+                        "september": 9, "sep": 9,
+                        "october": 10, "oct": 10, "oktober": 10,
+                        "november": 11, "nov": 11,
+                        "december": 12, "dec": 12, "desember": 12,
+                    }
+                    month = month_map.get(str(month_name).strip().lower())
+                    
+            if not month:
+                # Default to current month
+                from datetime import datetime
+                month = datetime.now().month
+            
+            # Calculate taxable income
+            taxable_income = self._calculate_taxable_income()
 
-            slip_data = {
-                "earnings": getattr(self, "earnings", []),
-                "deductions": getattr(self, "deductions", []),
-            }
-
-            result = pph21_ter.calculate_pph21_TER(employee_doc, slip_data)
+            # Calculate PPh21 using standardized interface
+            result = calculate_pph21_TER(
+                taxable_income=taxable_income,
+                employee=employee_doc,
+                company=self.company,
+                month=month
+            )
+            
             tax_amount = flt(result.get("pph21", 0.0))
 
             # Store details as JSON string (pph21_info field is Text)
@@ -110,9 +163,7 @@ class CustomSalarySlip(SalarySlip):
             
         except frappe.ValidationError as ve:
             # Expected validation errors - re-raise to stop processing
-            frappe.logger().warning(
-                f"Validation error in TER calculation for {self.name}: {str(ve)}"
-            )
+            logger.warning(f"Validation error in TER calculation for {self.name}: {str(ve)}")
             raise
             
         except Exception as e:
@@ -128,20 +179,36 @@ class CustomSalarySlip(SalarySlip):
     def calculate_income_tax_december(self):
         """Calculate annual progressive PPh21 for December."""
         try:
+            # Basic validation
+            if not hasattr(self, "employee") or not self.employee:
+                frappe.throw("Employee data is required for PPh21 calculation", title="Missing Employee")
+                
+            if not hasattr(self, "company") or not self.company:
+                frappe.throw("Company is required for PPh21 calculation", title="Missing Company")
+            
             employee_doc = self.get_employee_doc()
-
-            slip_data = {
-                "earnings": getattr(self, "earnings", []),
-                "deductions": getattr(self, "deductions", []),
-            }
-
-            result = pph21_ter_december.calculate_pph21_TER_december(
-                employee_doc, [slip_data]
+            
+            # Get the taxable income for the current month
+            taxable_income = self._calculate_taxable_income()
+            
+            # Fetch YTD income and YTD tax paid
+            ytd_income, ytd_tax_paid = self._get_ytd_income_and_tax()
+            
+            # Calculate December tax using standardized interface
+            result = calculate_pph21_december(
+                taxable_income=taxable_income,
+                employee=employee_doc,
+                company=self.company,
+                ytd_income=ytd_income,
+                ytd_tax_paid=ytd_tax_paid
             )
+            
             tax_amount = flt(result.get("pph21_month", 0.0))
 
+            # Store details as JSON string
             self.pph21_info = json.dumps(result)
 
+            # Set standard fields
             self.tax = tax_amount
             self.tax_type = "DECEMBER"
 
@@ -151,9 +218,7 @@ class CustomSalarySlip(SalarySlip):
             
         except frappe.ValidationError as ve:
             # Expected validation errors - re-raise to stop processing
-            frappe.logger().warning(
-                f"Validation error in December calculation for {self.name}: {str(ve)}"
-            )
+            logger.warning(f"Validation error in December calculation for {self.name}: {str(ve)}")
             raise
             
         except Exception as e:
@@ -165,6 +230,68 @@ class CustomSalarySlip(SalarySlip):
             )
             # Unexpected errors are converted to ValidationError to stop processing
             raise frappe.ValidationError(f"Error in December PPh21 calculation: {str(e)}")
+    
+    def _calculate_taxable_income(self):
+        """
+        Calculate taxable income from earnings and deductions.
+        Returns a dictionary with earnings and deductions that can be passed to tax calculation functions.
+        """
+        return {
+            "earnings": getattr(self, "earnings", []),
+            "deductions": getattr(self, "deductions", []),
+            "start_date": getattr(self, "start_date", None),
+            "name": getattr(self, "name", None),
+        }
+    
+    def _get_ytd_income_and_tax(self):
+        """
+        Get year-to-date income and tax paid (excluding current month).
+        Used for December tax calculation.
+        
+        Returns:
+            tuple: (ytd_income, ytd_tax_paid)
+        """
+        ytd_income = 0.0
+        ytd_tax_paid = 0.0
+        
+        # Try to determine fiscal year
+        fiscal_year = getattr(self, "fiscal_year", None)
+        if not fiscal_year and hasattr(self, "start_date") and self.start_date:
+            fiscal_year = str(getdate(self.start_date).year)
+        
+        if not fiscal_year:
+            # Can't determine year, use default values
+            return ytd_income, ytd_tax_paid
+        
+        try:
+            # Try to fetch Annual Payroll History
+            filters = {
+                "employee": self.employee,
+                "fiscal_year": fiscal_year,
+            }
+            
+            annual_history = frappe.get_all(
+                "Annual Payroll History",
+                filters=filters,
+                fields=["name"],
+            )
+            
+            if annual_history:
+                # Get the first record (should be only one per employee per year)
+                history_doc = frappe.get_doc("Annual Payroll History", annual_history[0].name)
+                
+                # Sum up all monthly entries except December
+                for row in history_doc.get("monthly_details", []):
+                    month = getattr(row, "bulan", 0)
+                    if month < 12:  # Exclude December
+                        ytd_income += flt(getattr(row, "bruto", 0))
+                        ytd_tax_paid += flt(getattr(row, "pph21", 0))
+        
+        except Exception as e:
+            logger.warning(f"Error fetching YTD income and tax: {str(e)}")
+            # Continue with default values if there's an error
+        
+        return ytd_income, ytd_tax_paid
 
     def update_pph21_row(self, tax_amount: float):
         """
@@ -315,9 +442,7 @@ class CustomSalarySlip(SalarySlip):
                     
         except Exception as e:
             # Rounding/words conversion errors aren't critical to slip validity
-            frappe.logger().warning(
-                f"Failed to update rounded values for {self.name}: {str(e)}"
-            )
+            logger.warning(f"Failed to update rounded values for {self.name}: {str(e)}")
 
     def validate(self):
         """Ensure PPh 21 deduction row updated before saving."""
@@ -345,7 +470,7 @@ class CustomSalarySlip(SalarySlip):
                 tax_amount = self.calculate_income_tax()
                 
             self.update_pph21_row(tax_amount)
-            frappe.logger().info(f"Validate: Updated PPh21 deduction row to {tax_amount}")
+            logger.info(f"Validate: Updated PPh21 deduction row to {tax_amount}")
             
         except frappe.ValidationError as ve:
             # Expected validation errors from tax calculations - re-raise to stop processing
@@ -396,10 +521,9 @@ class CustomSalarySlip(SalarySlip):
             return
 
         try:
-            
             # Check if employee exists
             if not hasattr(self, "employee") or not self.employee:
-                frappe.logger().warning(
+                logger.warning(
                     f"No employee found for Salary Slip {getattr(self, 'name', 'unknown')}, skipping sync"
                 )
                 return
@@ -408,16 +532,16 @@ class CustomSalarySlip(SalarySlip):
 
             # Check if employee doc is valid/loaded
             if not employee_doc or not employee_doc.get('name', None):
-                frappe.logger().warning(
+                logger.warning(
                     f"Invalid employee data for Salary Slip {self.name}, skipping sync"
-            )
+                )
                 return
 
             fiscal_year = getattr(self, "fiscal_year", None) or str(
                 getattr(self, "start_date", None) or ""
             )[:4]
             if not fiscal_year:
-                frappe.logger().warning(
+                logger.warning(
                     f"Could not determine fiscal year for Salary Slip {self.name}, skipping sync"
                 )
                 return
@@ -433,42 +557,22 @@ class CustomSalarySlip(SalarySlip):
                 month_name = getattr(self, "month", None) or getattr(self, "bulan", None)
                 if month_name:
                     month_map = {
-                        "january": 1,
-                        "jan": 1,
-                        "januari": 1,
-                        "february": 2,
-                        "feb": 2,
-                        "februari": 2,
-                        "march": 3,
-                        "mar": 3,
-                        "maret": 3,
-                        "april": 4,
-                        "may": 5,
-                        "mei": 5,
-                        "june": 6,
-                        "jun": 6,
-                        "juni": 6,
-                        "july": 7,
-                        "jul": 7,
-                        "juli": 7,
-                        "august": 8,
-                        "aug": 8,
-                        "agustus": 8,
-                        "september": 9,
-                        "sep": 9,
-                        "october": 10,
-                        "oct": 10,
-                        "oktober": 10,
-                        "november": 11,
-                        "nov": 11,
-                        "december": 12,
-                        "dec": 12,
-                        "desember": 12,
+                        "january": 1, "jan": 1, "januari": 1,
+                        "february": 2, "feb": 2, "februari": 2,
+                        "march": 3, "mar": 3, "maret": 3,
+                        "april": 4, "may": 5, "mei": 5,
+                        "june": 6, "jun": 6, "juni": 6,
+                        "july": 7, "jul": 7, "juli": 7,
+                        "august": 8, "aug": 8, "agustus": 8,
+                        "september": 9, "sep": 9,
+                        "october": 10, "oct": 10, "oktober": 10,
+                        "november": 11, "nov": 11,
+                        "december": 12, "dec": 12, "desember": 12,
                     }
                     month_number = month_map.get(str(month_name).strip().lower())
 
             if not month_number:
-                frappe.logger().warning(
+                logger.warning(
                     f"Could not determine month for Salary Slip {self.name}, using default 0"
                 )
 
@@ -527,15 +631,14 @@ class CustomSalarySlip(SalarySlip):
                 title="Payroll Indonesia Annual History Sync Error"
             )
             # History sync failures shouldn't stop slip creation, so we log but don't raise
-            frappe.logger().warning(
-                f"Annual Payroll History sync failed for {self.name}: {str(e)}"
-            )
+            logger.warning(f"Annual Payroll History sync failed for {self.name}: {str(e)}")
+            
     def on_cancel(self):
         """When slip is cancelled, remove related row from Annual Payroll History."""
         try:
             # Check if employee exists
             if not hasattr(self, "employee") or not self.employee:
-                frappe.logger().warning(
+                logger.warning(
                     f"No employee found for cancelled Salary Slip {getattr(self, 'name', 'unknown')}, skipping sync"
                 )
                 return
@@ -544,16 +647,16 @@ class CustomSalarySlip(SalarySlip):
 
             # Check if employee doc is valid/loaded
             if not employee_doc or not employee_doc.get('name', None):
-                frappe.logger().warning(
+                logger.warning(
                     f"Invalid employee data for cancelled Salary Slip {self.name}, skipping sync"
-            )
-            return
+                )
+                return
 
             fiscal_year = (
                 getattr(self, "fiscal_year", None) or str(getattr(self, "start_date", ""))[:4]
             )
             if not fiscal_year:
-                frappe.logger().warning(
+                logger.warning(
                     f"Could not determine fiscal year for cancelled Salary Slip {self.name}, skipping sync"
                 )
                 return
@@ -575,6 +678,4 @@ class CustomSalarySlip(SalarySlip):
                 title="Payroll Indonesia Annual History Cancel Error"
             )
             # History sync failures shouldn't stop slip cancellation, so we log but don't raise
-            frappe.logger().warning(
-                f"Failed to update Annual Payroll History when cancelling {self.name}: {str(e)}"
-            )
+            logger.warning(f"Failed to update Annual Payroll History when cancelling {self.name}: {str(e)}")
