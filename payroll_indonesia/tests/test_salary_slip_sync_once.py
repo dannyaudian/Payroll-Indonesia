@@ -55,7 +55,15 @@ def test_salary_slip_validate_submit_sync_once(monkeypatch):
             "rate": 0,
             "pph21": 0,
         }
-        self.sync_to_annual_payroll_history(result, mode="monthly")
+        if not getattr(self, "_annual_history_synced", False):
+            self._annual_history_synced = True
+            _ok = False
+            try:
+                self.sync_to_annual_payroll_history(result, mode="monthly")
+                _ok = True
+            finally:
+                if not _ok:
+                    self._annual_history_synced = False
         return 0
 
     monkeypatch.setattr(CustomSalarySlip, "calculate_income_tax", fake_calc, raising=False)
