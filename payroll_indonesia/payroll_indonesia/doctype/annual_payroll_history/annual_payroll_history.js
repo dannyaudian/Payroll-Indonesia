@@ -24,6 +24,10 @@ frappe.ui.form.on('Annual Payroll History Child', {
         calculate_totals(frm);
     },
     monthly_details_add: function(frm, cdt, cdn) {
+        // set "bulan" to the current length of monthly_details when a row is added
+        if (frm.doc.monthly_details) {
+            frappe.model.set_value(cdt, cdn, 'bulan', frm.doc.monthly_details.length);
+        }
         calculate_totals(frm);
     },
     monthly_details_remove: function(frm, cdt, cdn) {
