@@ -683,4 +683,24 @@ class CustomSalarySlip(SalarySlip):
                 title="Payroll Indonesia Annual History Cancel Error"
             )
             # History sync failures shouldn't stop slip cancellation, so we log but don't raise
-            logger.warning(f"Failed to update Annual Payroll History when cancelling {self.name}: {str(e)}")
+            logger.warning(
+                f"Failed to update Annual Payroll History when cancelling {self.name}: {str(e)}"
+            )
+
+
+def on_submit(doc, method=None):
+    """DocEvent wrapper to sync Annual Payroll History on submit."""
+    if isinstance(doc, CustomSalarySlip):
+        return
+
+    doc.__class__ = CustomSalarySlip
+    doc.on_submit()
+
+
+def on_cancel(doc, method=None):
+    """DocEvent wrapper to clean up Annual Payroll History on cancel."""
+    if isinstance(doc, CustomSalarySlip):
+        return
+
+    doc.__class__ = CustomSalarySlip
+    doc.on_cancel()

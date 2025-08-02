@@ -126,7 +126,11 @@ salary_slip_globals = {
 doc_events = {
     "Salary Structure": {
         "validate": "payroll_indonesia.utils.validate_salary_structure.validate_salary_structure_required_components"
-    }
+    },
+    "Salary Slip": {
+        "on_submit": "payroll_indonesia.override.salary_slip.on_submit",
+        "on_cancel": "payroll_indonesia.override.salary_slip.on_cancel",
+    },
 }
 
 # Scheduled Tasks
