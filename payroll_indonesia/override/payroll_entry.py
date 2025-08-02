@@ -14,6 +14,11 @@ import traceback
 from typing import Callable, Dict, List, Any, Optional, Tuple
 from payroll_indonesia.override.salary_slip import CustomSalarySlip
 from payroll_indonesia.config import get_value
+from payroll_indonesia.utils import sync_annual_payroll_history
+from frappe.utils import file_lock
+import os
+import time
+from datetime import datetime, timedelta
 
 # Setup global logger for consistent logging.
 # This logs to logs/payroll_indonesia.log via the site's configured loggers.
@@ -302,6 +307,60 @@ class CustomPayrollEntry(PayrollEntry):
                 )
                 logger.error(f"Error processing {tax_mode} Salary Slip '{name}': {str(e)}")
                 invalid_slips.append(name)
+                
+                # Clean up any partial Annual Payroll History entries
+                try:
+                    # Get employee and fiscal year info from the slip
+                    employee_doc = self._get_employee_doc(slip_obj)
+                    
+                    if employee_doc and employee_doc.get('name'):
+                        fiscal_year = getattr(slip_obj, "fiscal_year", None)
+                        if not fiscal_year and hasattr(slip_obj, "start_date") and slip_obj.start_date:
+                            try:
+                                from frappe.utils import getdate
+                                fiscal_year = str(getdate(slip_obj.start_date).year)
+                            except Exception:
+                                pass
+                        
+                        # If we have the necessary data, clean up the history entry
+                        if fiscal_year:
+                            # Get month number
+                            month_number = 0
+                            if hasattr(slip_obj, "_get_month_number") and callable(getattr(slip_obj, "_get_month_number")):
+                                month_number = slip_obj._get_month_number(
+                                    start_date=getattr(slip_obj, "start_date", None),
+                                    month_name=getattr(slip_obj, "month", None) or getattr(slip_obj, "bulan", None)
+                                )
+                            elif hasattr(slip_obj, "start_date") and slip_obj.start_date:
+                                try:
+                                    from frappe.utils import getdate
+                                    month_number = getdate(slip_obj.start_date).month
+                                except Exception:
+                                    month_number = 0
+                            
+                            # Call sync function with cancelled_salary_slip parameter
+                            sync_annual_payroll_history.sync_annual_payroll_history(
+                                employee=employee_doc,
+                                fiscal_year=fiscal_year,
+                                month=month_number,
+                                monthly_results=None,
+                                summary=None,
+                                cancelled_salary_slip=name,
+                                error_state={
+                                    "error": str(e),
+                                    "error_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    "payroll_entry": self.name
+                                }
+                            )
+                            logger.info(f"Cleaned up Annual Payroll History for failed slip {name}")
+                except Exception as cleanup_error:
+                    # Log error but continue processing other slips
+                    cleanup_trace = traceback.format_exc()
+                    frappe.log_error(
+                        message=f"Failed to clean up Annual Payroll History for {name}: {str(cleanup_error)}\n{cleanup_trace}",
+                        title="Payroll Indonesia History Cleanup Error"
+                    )
+                    logger.warning(f"Failed to clean up Annual Payroll History for {name}: {str(cleanup_error)}")
         
         # Remove invalid slips from the salary_slips child table
         child_table_modified = False
@@ -393,29 +452,24 @@ class CustomPayrollEntry(PayrollEntry):
         Args:
             force_cleanup: If True, performs cleanup of salary slips even if not canceling
                           Used when creating new salary slips to prevent duplicates
+        
+        Implementation notes on locking:
+            - Uses file_lock utility for reliable locking with auto-release on scope exit
+            - Lock timeout is 60 seconds (configurable)
+            - Stale locks older than 10 minutes are automatically cleared
+            - Lock files are stored in the site's locks directory
         """
         try:
-            # Acquire a lock to prevent race conditions when multiple processes
-            # might be trying to delete/clean up salary slips
-            lock_key = f"delete_salary_slips_{self.name}"
-            if not frappe.cache().exists(lock_key):
-                frappe.cache().set(lock_key, True, expires_in_sec=300)  # 5 minute lock
-            else:
-                logger.warning(f"Another process is already deleting salary slips for {self.name}. Waiting...")
-                # Wait for lock to clear (max 30 seconds)
-                for _ in range(30):
-                    import time
-                    time.sleep(1)
-                    if not frappe.cache().exists(lock_key):
-                        break
-                else:
-                    # Lock didn't clear in time
-                    raise Exception(f"Timeout waiting for salary slip deletion lock to clear for {self.name}")
-                
-                # Re-acquire the lock
-                frappe.cache().set(lock_key, True, expires_in_sec=300)
+            # Define lock name and path
+            lock_name = f"delete_salary_slips_{self.name}"
+            lock_path = os.path.join("locks", lock_name)
+            lock_timeout = 60  # seconds
             
-            try:
+            # Check for and clear stale locks (older than 10 minutes)
+            self._clear_stale_locks(lock_path)
+            
+            # Try to acquire the lock using context manager for auto-release
+            with file_lock(lock_path, timeout=lock_timeout):
                 # Get all salary slips linked to this Payroll Entry
                 salary_slips = self.get_linked_salary_slips()
                 
@@ -455,10 +509,13 @@ class CustomPayrollEntry(PayrollEntry):
                 
                 logger.info(f"Successfully {action.lower()} all salary slips for Payroll Entry {self.name}")
                 
-            finally:
-                # Always release the lock when done
-                frappe.cache().delete(lock_key)
-                
+        except TimeoutError:
+            logger.error(f"Timeout acquiring lock for {lock_name}. Another process may be deleting salary slips.")
+            frappe.msgprint(
+                f"Cannot delete salary slips at this time. Another process is already deleting salary slips for {self.name}. "
+                f"Please try again in a minute.",
+                title="Lock Timeout Error"
+            )
         except Exception as e:
             error_trace = traceback.format_exc()
             frappe.log_error(
@@ -466,6 +523,33 @@ class CustomPayrollEntry(PayrollEntry):
                 title="Payroll Indonesia Salary Slip Deletion Error"
             )
             logger.error(f"Error in delete_salary_slips: {str(e)}")
+            
+    def _clear_stale_locks(self, lock_path):
+        """
+        Check for and clear stale locks to prevent deadlocks.
+        A lock is considered stale if it's older than 10 minutes.
+        
+        Args:
+            lock_path: Path to the lock file
+        """
+        try:
+            # Get full path in the site directory
+            site_path = frappe.get_site_path()
+            full_lock_path = os.path.join(site_path, lock_path)
+            
+            # Check if lock file exists
+            if os.path.exists(full_lock_path):
+                # Get file modification time
+                mod_time = os.path.getmtime(full_lock_path)
+                current_time = time.time()
+                
+                # If lock is older than 10 minutes (600 seconds), it's stale
+                if current_time - mod_time > 600:
+                    logger.warning(f"Clearing stale lock file: {lock_path}")
+                    os.remove(full_lock_path)
+        except Exception as e:
+            # Log but continue - not critical
+            logger.warning(f"Error checking/clearing stale lock {lock_path}: {str(e)}")
             
     def get_linked_salary_slips(self):
         """

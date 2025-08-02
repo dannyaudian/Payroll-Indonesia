@@ -53,6 +53,79 @@ class CustomSalarySlip(SalarySlip):
     """
 
     # -------------------------
+    # Helper methods
+    # -------------------------
+    def _get_month_number(self, start_date=None, month_name=None):
+        """
+        Extract month number from either a date or month name string.
+        
+        Args:
+            start_date: A date string in YYYY-MM-DD format or None
+            month_name: A string containing month name (e.g., 'January', 'Jan', 'Januari') or None
+            
+        Returns:
+            int: Month number (1-12) or current month if neither parameter yields a valid month
+        """
+        month = None
+        
+        # Try to get month from start_date first
+        if start_date:
+            try:
+                month = getdate(start_date).month
+            except Exception:
+                # Log the exception for debugging but continue with fallbacks
+                logger.debug(f"Failed to extract month from date: {start_date}")
+                pass
+        
+        # If month is still None, try to get it from month_name
+        if not month and month_name:
+            month_map = {
+                "january": 1, "jan": 1, "januari": 1,
+                "february": 2, "feb": 2, "februari": 2,
+                "march": 3, "mar": 3, "maret": 3,
+                "april": 4, "may": 5, "mei": 5,
+                "june": 6, "jun": 6, "juni": 6,
+                "july": 7, "jul": 7, "juli": 7,
+                "august": 8, "aug": 8, "agustus": 8,
+                "september": 9, "sep": 9,
+                "october": 10, "oct": 10, "oktober": 10,
+                "november": 11, "nov": 11,
+                "december": 12, "dec": 12, "desember": 12,
+            }
+            month = month_map.get(str(month_name).strip().lower())
+            
+        # If we still don't have a month, default to current month
+        if not month:
+            from datetime import datetime
+            month = datetime.now().month
+            logger.debug(f"Using current month ({month}) as fallback")
+            
+        return month
+
+    def get_employee_doc(self):
+        """Helper: get employee doc/dict from self.employee (id, dict, or object)."""
+        if hasattr(self, "employee"):
+            emp = self.employee
+            if isinstance(emp, dict):
+                return emp
+            try:
+                return frappe.get_doc("Employee", emp)
+            except frappe.DoesNotExistError:
+                # Specific handling for missing employee record
+                frappe.log_error(
+                    message=f"Employee '{emp}' not found for Salary Slip {self.name}",
+                    title="Payroll Indonesia Missing Employee Error"
+                )
+                raise frappe.ValidationError(f"Employee '{emp}' not found. Please check employee record.")
+            except Exception as e:
+                frappe.log_error(
+                    message=f"Failed to get Employee document for {emp}: {str(e)}",
+                    title="Payroll Indonesia Employee Error"
+                )
+                raise frappe.ValidationError(f"Error fetching employee data: {str(e)}")
+        return {}
+
+    # -------------------------
     # Formula evaluation
     # -------------------------
     def eval_condition_and_formula(self, struct_row, data):
@@ -106,36 +179,11 @@ class CustomSalarySlip(SalarySlip):
             
             employee_doc = self.get_employee_doc()
             
-            # Get month number from start_date or default
-            month = None
-            if hasattr(self, "start_date") and self.start_date:
-                try:
-                    month = getdate(self.start_date).month
-                except Exception:
-                    pass
-            
-            if not month:
-                month_name = getattr(self, "month", None) or getattr(self, "bulan", None)
-                if month_name:
-                    month_map = {
-                        "january": 1, "jan": 1, "januari": 1,
-                        "february": 2, "feb": 2, "februari": 2,
-                        "march": 3, "mar": 3, "maret": 3,
-                        "april": 4, "may": 5, "mei": 5,
-                        "june": 6, "jun": 6, "juni": 6,
-                        "july": 7, "jul": 7, "juli": 7,
-                        "august": 8, "aug": 8, "agustus": 8,
-                        "september": 9, "sep": 9,
-                        "october": 10, "oct": 10, "oktober": 10,
-                        "november": 11, "nov": 11,
-                        "december": 12, "dec": 12, "desember": 12,
-                    }
-                    month = month_map.get(str(month_name).strip().lower())
-                    
-            if not month:
-                # Default to current month
-                from datetime import datetime
-                month = datetime.now().month
+            # Get month number using the helper method
+            month = self._get_month_number(
+                start_date=getattr(self, "start_date", None),
+                month_name=getattr(self, "month", None) or getattr(self, "bulan", None)
+            )
             
             # Calculate taxable income
             taxable_income = self._calculate_taxable_income()
@@ -158,17 +206,7 @@ class CustomSalarySlip(SalarySlip):
             self.tax_type = "TER"
 
             self.update_pph21_row(tax_amount)
-
-            if not getattr(self, "_annual_history_synced", False):
-                self._annual_history_synced = True
-                _sync_ok = False
-                try:
-                    self.sync_to_annual_payroll_history(result, mode="monthly")
-                    _sync_ok = True
-                finally:
-                    if not _sync_ok:
-                        self._annual_history_synced = False
-
+            self.sync_to_annual_payroll_history(result, mode="monthly")
             return tax_amount
             
         except frappe.ValidationError as ve:
@@ -223,17 +261,7 @@ class CustomSalarySlip(SalarySlip):
             self.tax_type = "DECEMBER"
 
             self.update_pph21_row(tax_amount)
-
-            if not getattr(self, "_annual_history_synced", False):
-                self._annual_history_synced = True
-                _sync_ok = False
-                try:
-                    self.sync_to_annual_payroll_history(result, mode="december")
-                    _sync_ok = True
-                finally:
-                    if not _sync_ok:
-                        self._annual_history_synced = False
-
+            self.sync_to_annual_payroll_history(result, mode="december")
             return tax_amount
             
         except frappe.ValidationError as ve:
@@ -506,36 +534,14 @@ class CustomSalarySlip(SalarySlip):
             raise frappe.ValidationError(f"Error calculating PPh21: {str(e)}")
 
     # -------------------------
-    # Helpers
-    # -------------------------
-    def get_employee_doc(self):
-        """Helper: get employee doc/dict from self.employee (id, dict, or object)."""
-        if hasattr(self, "employee"):
-            emp = self.employee
-            if isinstance(emp, dict):
-                return emp
-            try:
-                return frappe.get_doc("Employee", emp)
-            except frappe.DoesNotExistError:
-                # Specific handling for missing employee record
-                frappe.log_error(
-                    message=f"Employee '{emp}' not found for Salary Slip {self.name}",
-                    title="Payroll Indonesia Missing Employee Error"
-                )
-                raise frappe.ValidationError(f"Employee '{emp}' not found. Please check employee record.")
-            except Exception as e:
-                frappe.log_error(
-                    message=f"Failed to get Employee document for {emp}: {str(e)}",
-                    title="Payroll Indonesia Employee Error"
-                )
-                raise frappe.ValidationError(f"Error fetching employee data: {str(e)}")
-        return {}
-
-    # -------------------------
     # Annual Payroll History sync
     # -------------------------
     def sync_to_annual_payroll_history(self, result, mode="monthly"):
         """Sync slip result to Annual Payroll History."""
+        # Prevent duplicate sync when validate() is called multiple times
+        if getattr(self, "_annual_history_synced", False):
+            return
+
         try:
             # Check if employee exists
             if not hasattr(self, "employee") or not self.employee:
@@ -562,37 +568,11 @@ class CustomSalarySlip(SalarySlip):
                 )
                 return
 
-            month_number = None
-            start = getattr(self, "start_date", None)
-            if start:
-                try:
-                    month_number = getdate(start).month
-                except Exception:
-                    month_number = None
-            if not month_number:
-                month_name = getattr(self, "month", None) or getattr(self, "bulan", None)
-                if month_name:
-                    month_map = {
-                        "january": 1, "jan": 1, "januari": 1,
-                        "february": 2, "feb": 2, "februari": 2,
-                        "march": 3, "mar": 3, "maret": 3,
-                        "april": 4, "may": 5, "mei": 5,
-                        "june": 6, "jun": 6, "juni": 6,
-                        "july": 7, "jul": 7, "juli": 7,
-                        "august": 8, "aug": 8, "agustus": 8,
-                        "september": 9, "sep": 9,
-                        "october": 10, "oct": 10, "oktober": 10,
-                        "november": 11, "nov": 11,
-                        "december": 12, "dec": 12, "desember": 12,
-                    }
-                    month_number = month_map.get(str(month_name).strip().lower())
-
-            if not month_number:
-                logger.warning(
-                    f"Could not determine month for Salary Slip {self.name}, using default 0"
-                )
-
-            month_number = month_number or 0
+            # Get month number using the helper method
+            month_number = self._get_month_number(
+                start_date=getattr(self, "start_date", None),
+                month_name=getattr(self, "month", None) or getattr(self, "bulan", None)
+            )
 
             # Ensure numeric rate for Annual Payroll History child
             raw_rate = result.get("rate", 0)
@@ -638,6 +618,7 @@ class CustomSalarySlip(SalarySlip):
                     monthly_results=[monthly_result],
                     summary=summary,
                 )
+            self._annual_history_synced = True
         except frappe.ValidationError as ve:
             # Let validation errors propagate as they indicate data problems
             raise
@@ -677,13 +658,12 @@ class CustomSalarySlip(SalarySlip):
                     f"Could not determine fiscal year for cancelled Salary Slip {self.name}, skipping sync"
                 )
                 return
-            month_number = 0
-            start = getattr(self, "start_date", None)
-            if start:
-                try:
-                    month_number = getdate(start).month
-                except Exception:
-                    month_number = 0
+                
+            # Get month number using the helper method
+            month_number = self._get_month_number(
+                start_date=getattr(self, "start_date", None),
+                month_name=getattr(self, "month", None) or getattr(self, "bulan", None)
+            )
 
             sync_annual_payroll_history.sync_annual_payroll_history(
                 employee=employee_doc,
