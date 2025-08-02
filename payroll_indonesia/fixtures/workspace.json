@@ -4,11 +4,14 @@
   "title": "Payroll Indonesia",
   "icon": "income",
   "module": "Payroll Indonesia",
+  "content_type": "Blocks",
+  "content": "[{\"id\":\"jvTZ8RvO42\",\"type\":\"header\",\"data\":{\"text\":\"Your Shortcuts\",\"col\":12}},{\"id\":\"hNVIisuaFR\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Salary Slip\",\"col\":3}},{\"id\":\"6XUIWHJ3jI\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Payroll Entry\",\"col\":3}},{\"id\":\"yjIBi3GMoo\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Salary Register\",\"col\":3}},{\"id\":\"ORKhwX-uqw\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"gGURwviUAZ\",\"type\":\"header\",\"data\":{\"text\":\"Masters & Reports\",\"col\":12}}]",
   "public": 1,
   "sequence": 10,
-  "content": [],
   "is_hidden": 0,
   "hide_custom": 0,
+  "for_user": "",
+  "roles": [],
   "shortcuts": [
     {
       "label": "Salary Slip",
@@ -147,5 +150,10 @@
         }
       ]
     }
-  ]
+  ],
+  "custom_blocks": [],
+  "links": [],
+  "charts": [],
+  "quick_lists": [],
+  "number_cards": []
 }
