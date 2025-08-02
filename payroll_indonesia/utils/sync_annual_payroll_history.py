@@ -10,8 +10,8 @@ except Exception:  # pragma: no cover - fallback for test stubs without cint
             return 0
 
 
-def get_or_create_annual_payroll_history(employee_name, fiscal_year, month, create_if_missing=True):
-    """Ambil doc Annual Payroll History berdasarkan employee, fiscal_year, dan month.
+def get_or_create_annual_payroll_history(employee_name, fiscal_year, create_if_missing=True):
+    """Ambil doc Annual Payroll History berdasarkan ``employee`` dan ``fiscal_year``.
 
     Jika tidak ada dan ``create_if_missing`` bernilai ``True`` akan membuat doc baru.
     Bila ``create_if_missing`` ``False`` dan dokumen tidak ditemukan, kembalikan ``None``.
@@ -19,7 +19,7 @@ def get_or_create_annual_payroll_history(employee_name, fiscal_year, month, crea
     # Menggunakan frappe.db.exists untuk pengecekan cepat keberadaan dokumen
     doc_name = frappe.db.get_value(
         "Annual Payroll History",
-        {"employee": employee_name, "fiscal_year": fiscal_year, "month": month},
+        {"employee": employee_name, "fiscal_year": fiscal_year},
         "name"
     )
     
@@ -33,12 +33,11 @@ def get_or_create_annual_payroll_history(employee_name, fiscal_year, month, crea
     history = frappe.new_doc("Annual Payroll History")
     history.employee = employee_name
     history.fiscal_year = fiscal_year
-    history.month = month
 
-    # Set name ke kombinasi unik employee-fiscal_year-month jika skema doctype mendukung
+    # Set name ke kombinasi unik employee-fiscal_year jika skema doctype mendukung
     # Catatan: Ini hanya akan berhasil jika Annual Payroll History DocType dikonfigurasi
-    # untuk menerima nama kustom (autoname: field:employee-field:fiscal_year-field:month atau prompt)
-    history.name = f"{employee_name}-{fiscal_year}-{month}"
+    # untuk menerima nama kustom (autoname: field:employee-field:fiscal_year atau prompt)
+    history.name = f"{employee_name}-{fiscal_year}"
     
     return history
 
@@ -183,7 +182,7 @@ def sync_annual_payroll_history(
     Fungsi ini menggunakan frappe.db.savepoint() untuk penanganan transaksi, namun
     tidak melakukan commit. Pemanggil harus mengelola commit/rollback sesuai kebutuhan.
 
-    - Jika dokumen sudah ada untuk employee & fiscal_year & month, update.
+    - Jika dokumen sudah ada untuk employee & fiscal_year, update.
     - Jika belum ada, create baru.
     - Jika salary_slip dicancel, hapus baris terkait pada child.
     - Perubahan akan di-rollback jika terjadi error setelah savepoint.
@@ -263,13 +262,13 @@ def sync_annual_payroll_history(
 
     try:
         history = get_or_create_annual_payroll_history(
-            employee_name, fiscal_year, month, create_if_missing=not only_cancel
+            employee_name, fiscal_year, create_if_missing=not only_cancel
         )
 
         if not history:
             frappe.logger().info(
                 f"No Annual Payroll History found for employee {employee_name}, "
-                f"fiscal year {fiscal_year}, month {month} and not creating new record"
+                f"fiscal year {fiscal_year} and not creating new record"
             )
             return None
 
