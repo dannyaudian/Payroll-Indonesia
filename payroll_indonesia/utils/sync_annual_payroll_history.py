@@ -193,7 +193,9 @@ def sync_annual_payroll_history(employee, fiscal_year, monthly_results=None, sum
                 f"for employee '{employee_name}', fiscal year {fiscal_year} "
                 f"at {frappe.utils.now()}"
             )
-            history.save(ignore_permissions=True)
+            # Salary Slip is unsaved during validate, so ignore link checks
+            # or move this sync to a post-insert hook
+            history.save(ignore_permissions=True, ignore_links=True)
             return history.name
         except Exception as e:
             frappe.log_error(
