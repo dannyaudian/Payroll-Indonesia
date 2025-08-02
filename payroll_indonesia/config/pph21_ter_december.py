@@ -37,7 +37,7 @@ def calculate_pph21_december(
     Calculate December PPh21 using progressive rates (annual correction).
     
     Args:
-        taxable_income: December month taxable income
+        taxable_income: Pendapatan kena pajak bulan Desember
         employee: Employee document or dictionary with employee data
         company: Company name or ID
         ytd_income: Year-to-date income including December
@@ -66,7 +66,7 @@ def calculate_pph21_december(
             "pkp_annual": 0.0,
             "rate": "",
             "pph21_annual": 0.0,
-            "pph21_month": 0.0,
+            "pph21_bulan": 0.0,
             "income_tax_deduction_total": 0.0,
             "biaya_jabatan_total": 0.0,
             "koreksi_pph21": 0.0,
@@ -91,7 +91,7 @@ def calculate_pph21_december(
     koreksi_pph21 = pph21_annual - ytd_tax_paid
     
     # December PPh21 is the positive correction amount (negative means refund, handled separately)
-    pph21_month_des = koreksi_pph21 if koreksi_pph21 > 0 else 0
+    pph21_bulan_des = koreksi_pph21 if koreksi_pph21 > 0 else 0
     
     # Get tax rates description
     rates = "/".join([f"{rate}%" for _, rate in get_tax_slabs()])
@@ -104,7 +104,7 @@ def calculate_pph21_december(
         "pkp_annual": pkp_annual,
         "rate": rates,
         "pph21_annual": pph21_annual,
-        "pph21_month": pph21_month_des,
+        "pph21_bulan": pph21_bulan_des,
         "income_tax_deduction_total": 0.0,  # Would need actual deduction data
         "biaya_jabatan_total": 0.0,  # Would need actual biaya jabatan data
         "koreksi_pph21": koreksi_pph21,
@@ -152,7 +152,7 @@ def calculate_pph21_december_from_slips(
             "pkp_annual": 0.0,
             "rate": "",
             "pph21_annual": 0.0,
-            "pph21_month": 0.0,
+            "pph21_bulan": 0.0,
             "income_tax_deduction_total": 0.0,
             "biaya_jabatan_total": 0.0,
             "koreksi_pph21": 0.0,
@@ -166,26 +166,26 @@ def calculate_pph21_december_from_slips(
     biaya_jabatan_total = 0.0
     pph21_paid_jan_nov = 0.0
     
-    # Extract month 12 slip if it exists
+    # Pisahkan slip bulan Desember jika ada
     december_slip = None
     jan_nov_slips = []
-    
+
     for slip in salary_slips:
-        # Try to determine the month
-        month = None
+        # Coba tentukan bulan dari tanggal mulai
+        bulan = None
         if slip.get("start_date"):
             try:
                 from frappe.utils import getdate
-                month = getdate(slip.get("start_date")).month
+                bulan = getdate(slip.get("start_date")).month
             except Exception:
                 pass
-        
-        # If we can identify month 12, separate it
-        if month == 12:
+
+        # Jika teridentifikasi bulan 12, pisahkan
+        if bulan == 12:
             december_slip = slip
             continue
-        
-        # Add to Jan-Nov list
+
+        # Tambahkan ke daftar Jan-Nov
         jan_nov_slips.append(slip)
         
         # Process Jan-Nov slips for totals
@@ -220,7 +220,7 @@ def calculate_pph21_december_from_slips(
     koreksi_pph21 = pph21_annual - pph21_paid_jan_nov
     
     # December PPh21
-    pph21_month_des = koreksi_pph21 if koreksi_pph21 > 0 else 0
+    pph21_bulan_des = koreksi_pph21 if koreksi_pph21 > 0 else 0
     
     # Get tax rates description
     rates = "/".join([f"{rate}%" for _, rate in get_tax_slabs()])
@@ -233,7 +233,7 @@ def calculate_pph21_december_from_slips(
         "pkp_annual": pkp_annual,
         "rate": rates,
         "pph21_annual": pph21_annual,
-        "pph21_month": pph21_month_des,
+        "pph21_bulan": pph21_bulan_des,
         "income_tax_deduction_total": pengurang_netto_total,
         "biaya_jabatan_total": biaya_jabatan_total,
         "koreksi_pph21": koreksi_pph21,

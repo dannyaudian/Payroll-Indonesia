@@ -70,6 +70,12 @@ Penjelasan mengenai kelas `CustomSalarySlip` beserta cara mengaktifkan override 
 
 ---
 
+## Changelog
+
+Lihat [CHANGELOG.md](CHANGELOG.md) untuk daftar perubahan.
+
+---
+
 ## Lisensi
 
 MIT License

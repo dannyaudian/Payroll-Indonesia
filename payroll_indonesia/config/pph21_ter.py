@@ -33,10 +33,10 @@ PENGURANG_NETTO_NAMES = {
     "dana pensiun",
 }
 
-def calculate_pph21_TER(taxable_income: Union[float, Dict[str, Any]], 
-                        employee: Union[Dict[str, Any], Any], 
-                        company: str, 
-                        month: int = None) -> Dict[str, Any]:
+def calculate_pph21_TER(taxable_income: Union[float, Dict[str, Any]],
+                        employee: Union[Dict[str, Any], Any],
+                        company: str,
+                        bulan: int = None) -> Dict[str, Any]:
     """
     Calculate monthly PPh21 using TER (Tabel Pajak Bulanan) method.
     
@@ -44,7 +44,7 @@ def calculate_pph21_TER(taxable_income: Union[float, Dict[str, Any]],
         taxable_income: Either the gross income value or a dict containing slip data
         employee: Employee document or dictionary with employee data
         company: Company name or ID
-        month: Month number (1-12), optional if provided in taxable_income
+        bulan: Nomor bulan (1-12), optional if provided in taxable_income
         
     Returns:
         Dictionary with calculation results including pph21 amount
@@ -63,25 +63,25 @@ def calculate_pph21_TER(taxable_income: Union[float, Dict[str, Any]],
     slip_data = None
     if isinstance(taxable_income, dict) and taxable_income.get("earnings") is not None:
         slip_data = taxable_income
-        # Extract month from slip if not provided
-        if not month and slip_data.get("start_date"):
+        # Extract bulan from slip if not provided
+        if not bulan and slip_data.get("start_date"):
             try:
                 from frappe.utils import getdate
-                month = getdate(slip_data.get("start_date")).month
+                bulan = getdate(slip_data.get("start_date")).month
             except Exception:
                 pass
-    
-    # Ensure month is valid or use default
-    if not month:
-        # Try to get month from employee data
-        if hasattr(employee, "month"):
-            month = employee.month
-        elif isinstance(employee, dict) and employee.get("month"):
-            month = employee.get("month")
+
+    # Ensure bulan is valid or use default
+    if not bulan:
+        # Try to get bulan from employee data
+        if hasattr(employee, "bulan"):
+            bulan = getattr(employee, "bulan")
+        elif isinstance(employee, dict) and employee.get("bulan"):
+            bulan = employee.get("bulan")
         else:
-            # Default to current month if not provided
+            # Default ke bulan berjalan jika tidak diberikan
             from datetime import datetime
-            month = datetime.now().month
+            bulan = datetime.now().month
     
     # Employment type check - only process Full-time employees
     emp_type = employee.get("employment_type") if isinstance(employee, dict) else getattr(employee, "employment_type", None)

@@ -324,21 +324,6 @@ class CustomPayrollEntry(PayrollEntry):
                         
                         # If we have the necessary data, clean up the history entry
                         if fiscal_year:
-                            # Get month number
-                            month_number = 0
-                            if hasattr(slip_obj, "_get_month_number") and callable(getattr(slip_obj, "_get_month_number")):
-                                month_number = slip_obj._get_month_number(
-                                    start_date=getattr(slip_obj, "start_date", None),
-                                    month_name=getattr(slip_obj, "month", None) or getattr(slip_obj, "bulan", None)
-                                )
-                            elif hasattr(slip_obj, "start_date") and slip_obj.start_date:
-                                try:
-                                    from frappe.utils import getdate
-                                    month_number = getdate(slip_obj.start_date).month
-                                except Exception:
-                                    month_number = 0
-                            
-                            # Call sync function with cancelled_salary_slip parameter
                             sync_annual_payroll_history.sync_annual_payroll_history(
                                 employee=employee_doc,
                                 fiscal_year=fiscal_year,
