@@ -2,6 +2,7 @@
   "doctype": "Workspace",
   "name": "Payroll Indonesia",
   "title": "Payroll Indonesia",
+  "label": "Payroll Indonesia",
   "icon": "income",
   "module": "Payroll Indonesia",
   "content_type": "Blocks",
