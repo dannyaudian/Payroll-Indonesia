@@ -30,7 +30,8 @@ except Exception:  # pragma: no cover - fallback for test stubs without getdate
 from frappe.utils.safe_exec import safe_eval
 
 from payroll_indonesia.config import pph21_ter, pph21_ter_december
-# Import utils module but not the specific function to avoid circular imports
+# Import utils module so tests can monkeypatch its sync function easily
+from payroll_indonesia.utils import sync_annual_payroll_history
 from payroll_indonesia import _patch_salary_slip_globals
 
 
@@ -390,9 +391,11 @@ class CustomSalarySlip(SalarySlip):
     # -------------------------
     def sync_to_annual_payroll_history(self, result, mode="monthly"):
         """Sync slip result to Annual Payroll History."""
+        # Prevent duplicate sync when validate() is called multiple times
+        if getattr(self, "_annual_history_synced", False):
+            return
+
         try:
-            # Import the sync module here to avoid circular imports
-            from payroll_indonesia.utils import sync_annual_payroll_history
             
             # Check if employee exists
             if not hasattr(self, "employee") or not self.employee:
@@ -513,6 +516,7 @@ class CustomSalarySlip(SalarySlip):
                     monthly_results=[monthly_result],
                     summary=summary,
                 )
+            self._annual_history_synced = True
         except frappe.ValidationError as ve:
             # Let validation errors propagate as they indicate data problems
             raise
@@ -529,9 +533,6 @@ class CustomSalarySlip(SalarySlip):
     def on_cancel(self):
         """When slip is cancelled, remove related row from Annual Payroll History."""
         try:
-            # Import the sync module here to avoid circular imports
-            from payroll_indonesia.utils import sync_annual_payroll_history
-            
             # Check if employee exists
             if not hasattr(self, "employee") or not self.employee:
                 frappe.logger().warning(
