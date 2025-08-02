@@ -9,6 +9,7 @@
   "is_creatable": 1,
   "show_in_module_section": 1,
   "route": "annual-payroll-history",
+  "autoname": "field:employee-field:month",
   "fields": [
     {
       "fieldname": "fiscal_year",
@@ -22,6 +23,13 @@
       "fieldtype": "Link",
       "label": "Employee",
       "options": "Employee",
+      "reqd": 1,
+      "in_list_view": 1
+    },
+    {
+      "fieldname": "month",
+      "fieldtype": "Int",
+      "label": "Month",
       "reqd": 1,
       "in_list_view": 1
     },

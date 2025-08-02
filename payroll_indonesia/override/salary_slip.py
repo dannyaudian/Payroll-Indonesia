@@ -599,6 +599,7 @@ class CustomSalarySlip(SalarySlip):
                 sync_annual_payroll_history.sync_annual_payroll_history(
                     employee=employee_doc,
                     fiscal_year=fiscal_year,
+                    month=month_number,
                     monthly_results=[monthly_result],
                     summary=None,
                 )
@@ -617,6 +618,7 @@ class CustomSalarySlip(SalarySlip):
                 sync_annual_payroll_history.sync_annual_payroll_history(
                     employee=employee_doc,
                     fiscal_year=fiscal_year,
+                    month=month_number,
                     monthly_results=[monthly_result],
                     summary=summary,
                 )
@@ -660,10 +662,18 @@ class CustomSalarySlip(SalarySlip):
                     f"Could not determine fiscal year for cancelled Salary Slip {self.name}, skipping sync"
                 )
                 return
-                
+            month_number = 0
+            start = getattr(self, "start_date", None)
+            if start:
+                try:
+                    month_number = getdate(start).month
+                except Exception:
+                    month_number = 0
+
             sync_annual_payroll_history.sync_annual_payroll_history(
                 employee=employee_doc,
                 fiscal_year=fiscal_year,
+                month=month_number,
                 monthly_results=None,
                 summary=None,
                 cancelled_salary_slip=self.name,
