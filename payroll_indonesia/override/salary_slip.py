@@ -198,12 +198,16 @@ class CustomSalarySlip(SalarySlip):
             
             tax_amount = flt(result.get("pph21", 0.0))
 
-            # Store details as JSON string (pph21_info field is Text)
-            self.pph21_info = json.dumps(result)
-
             # Set standard Salary Slip fields
             self.tax = tax_amount
-            self.tax_type = "TER"
+            try:
+                self.tax_type = "TER"
+            except AttributeError:
+                # Add fallback for environments where ``tax_type`` is missing
+                result["_tax_type"] = "TER"
+
+            # Store details as JSON string (pph21_info field is Text)
+            self.pph21_info = json.dumps(result)
 
             self.update_pph21_row(tax_amount)
             return tax_amount
@@ -252,12 +256,16 @@ class CustomSalarySlip(SalarySlip):
             
             tax_amount = flt(result.get("pph21_bulan", 0.0))
 
-            # Store details as JSON string
-            self.pph21_info = json.dumps(result)
-
             # Set standard fields
             self.tax = tax_amount
-            self.tax_type = "DECEMBER"
+            try:
+                self.tax_type = "DECEMBER"
+            except AttributeError:
+                # Fallback for objects missing ``tax_type``
+                result["_tax_type"] = "DECEMBER"
+
+            # Store details as JSON string
+            self.pph21_info = json.dumps(result)
 
             self.update_pph21_row(tax_amount)
             return tax_amount
