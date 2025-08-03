@@ -14,7 +14,7 @@ import traceback
 from typing import Callable, Dict, List, Any, Optional, Tuple
 from payroll_indonesia.override.salary_slip import CustomSalarySlip
 from payroll_indonesia.config import get_value
-from payroll_indonesia.utils import sync_annual_payroll_history
+from payroll_indonesia.utils.sync_annual_payroll_history import sync_annual_payroll_history
 from frappe.utils import file_lock
 import os
 import time
@@ -324,7 +324,7 @@ class CustomPayrollEntry(PayrollEntry):
                         
                         # If we have the necessary data, clean up the history entry
                         if fiscal_year:
-                            sync_annual_payroll_history.sync_annual_payroll_history(
+                            sync_annual_payroll_history(
                                 employee=employee_doc,
                                 fiscal_year=fiscal_year,
                                 monthly_results=None,
