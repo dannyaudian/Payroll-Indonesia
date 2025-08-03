@@ -19,7 +19,7 @@ except ImportError:
     import frappe
     frappe.log_error(
         message="Failed to import SalarySlip from hrms.payroll. Using Document fallback.",
-        title="Payroll Indonesia Import Warning"
+        title="Payroll Indonesia Import Warning",
     )
 
 import frappe
@@ -534,6 +534,7 @@ class CustomSalarySlip(SalarySlip):
     # -------------------------
     # Annual Payroll History sync
     # -------------------------
+
     def sync_to_annual_payroll_history(self, result, mode="monthly"):
         """Sync slip result to Annual Payroll History."""
         # Prevent duplicate sync when validate() is called multiple times
@@ -548,24 +549,34 @@ class CustomSalarySlip(SalarySlip):
                 )
                 return
 
-            fiscal_year = getattr(self, "fiscal_year", None) or str(
-                getattr(self, "start_date", None) or ""
-            )[:4]
+            # Build employee info dict from full Employee document
+            employee_doc = self.get_employee_doc() or {}
+            employee_info = {
+                "name": employee_doc.get("name") or self.employee,
+                "company": employee_doc.get("company") or getattr(self, "company", None),
+                "employee_name": employee_doc.get("employee_name"),
+            }
+
+            # Determine fiscal year
+            fiscal_year = getattr(self, "fiscal_year", None)
+            if not fiscal_year and getattr(self, "start_date", None):
+                fiscal_year = str(getdate(self.start_date).year)
             if not fiscal_year:
                 logger.warning(
                     f"Could not determine fiscal year for Salary Slip {self.name}, skipping sync"
                 )
                 return
 
-            # Ambil nomor bulan menggunakan helper
+            # Determine month number using helper
             nomor_bulan = self._get_bulan_number(
                 start_date=getattr(self, "start_date", None),
-                nama_bulan=getattr(self, "bulan", None)
+                nama_bulan=getattr(self, "bulan", None),
             )
 
             # Ensure numeric rate for Annual Payroll History child
             raw_rate = result.get("rate", 0)
             numeric_rate = raw_rate if isinstance(raw_rate, (int, float)) else 0
+
             monthly_result = {
                 "bulan": nomor_bulan,
                 "bruto": result.get("bruto", result.get("bruto_total", 0)),
@@ -580,10 +591,18 @@ class CustomSalarySlip(SalarySlip):
                 "salary_slip": self.name,
             }
 
-            docname = None
+            # Log sync attempt for debugging purposes
+            msg = (
+                f"Attempting Annual Payroll History sync for slip {self.name} "
+                f"(mode={mode}) employee={employee_info} fiscal_year={fiscal_year} "
+                f"bulan={nomor_bulan} rate={numeric_rate}"
+            )
+            if hasattr(logger, "debug"):
+                logger.debug(msg)
+
             if mode == "monthly":
-                docname = sync_annual_payroll_history(
-                    employee=self.employee,
+                sync_annual_payroll_history(
+                    employee=employee_info,
                     fiscal_year=fiscal_year,
                     monthly_results=[monthly_result],
                     summary=None,
@@ -600,14 +619,15 @@ class CustomSalarySlip(SalarySlip):
                 # Preserve slab string separately for reporting if available
                 if isinstance(raw_rate, str) and raw_rate:
                     summary["rate_slab"] = raw_rate
-                docname = sync_annual_payroll_history(
-                    employee=self.employee,
+                sync_annual_payroll_history(
+                    employee=employee_info,
                     fiscal_year=fiscal_year,
                     monthly_results=[monthly_result],
                     summary=summary,
                 )
-            if docname:
-                self._annual_history_synced = True
+
+            # Mark as synced only after successful call
+            self._annual_history_synced = True
         except frappe.ValidationError as ve:
             # Let validation errors propagate as they indicate data problems
             raise
@@ -615,7 +635,7 @@ class CustomSalarySlip(SalarySlip):
             error_trace = traceback.format_exc()
             frappe.log_error(
                 message=f"Failed to sync Annual Payroll History for {getattr(self, 'name', 'unknown')}: {str(e)}\n{error_trace}",
-                title="Payroll Indonesia Annual History Sync Error"
+                title="Payroll Indonesia Annual History Sync Error",
             )
             # History sync failures shouldn't stop slip creation, so we log but don't raise
             logger.warning(f"Annual Payroll History sync failed for {self.name}: {str(e)}")
