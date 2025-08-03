@@ -2,14 +2,19 @@ import frappe
 import re
 import json
 try:
-    from frappe.utils import cint
-except Exception:  # pragma: no cover - fallback for test stubs without cint
+    from frappe.utils import cint, flt
+except Exception:  # pragma: no cover - fallback for test stubs without cint/flt
     def cint(value):
         try:
             return int(value)
         except Exception:
             return 0
-from frappe.model.naming import make_autoname
+
+    def flt(value):
+        try:
+            return float(value)
+        except Exception:
+            return 0.0
 
 
 def get_or_create_annual_payroll_history(employee_id, fiscal_year, create_if_missing=True):
@@ -37,14 +42,30 @@ def get_or_create_annual_payroll_history(employee_id, fiscal_year, create_if_mis
     history.fiscal_year = fiscal_year
 
     # Ambil informasi tambahan dari dokumen Employee
-    employee_doc = frappe.get_doc("Employee", employee_id)
-    history.company = employee_doc.company
-    history.employee_name = getattr(employee_doc, "employee_name", None)
+    employee_doc = None
+    try:
+        employee_doc = frappe.get_doc("Employee", employee_id)
+    except Exception:
+        employee_doc = None
 
-    # Gunakan utilitas penamaan Frappe untuk membuat nama unik berdasarkan pola yang diinginkan
-    # Depend pada konfigurasi DocType atau pola yang diberikan agar menghasilkan identifier valid
-    history.name = make_autoname(f"{employee_id}-{fiscal_year}")
-    
+    default_company = (
+        frappe.defaults.get_user_default("Company") if getattr(frappe, "defaults", None) else None
+    )
+    history.company = getattr(employee_doc, "company", None) or default_company
+    history.employee_name = getattr(employee_doc, "employee_name", None) or employee_id
+
+    # Set explicit name dan inisialisasi nilai parent
+    history.name = f"{employee_id}-{fiscal_year}"
+    for field in [
+        "bruto_total",
+        "netto_total",
+        "ptkp_annual",
+        "pkp_annual",
+        "pph21_annual",
+        "koreksi_pph21",
+    ]:
+        setattr(history, field, 0)
+
     return history
 
 
@@ -106,17 +127,23 @@ def is_salary_slip_valid(salary_slip_name):
 def upsert_monthly_detail(history, month_data):
     """
     Tambah atau update child (monthly_details) di Annual Payroll History.
-    Unik berdasarkan bulan/salary_slip.
-    Jika data dengan salary_slip/bulan sudah ada, update. Jika tidak, append baru.
-    
-    Periksa validitas salary_slip dengan docstatus dan keberadaannya di database.
-    
+    Unik berdasarkan ``bulan``/``salary_slip``.
+    Jika data dengan ``salary_slip``/``bulan`` sudah ada, update. Jika tidak, append baru.
+
+    Periksa validitas ``salary_slip`` dengan docstatus dan keberadaannya di database.
+
     Returns:
         bool: True jika berhasil ditambah/diupdate, False jika dilewati karena invalid
     """
     bulan = month_data.get("bulan")
     salary_slip = month_data.get("salary_slip")
-    
+
+    if bulan is None:
+        frappe.logger().warning("Skipping monthly detail without required 'bulan'")
+        return False
+
+    bulan = cint(bulan)
+
     # Validasi salary slip jika ada
     if salary_slip:
         is_valid, reason = is_salary_slip_valid(salary_slip)
@@ -125,50 +152,42 @@ def upsert_monthly_detail(history, month_data):
                 f"Skipping invalid Salary Slip in Annual Payroll History sync: {salary_slip}. Reason: {reason}"
             )
             return False
-    
+
     # Cari child yang sama (by bulan atau salary_slip)
     found = None
     for detail in history.get("monthly_details", []):
-        # Match by exact salary slip match or (bulan match and no conflicting salary slip)
-        if (salary_slip and detail.salary_slip == salary_slip) or \
-           (bulan and detail.bulan == bulan and (not salary_slip or not detail.salary_slip)):
+        if salary_slip and detail.salary_slip == salary_slip:
             found = detail
             break
-            
+        if detail.bulan == bulan:
+            found = detail
+            break
+
+    numeric_fields = [
+        "bruto",
+        "pengurang_netto",
+        "biaya_jabatan",
+        "netto",
+        "pkp",
+        "rate",
+        "pph21",
+    ]
+
     if found:
-        # Update existing record
-        for k, v in month_data.items():
-            if k in [
-                "bulan",
-                "bruto",
-                "pengurang_netto",
-                "biaya_jabatan",
-                "netto",
-                "pkp",
-                "rate",
-                "pph21",
-                "salary_slip",
-                "error_state",
-            ]:
-                found.set(k, v)
+        target = found
     else:
-        # Create new record
-        detail = history.append("monthly_details", {})
-        for k, v in month_data.items():
-            if k in [
-                "bulan",
-                "bruto",
-                "pengurang_netto",
-                "biaya_jabatan",
-                "netto",
-                "pkp",
-                "rate",
-                "pph21",
-                "salary_slip",
-                "error_state",
-            ]:
-                detail.set(k, v)
-                
+        target = history.append("monthly_details", {})
+
+    target.set("bulan", bulan)
+    if salary_slip:
+        target.set("salary_slip", salary_slip)
+    if month_data.get("error_state") is not None:
+        target.set("error_state", month_data.get("error_state"))
+
+    for field in numeric_fields:
+        if field in month_data:
+            target.set(field, flt(month_data.get(field)))
+
     return True
 
 
