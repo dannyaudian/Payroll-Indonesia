@@ -655,6 +655,8 @@ class CustomSalarySlip(SalarySlip):
 
     def on_cancel(self):
         """When slip is cancelled, remove related row from Annual Payroll History."""
+        if getattr(self, "flags", {}).get("from_annual_payroll_cancel"):
+            return
         try:
             # Check if employee exists
             if not hasattr(self, "employee") or not self.employee:
