@@ -137,6 +137,8 @@ def get_or_create_annual_payroll_history(
     for field in [
         "bruto_total",
         "netto_total",
+        "pengurang_netto_total",  # Added this field from DocType
+        "biaya_jabatan_total",    # Added this field from DocType
         "ptkp_annual",
         "pkp_annual",
         "pph21_annual",
@@ -158,11 +160,23 @@ def update_annual_payroll_summary(history: Any, summary: Dict[str, Any]) -> None
     if not summary:
         return
         
+    # Map of summary field keys to DocType field names for any fields that don't match exactly
+    field_mapping = {
+        "pengurang_netto_total": "pengurang_netto_total",
+        "biaya_jabatan_total": "biaya_jabatan_total",
+        # Add more mappings as needed
+    }
+        
     for k, v in summary.items():
+        # Check if there's a mapping for this field
+        field_name = field_mapping.get(k, k)
+        
         # Ensure numeric fields are not None
-        if v is None and k in [
+        if v is None and field_name in [
             "bruto_total",
             "netto_total",
+            "pengurang_netto_total",
+            "biaya_jabatan_total",
             "ptkp_annual",
             "pkp_annual",
             "pph21_annual",
@@ -170,10 +184,11 @@ def update_annual_payroll_summary(history: Any, summary: Dict[str, Any]) -> None
         ]:
             v = 0
             
-        if hasattr(history, k):
-            setattr(history, k, v)
+        if hasattr(history, field_name):
+            setattr(history, field_name, v)
         else:
-            history.set(k, v)
+            # Fallback to using set method if attribute doesn't exist
+            history.set(field_name, v)
 
 
 def is_salary_slip_valid(salary_slip_name: str) -> Tuple[bool, Optional[str]]:
@@ -697,6 +712,8 @@ def sync_annual_payroll_history_for_bulan(
             for field in [
                 "bruto_total",
                 "netto_total",
+                "pengurang_netto_total",  # Added this field from DocType
+                "biaya_jabatan_total",    # Added this field from DocType
                 "ptkp_annual",
                 "pkp_annual",
                 "pph21_annual",
@@ -704,6 +721,17 @@ def sync_annual_payroll_history_for_bulan(
             ]:
                 if history.get(field) is None:
                     history.set(field, 0)
+
+        # Calculate totals from monthly details if summary is not provided
+        if not summary and monthly_results:
+            try:
+                # Aggregate monthly details to calculate totals
+                recalculate_summary_from_monthly_details(history)
+            except Exception as calc_error:
+                # Non-critical error, log but continue
+                frappe.logger("payroll_indonesia").warning(
+                    "Failed to recalculate summary from monthly details: %s", str(calc_error)
+                )
 
         try:
             frappe.logger("payroll_indonesia").debug(
@@ -758,6 +786,49 @@ def sync_annual_payroll_history_for_bulan(
         frappe.throw(f"Gagal memproses Annual Payroll History: {str(e)}")
 
 
+def recalculate_summary_from_monthly_details(history: Any) -> None:
+    """
+    Recalculate summary fields based on monthly details.
+    
+    Args:
+        history: Annual Payroll History document
+    """
+    if not history or not hasattr(history, "monthly_details"):
+        return
+    
+    # Initialize totals
+    bruto_total = 0
+    pengurang_netto_total = 0
+    biaya_jabatan_total = 0
+    pph21_total = 0
+    
+    # Sum up values from monthly details
+    for detail in history.monthly_details:
+        bruto_total += flt(getattr(detail, "bruto", 0))
+        pengurang_netto_total += flt(getattr(detail, "pengurang_netto", 0))
+        biaya_jabatan_total += flt(getattr(detail, "biaya_jabatan", 0))
+        pph21_total += flt(getattr(detail, "pph21", 0))
+    
+    # Calculate netto_total
+    netto_total = bruto_total - pengurang_netto_total - biaya_jabatan_total
+    
+    # Update summary fields
+    history.bruto_total = bruto_total
+    history.pengurang_netto_total = pengurang_netto_total
+    history.biaya_jabatan_total = biaya_jabatan_total
+    history.netto_total = netto_total
+    
+    # Only update these fields if they don't already have values
+    # since they may be set from external calculations
+    if not history.pph21_annual or history.pph21_annual == 0:
+        history.pph21_annual = pph21_total
+    
+    # Calculate koreksi_pph21 if pph21_annual is set
+    if history.pph21_annual:
+        # koreksi_pph21 is the difference between annual PPh21 and sum of monthly PPh21
+        history.koreksi_pph21 = history.pph21_annual - pph21_total
+
+
 def sync_salary_slip_to_annual(doc: Any, method: Optional[str] = None) -> None:
     """
     Synchronize Salary Slip to Annual Payroll History.
@@ -792,6 +863,8 @@ def sync_salary_slip_to_annual(doc: Any, method: Optional[str] = None) -> None:
                         summary = {
                             "bruto_total": pph21_info.get("bruto_total", 0),
                             "netto_total": pph21_info.get("netto_total", 0),
+                            "pengurang_netto_total": pph21_info.get("pengurang_netto_total", 0),
+                            "biaya_jabatan_total": pph21_info.get("biaya_jabatan_total", 0),
                             "ptkp_annual": pph21_info.get("ptkp_annual", 0),
                             "pkp_annual": pph21_info.get("pkp_annual", 0),
                             "pph21_annual": pph21_info.get("pph21_annual", 0),
@@ -879,6 +952,8 @@ def sync_salary_slip_to_annual(doc: Any, method: Optional[str] = None) -> None:
             summary = {
                 "bruto_total": pph21_info.get("bruto_total", 0),
                 "netto_total": pph21_info.get("netto_total", 0),
+                "pengurang_netto_total": pph21_info.get("pengurang_netto_total", 0),
+                "biaya_jabatan_total": pph21_info.get("biaya_jabatan_total", 0),
                 "ptkp_annual": pph21_info.get("ptkp_annual", 0),
                 "pkp_annual": pph21_info.get("pkp_annual", 0),
                 "pph21_annual": pph21_info.get("pph21_annual", 0),
@@ -910,3 +985,4 @@ def sync_salary_slip_to_annual(doc: Any, method: Optional[str] = None) -> None:
         logger.error("Error in sync_salary_slip_to_annual: %s", str(e))
         # Re-raise the exception to ensure proper error handling
         raise
+    
