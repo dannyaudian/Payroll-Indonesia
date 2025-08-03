@@ -56,7 +56,8 @@
       "fieldname": "ptkp_annual",
       "fieldtype": "Currency",
       "label": "PTKP Annual",
-      "reqd": 1
+      "reqd": 1,
+      "default": "0"
     },
     {
       "fieldname": "pkp_annual",
@@ -75,6 +76,7 @@
       "fieldtype": "Currency",
       "label": "Koreksi PPh21 Desember",
       "reqd": 1,
+      "default": "0",
       "description": "pph21_annual - total pph21 Jan-Nov"
     },
     {
