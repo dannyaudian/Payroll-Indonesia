@@ -20,7 +20,7 @@ def test_get_or_create_creates(monkeypatch):
         fake_make_autoname,
     )
 
-    doc = get_or_create_annual_payroll_history("EMP001", "2024")
+    doc = get_or_create_annual_payroll_history(employee_id="EMP001", fiscal_year="2024")
     assert doc.name == "AUTO-EMP001-2024"
     assert captured["key"] == "EMP001-2024"
     assert doc.fiscal_year == "2024"
@@ -51,6 +51,6 @@ def test_get_or_create_returns_existing(monkeypatch):
         fake_make_autoname,
     )
 
-    doc = get_or_create_annual_payroll_history("EMP001", "2024")
+    doc = get_or_create_annual_payroll_history(employee_id="EMP001", fiscal_year="2024")
     assert doc is existing
     assert calls["count"] == 0

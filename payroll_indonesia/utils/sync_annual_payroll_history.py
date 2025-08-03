@@ -12,7 +12,7 @@ except Exception:  # pragma: no cover - fallback for test stubs without cint
 from frappe.model.naming import make_autoname
 
 
-def get_or_create_annual_payroll_history(employee_name, fiscal_year, create_if_missing=True):
+def get_or_create_annual_payroll_history(employee_id, fiscal_year, create_if_missing=True):
     """Ambil doc Annual Payroll History berdasarkan ``employee`` dan ``fiscal_year``.
 
     Jika tidak ada dan ``create_if_missing`` bernilai ``True`` akan membuat doc baru.
@@ -21,7 +21,7 @@ def get_or_create_annual_payroll_history(employee_name, fiscal_year, create_if_m
     # Menggunakan frappe.db.exists untuk pengecekan cepat keberadaan dokumen
     doc_name = frappe.db.get_value(
         "Annual Payroll History",
-        {"employee": employee_name, "fiscal_year": fiscal_year},
+        {"employee": employee_id, "fiscal_year": fiscal_year},
         "name"
     )
     
@@ -33,12 +33,12 @@ def get_or_create_annual_payroll_history(employee_name, fiscal_year, create_if_m
 
     # Buat dokumen baru
     history = frappe.new_doc("Annual Payroll History")
-    history.employee = employee_name
+    history.employee = employee_id
     history.fiscal_year = fiscal_year
 
     # Gunakan utilitas penamaan Frappe untuk membuat nama unik berdasarkan pola yang diinginkan
     # Depend pada konfigurasi DocType atau pola yang diberikan agar menghasilkan identifier valid
-    history.name = make_autoname(f"{employee_name}-{fiscal_year}")
+    history.name = make_autoname(f"{employee_id}-{fiscal_year}")
     
     return history
 
@@ -325,13 +325,13 @@ def sync_annual_payroll_history_for_bulan(
         str: Nama dokumen Annual Payroll History yang diupdate/dibuat, atau None jika gagal
     """
     # Extract employee name safely without assuming specific object structure
-    employee_name = None
+    employee_id = None
     if isinstance(employee, dict) and "name" in employee:
-        employee_name = employee["name"]
+        employee_id = employee["name"]
     elif hasattr(employee, "name"):
-        employee_name = employee.name
-    
-    if not employee_name:
+        employee_id = employee.name
+
+    if not employee_id:
         # Strict validation to prevent processing with invalid employee data
         frappe.throw("Employee harus punya field 'name'!", title="Validation Error")
     
@@ -379,17 +379,17 @@ def sync_annual_payroll_history_for_bulan(
     only_cancel = cancelled_salary_slip and not monthly_results and not summary
 
     # Create a transaction savepoint to allow rollback if needed
-    savepoint_name = f"annual_history_sync_{employee_name}_{fiscal_year}_{bulan}"
+    savepoint_name = f"annual_history_sync_{employee_id}_{fiscal_year}_{bulan}"
     frappe.db.savepoint(savepoint_name)
 
     try:
         history = get_or_create_annual_payroll_history(
-            employee_name, fiscal_year, create_if_missing=not only_cancel
+            employee_id, fiscal_year, create_if_missing=not only_cancel
         )
 
         if not history:
             frappe.logger().info(
-                f"No Annual Payroll History found for employee {employee_name}, "
+                f"No Annual Payroll History found for employee {employee_id}, "
                 f"fiscal year {fiscal_year} and not creating new record"
             )
             return None
@@ -425,7 +425,7 @@ def sync_annual_payroll_history_for_bulan(
         # Skip saving only when no changes occurred, no summary provided, and no error state recorded
         if rows_updated == 0 and rows_deleted == 0 and error_state is None and not summary:
             frappe.logger().info(
-                f"No rows updated, deleted, or summary provided in Annual Payroll History for {employee_name}, skipping save"
+                f"No rows updated, deleted, or summary provided in Annual Payroll History for {employee_id}, skipping save"
             )
             return None
 
@@ -451,7 +451,7 @@ def sync_annual_payroll_history_for_bulan(
             # Log detailed debug info
             frappe.logger().debug(
                 f"[{frappe.session.user}] Saving Annual Payroll History '{history.name}' "
-                f"for employee '{employee_name}', fiscal year {fiscal_year}, bulan {bulan} "
+                f"for employee '{employee_id}', fiscal year {fiscal_year}, bulan {bulan} "
                 f"with {rows_updated} rows updated and {rows_deleted} rows deleted "
                 f"at {frappe.utils.now()}"
             )
@@ -469,7 +469,7 @@ def sync_annual_payroll_history_for_bulan(
             frappe.db.rollback(save_point=savepoint_name)
             
             frappe.logger().warning(
-                f"Link validation error when saving Annual Payroll History for {employee_name}. "
+                f"Link validation error when saving Annual Payroll History for {employee_id}. "
                 f"Error: {str(e)}"
             )
             frappe.throw(
