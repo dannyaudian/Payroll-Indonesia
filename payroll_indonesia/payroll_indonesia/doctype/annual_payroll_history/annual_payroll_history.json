@@ -19,19 +19,19 @@
       "reqd": 1
     },
     {
-      "fieldname": "employee_name",
-      "fieldtype": "Data",
-      "label": "Employee Name",
-      "fetch_from": "employee.employee_name",
-      "read_only": 1
-    },
-    {
       "fieldname": "employee",
       "fieldtype": "Link",
       "label": "Employee",
       "options": "Employee",
       "reqd": 1,
       "in_list_view": 1
+    },
+    {
+      "fieldname": "employee_name",
+      "fieldtype": "Data",
+      "label": "Employee Name",
+      "fetch_from": "employee.employee_name",
+      "read_only": 1
     },
     {
       "fieldname": "bruto_total",
