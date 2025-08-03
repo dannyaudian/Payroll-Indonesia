@@ -73,6 +73,7 @@
       "fieldtype": "Link",
       "label": "Salary Slip",
       "in_list_view": 1,
+      "reqd": 0,
       "options": "Salary Slip"
     },
     {

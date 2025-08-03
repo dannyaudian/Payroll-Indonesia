@@ -48,11 +48,28 @@
       "read_only": 1
     },
     {
+      "fieldname": "pengurang_netto_total",
+      "fieldtype": "Currency",
+      "label": "Total Pengurang Netto",
+      "reqd": 0,
+      "read_only": 1,
+      "description": "Total pengurang netto (excludes biaya jabatan)"
+    },
+    {
+      "fieldname": "biaya_jabatan_total",
+      "fieldtype": "Currency",
+      "label": "Total Biaya Jabatan",
+      "reqd": 0,
+      "read_only": 1,
+      "description": "Total biaya jabatan dari seluruh bulan"
+    },
+    {
       "fieldname": "netto_total",
       "fieldtype": "Currency",
       "label": "Total Netto",
       "reqd": 0,
-      "read_only": 1
+      "read_only": 1,
+      "description": "Bruto Total - Pengurang Netto Total - Biaya Jabatan Total"
     },
     {
       "fieldname": "ptkp_annual",
@@ -81,6 +98,7 @@
       "fieldtype": "Currency",
       "label": "Koreksi PPh21 Desember",
       "default": "0",
+      "reqd": 0,
       "read_only": 1,
       "description": "pph21_annual - total pph21 Jan-Nov"
     },
