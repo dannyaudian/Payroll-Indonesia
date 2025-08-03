@@ -45,7 +45,8 @@
       "fieldtype": "Currency",
       "label": "Total Bruto",
       "reqd": 0,
-      "read_only": 1
+      "read_only": 1,
+      "allow_on_submit": 1
     },
     {
       "fieldname": "pengurang_netto_total",
@@ -53,6 +54,7 @@
       "label": "Total Pengurang Netto",
       "reqd": 0,
       "read_only": 1,
+      "allow_on_submit": 1,
       "description": "Total pengurang netto (excludes biaya jabatan)"
     },
     {
@@ -61,6 +63,7 @@
       "label": "Total Biaya Jabatan",
       "reqd": 0,
       "read_only": 1,
+      "allow_on_submit": 1,
       "description": "Total biaya jabatan dari seluruh bulan"
     },
     {
@@ -69,6 +72,7 @@
       "label": "Total Netto",
       "reqd": 0,
       "read_only": 1,
+      "allow_on_submit": 1,
       "description": "Bruto Total - Pengurang Netto Total - Biaya Jabatan Total"
     },
     {
@@ -77,21 +81,24 @@
       "label": "PTKP Annual",
       "default": "0",
       "reqd": 0,
-      "read_only": 1
+      "read_only": 1,
+      "allow_on_submit": 1
     },
     {
       "fieldname": "pkp_annual",
       "fieldtype": "Currency",
       "label": "PKP Annual (Rounded)",
       "reqd": 0,
-      "read_only": 1
+      "read_only": 1,
+      "allow_on_submit": 1
     },
     {
       "fieldname": "pph21_annual",
       "fieldtype": "Currency",
       "label": "PPh21 Annual",
       "reqd": 0,
-      "read_only": 1
+      "read_only": 1,
+      "allow_on_submit": 1
     },
     {
       "fieldname": "koreksi_pph21",
@@ -100,6 +107,7 @@
       "default": "0",
       "reqd": 0,
       "read_only": 1,
+      "allow_on_submit": 1,
       "description": "pph21_annual - total pph21 Jan-Nov"
     },
     {
