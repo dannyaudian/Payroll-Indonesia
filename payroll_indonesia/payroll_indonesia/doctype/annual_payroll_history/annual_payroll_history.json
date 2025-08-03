@@ -44,13 +44,15 @@
       "fieldname": "bruto_total",
       "fieldtype": "Currency",
       "label": "Total Bruto",
-      "reqd": 1
+      "reqd": 0,
+      "read_only": 1
     },
     {
       "fieldname": "netto_total",
       "fieldtype": "Currency",
       "label": "Total Netto",
-      "reqd": 1
+      "reqd": 0,
+      "read_only": 1
     },
     {
       "fieldname": "ptkp_annual",
@@ -58,25 +60,29 @@
       "label": "PTKP Annual",
       "reqd": 1,
       "default": "0"
+      "reqd": 0,
+      "read_only": 1
     },
     {
       "fieldname": "pkp_annual",
       "fieldtype": "Currency",
       "label": "PKP Annual (Rounded)",
-      "reqd": 1
+      "reqd": 0,
+      "read_only": 1
     },
     {
       "fieldname": "pph21_annual",
       "fieldtype": "Currency",
       "label": "PPh21 Annual",
-      "reqd": 1
+      "reqd": 0,
+      "read_only": 1
     },
     {
       "fieldname": "koreksi_pph21",
       "fieldtype": "Currency",
       "label": "Koreksi PPh21 Desember",
-      "reqd": 1,
       "default": "0",
+      "read_only": 1,
       "description": "pph21_annual - total pph21 Jan-Nov"
     },
     {

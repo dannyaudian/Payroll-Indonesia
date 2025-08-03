@@ -17,49 +17,56 @@
       "fieldtype": "Currency",
       "label": "Bruto Bulan Ini",
       "in_list_view": 1,
-      "reqd": 1
+      "reqd": 0,
+      "default": 0
     },
     {
       "fieldname": "pengurang_netto",
       "fieldtype": "Currency",
       "label": "Pengurang Netto (exclude biaya jabatan)",
       "in_list_view": 1,
-      "reqd": 1
+      "reqd": 0,
+      "default": 0
     },
     {
       "fieldname": "biaya_jabatan",
       "fieldtype": "Currency",
       "label": "Biaya Jabatan",
       "in_list_view": 1,
-      "reqd": 1
+      "reqd": 0,
+      "default": 0
     },
     {
       "fieldname": "netto",
       "fieldtype": "Currency",
       "label": "Netto Bulan Ini",
       "in_list_view": 1,
-      "reqd": 1
+      "reqd": 0,
+      "default": 0
     },
     {
       "fieldname": "pkp",
       "fieldtype": "Currency",
       "label": "PKP Bulan Ini",
       "in_list_view": 1,
-      "reqd": 1
+      "reqd": 0,
+      "default": 0
     },
     {
       "fieldname": "rate",
       "fieldtype": "Percent",
       "label": "Rate TER Bulan Ini (%)",
       "in_list_view": 1,
-      "reqd": 1
+      "reqd": 0,
+      "default": 0
     },
     {
       "fieldname": "pph21",
       "fieldtype": "Currency",
       "label": "PPh21 Bulan Ini",
       "in_list_view": 1,
-      "reqd": 1
+      "reqd": 0,
+      "default": 0
     },
     {
       "fieldname": "salary_slip",
