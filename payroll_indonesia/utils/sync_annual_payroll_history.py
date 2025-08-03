@@ -221,9 +221,10 @@ def sync_annual_payroll_history(
     """Sync Annual Payroll History untuk satu atau lebih bulan.
 
     Parameter ``employee`` dapat berupa object, dict, ataupun langsung
-    berupa string ID karyawan. Nilai string ini akan diteruskan ke
-    :func:`sync_annual_payroll_history_for_bulan` tanpa membutuhkan objek
-    ``Employee`` penuh.
+    berupa string ID karyawan. Jika hanya ID string yang diberikan,
+    fungsi ini akan mengambil data tambahan seperti ``company`` dan
+    ``employee_name`` dari DocType Employee sebelum meneruskan ke
+    :func:`sync_annual_payroll_history_for_bulan`.
 
     Iterasi setiap entri ``monthly_results`` berdasarkan field ``bulan`` dan
     delegasikan ke :func:`sync_annual_payroll_history_for_bulan`.
@@ -235,16 +236,37 @@ def sync_annual_payroll_history(
     monthly_results = monthly_results or []
     last_doc = None
 
-    # Pastikan yang diteruskan ke fungsi lama hanyalah ID karyawan dalam
-    # bentuk string. Hal ini memudahkan pemanggilan dari luar yang hanya
-    # memiliki ID tanpa objek Employee penuh.
-    employee_id = (
-        employee
-        if isinstance(employee, str)
-        else employee.get("name")
-        if isinstance(employee, dict)
-        else getattr(employee, "name", None)
-    )
+    # Normalisasi data employee dan lengkapi company/employee_name jika perlu
+    if isinstance(employee, str):
+        employee_info = {"name": employee}
+    elif isinstance(employee, dict):
+        employee_info = dict(employee)
+    else:
+        employee_info = {
+            "name": getattr(employee, "name", None),
+            "company": getattr(employee, "company", None),
+            "employee_name": getattr(employee, "employee_name", None),
+        }
+
+    employee_id = employee_info.get("name")
+
+    if not employee_id:
+        frappe.throw("Employee must have an ID", title="Validation Error")
+
+    if not employee_info.get("company") or not employee_info.get("employee_name"):
+        try:
+            if hasattr(frappe, "db") and hasattr(frappe.db, "get_value"):
+                extra = frappe.db.get_value(
+                    "Employee",
+                    employee_id,
+                    ["name", "company", "employee_name"],
+                    as_dict=True,
+                )
+                if extra:
+                    employee_info.setdefault("company", extra.get("company"))
+                    employee_info.setdefault("employee_name", extra.get("employee_name"))
+        except Exception:
+            pass
 
     # Proses setiap hasil bulanan secara terpisah agar fungsi lama dapat
     # melakukan validasi dan penyimpanan seperti sebelumnya.
@@ -252,7 +274,7 @@ def sync_annual_payroll_history(
         bulan = row.get("bulan")
         is_last = idx == len(monthly_results) - 1
         last_doc = sync_annual_payroll_history_for_bulan(
-            employee=employee_id,
+            employee=employee_info,
             fiscal_year=fiscal_year,
             bulan=bulan,
             monthly_results=[row],
@@ -265,7 +287,7 @@ def sync_annual_payroll_history(
     # menangani summary/cancel/error_state.
     if not monthly_results or cancelled_salary_slip:
         last_doc = sync_annual_payroll_history_for_bulan(
-            employee=employee_id,
+            employee=employee_info,
             fiscal_year=fiscal_year,
             bulan=None,
             monthly_results=None,

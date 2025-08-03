@@ -548,15 +548,6 @@ class CustomSalarySlip(SalarySlip):
                 )
                 return
 
-            employee_doc = self.get_employee_doc()
-
-            # Check if employee doc is valid/loaded
-            if not employee_doc or not employee_doc.get('name', None):
-                logger.warning(
-                    f"Invalid employee data for Salary Slip {self.name}, skipping sync"
-                )
-                return
-
             fiscal_year = getattr(self, "fiscal_year", None) or str(
                 getattr(self, "start_date", None) or ""
             )[:4]
@@ -592,7 +583,7 @@ class CustomSalarySlip(SalarySlip):
             docname = None
             if mode == "monthly":
                 docname = sync_annual_payroll_history.sync_annual_payroll_history(
-                    employee=employee_doc,
+                    employee=self.employee,
                     fiscal_year=fiscal_year,
                     monthly_results=[monthly_result],
                     summary=None,
@@ -610,7 +601,7 @@ class CustomSalarySlip(SalarySlip):
                 if isinstance(raw_rate, str) and raw_rate:
                     summary["rate_slab"] = raw_rate
                 docname = sync_annual_payroll_history.sync_annual_payroll_history(
-                    employee=employee_doc,
+                    employee=self.employee,
                     fiscal_year=fiscal_year,
                     monthly_results=[monthly_result],
                     summary=summary,
@@ -647,15 +638,6 @@ class CustomSalarySlip(SalarySlip):
                     f"No employee found for cancelled Salary Slip {getattr(self, 'name', 'unknown')}, skipping sync"
                 )
                 return
-                
-            employee_doc = self.get_employee_doc()
-
-            # Check if employee doc is valid/loaded
-            if not employee_doc or not employee_doc.get('name', None):
-                logger.warning(
-                    f"Invalid employee data for cancelled Salary Slip {self.name}, skipping sync"
-                )
-                return
 
             fiscal_year = (
                 getattr(self, "fiscal_year", None) or str(getattr(self, "start_date", ""))[:4]
@@ -665,9 +647,9 @@ class CustomSalarySlip(SalarySlip):
                     f"Could not determine fiscal year for cancelled Salary Slip {self.name}, skipping sync"
                 )
                 return
-                
+
             sync_annual_payroll_history.sync_annual_payroll_history(
-                employee=employee_doc,
+                employee=self.employee,
                 fiscal_year=fiscal_year,
                 monthly_results=None,
                 summary=None,
