@@ -105,6 +105,7 @@ class AnnualPayrollHistory(Document):
         for slip in slip_docs:
             try:
                 logger.info(f"Cancelling Salary Slip {slip.name}")
+                slip.flags.from_annual_payroll_cancel = True
                 slip.cancel()
                 frappe.db.commit()
                 cancelled.append(slip.name)
