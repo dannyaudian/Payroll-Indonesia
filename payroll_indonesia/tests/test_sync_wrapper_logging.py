@@ -12,13 +12,13 @@ def test_wrapper_normalizes_and_logs(monkeypatch):
         def __init__(self):
             self.debug_messages = []
 
-        def debug(self, msg):
-            self.debug_messages.append(msg)
+        def debug(self, msg, *args):
+            self.debug_messages.append(msg % args if args else msg)
 
-        def info(self, msg):
+        def info(self, msg, *args):
             pass
 
-        def warning(self, msg):
+        def warning(self, msg, *args):
             pass
 
     logger = DummyLogger()
