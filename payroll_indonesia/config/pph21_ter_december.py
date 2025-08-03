@@ -86,12 +86,19 @@ def calculate_pph21_december(
     
     # Calculate annual PPh21 using progressive rates
     pph21_annual = calculate_pph21_progressive(pkp_annual)
-    
+
     # Calculate correction for December
     koreksi_pph21 = pph21_annual - ytd_tax_paid
-    
+
+    frappe.logger().debug(
+        "December PPh21 calculation: pph21_annual=%s, ytd_tax_paid=%s, koreksi_pph21=%s",
+        pph21_annual,
+        ytd_tax_paid,
+        koreksi_pph21,
+    )
+
     # December PPh21 is the positive correction amount (negative means refund, handled separately)
-    pph21_bulan_des = koreksi_pph21 if koreksi_pph21 > 0 else 0
+    pph21_bulan_des = max(0, koreksi_pph21)
     
     # Get tax rates description
     rates = "/".join([f"{rate}%" for _, rate in get_tax_slabs()])
