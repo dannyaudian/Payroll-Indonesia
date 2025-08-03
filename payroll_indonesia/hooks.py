@@ -128,8 +128,8 @@ doc_events = {
         "validate": "payroll_indonesia.utils.validate_salary_structure.validate_salary_structure_required_components"
     },
     "Salary Slip": {
-        "on_submit": "payroll_indonesia.utils.sync_annual_payroll_history.sync_salary_slip_to_annual",
-        "on_cancel": "payroll_indonesia.utils.sync_annual_payroll_history.sync_salary_slip_to_annual"
+        "on_submit": "payroll_indonesia.override.salary_slip.on_submit",
+        "on_cancel": "payroll_indonesia.override.salary_slip.on_cancel",
     },
 }
 
