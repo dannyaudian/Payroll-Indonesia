@@ -220,6 +220,11 @@ def sync_annual_payroll_history(
 ):
     """Sync Annual Payroll History untuk satu atau lebih bulan.
 
+    Parameter ``employee`` dapat berupa object, dict, ataupun langsung
+    berupa string ID karyawan. Nilai string ini akan diteruskan ke
+    :func:`sync_annual_payroll_history_for_bulan` tanpa membutuhkan objek
+    ``Employee`` penuh.
+
     Iterasi setiap entri ``monthly_results`` berdasarkan field ``bulan`` dan
     delegasikan ke :func:`sync_annual_payroll_history_for_bulan`.
 
@@ -230,13 +235,24 @@ def sync_annual_payroll_history(
     monthly_results = monthly_results or []
     last_doc = None
 
+    # Pastikan yang diteruskan ke fungsi lama hanyalah ID karyawan dalam
+    # bentuk string. Hal ini memudahkan pemanggilan dari luar yang hanya
+    # memiliki ID tanpa objek Employee penuh.
+    employee_id = (
+        employee
+        if isinstance(employee, str)
+        else employee.get("name")
+        if isinstance(employee, dict)
+        else getattr(employee, "name", None)
+    )
+
     # Proses setiap hasil bulanan secara terpisah agar fungsi lama dapat
     # melakukan validasi dan penyimpanan seperti sebelumnya.
     for idx, row in enumerate(monthly_results):
         bulan = row.get("bulan")
         is_last = idx == len(monthly_results) - 1
         last_doc = sync_annual_payroll_history_for_bulan(
-            employee=employee,
+            employee=employee_id,
             fiscal_year=fiscal_year,
             bulan=bulan,
             monthly_results=[row],
@@ -249,7 +265,7 @@ def sync_annual_payroll_history(
     # menangani summary/cancel/error_state.
     if not monthly_results or cancelled_salary_slip:
         last_doc = sync_annual_payroll_history_for_bulan(
-            employee=employee,
+            employee=employee_id,
             fiscal_year=fiscal_year,
             bulan=None,
             monthly_results=None,
@@ -283,8 +299,17 @@ def sync_annual_payroll_history_legacy(
     elif bulan is not None:
         monthly_results = [{"bulan": bulan}]
 
+    # Terima input ``employee`` dalam berbagai bentuk dan teruskan sebagai ID string
+    employee_id = (
+        employee
+        if isinstance(employee, str)
+        else employee.get("name")
+        if isinstance(employee, dict)
+        else getattr(employee, "name", None)
+    )
+
     return sync_annual_payroll_history(
-        employee=employee,
+        employee=employee_id,
         fiscal_year=fiscal_year,
         monthly_results=monthly_results,
         summary=summary,
@@ -316,7 +341,7 @@ def sync_annual_payroll_history_for_bulan(
     - Salary Slip divalidasi dengan memeriksa docstatus dan keberadaannya.
 
     Args:
-        employee: dict/obj Employee (harus ada `name`)
+        employee: str atau dict/obj Employee (harus ada `name`)
         fiscal_year: str (misal "2025")
         bulan: int (1-12)
         monthly_results: list of dict, masing-masing dict punya keys:
@@ -330,8 +355,11 @@ def sync_annual_payroll_history_for_bulan(
         str: Nama dokumen Annual Payroll History yang diupdate/dibuat, atau None jika gagal
     """
     # Extract employee name safely without assuming specific object structure
+    # ``employee`` boleh langsung berupa string ID karyawan.
     employee_id = None
-    if isinstance(employee, dict) and "name" in employee:
+    if isinstance(employee, str) and employee:
+        employee_id = employee
+    elif isinstance(employee, dict) and "name" in employee:
         employee_id = employee["name"]
     elif hasattr(employee, "name"):
         employee_id = employee.name
