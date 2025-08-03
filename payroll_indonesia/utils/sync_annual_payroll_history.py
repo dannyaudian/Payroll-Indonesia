@@ -3,7 +3,6 @@ import re
 import json
 import traceback
 from typing import Dict, List, Optional, Tuple, Union, Any
-import logging
 
 try:
     from frappe.utils import cint, flt, getdate
@@ -133,18 +132,8 @@ def get_or_create_annual_payroll_history(
     # Validate and truncate document name
     history.name = truncate_doc_name(f"{employee_id}-{fiscal_year}")
     
-    # Initialize numeric fields with default values
-    for field in [
-        "bruto_total",
-        "netto_total",
-        "pengurang_netto_total",  # Added this field from DocType
-        "biaya_jabatan_total",    # Added this field from DocType
-        "ptkp_annual",
-        "pkp_annual",
-        "pph21_annual",
-        "koreksi_pph21",
-    ]:
-        setattr(history, field, 0)
+    # Don't set default values here - they'll be set by the DocType itself
+    # This allows the system to respect any changes to the DocType defaults
 
     return history
 
@@ -171,18 +160,10 @@ def update_annual_payroll_summary(history: Any, summary: Dict[str, Any]) -> None
         # Check if there's a mapping for this field
         field_name = field_mapping.get(k, k)
         
-        # Ensure numeric fields are not None
-        if v is None and field_name in [
-            "bruto_total",
-            "netto_total",
-            "pengurang_netto_total",
-            "biaya_jabatan_total",
-            "ptkp_annual",
-            "pkp_annual",
-            "pph21_annual",
-            "koreksi_pph21",
-        ]:
-            v = 0
+        # If value is None, don't explicitly set it to 0
+        # This allows the DocType's default value to be used
+        if v is None:
+            continue
             
         if hasattr(history, field_name):
             setattr(history, field_name, v)
@@ -191,12 +172,17 @@ def update_annual_payroll_summary(history: Any, summary: Dict[str, Any]) -> None
             history.set(field_name, v)
 
 
-def is_salary_slip_valid(salary_slip_name: str) -> Tuple[bool, Optional[str]]:
+def is_salary_slip_valid(
+    salary_slip_name: str, 
+    in_transaction_context: bool = False
+) -> Tuple[bool, Optional[str]]:
     """
     Check if a salary slip is valid for inclusion in Annual Payroll History.
     
     Args:
         salary_slip_name: Name of the salary slip
+        in_transaction_context: Whether this is called within a transaction context
+                              like a savepoint (affects database access)
         
     Returns:
         Tuple of (is_valid, reason_if_invalid)
@@ -217,15 +203,30 @@ def is_salary_slip_valid(salary_slip_name: str) -> Tuple[bool, Optional[str]]:
         if re.search(pattern, str(salary_slip_name), re.IGNORECASE):
             return False, f"Salary slip has temporary name pattern: {pattern}"
     
-    if not frappe.db.exists("Salary Slip", salary_slip_name):
-        return False, f"Salary slip does not exist in database: {salary_slip_name}"
-    
-    docstatus = frappe.db.get_value("Salary Slip", salary_slip_name, "docstatus")
-    if cint(docstatus) != 1:
-        status_map = {0: "Draft", 1: "Submitted", 2: "Cancelled"}
-        return False, f"Salary slip exists but has invalid status: {status_map.get(cint(docstatus), 'Unknown')}"
-    
-    return True, None
+    # If we're in a transaction context, use frappe.get_doc() instead of direct DB access
+    # This ensures we use the current transaction's view of the database
+    if in_transaction_context:
+        try:
+            slip = frappe.get_doc("Salary Slip", salary_slip_name)
+            if cint(slip.docstatus) != 1:
+                status_map = {0: "Draft", 1: "Submitted", 2: "Cancelled"}
+                return False, f"Salary slip exists but has invalid status: {status_map.get(cint(slip.docstatus), 'Unknown')}"
+            return True, None
+        except frappe.DoesNotExistError:
+            return False, f"Salary slip does not exist in database: {salary_slip_name}"
+        except Exception as e:
+            return False, f"Error checking salary slip: {str(e)}"
+    else:
+        # Outside transaction context, direct DB access is fine
+        if not frappe.db.exists("Salary Slip", salary_slip_name):
+            return False, f"Salary slip does not exist in database: {salary_slip_name}"
+        
+        docstatus = frappe.db.get_value("Salary Slip", salary_slip_name, "docstatus")
+        if cint(docstatus) != 1:
+            status_map = {0: "Draft", 1: "Submitted", 2: "Cancelled"}
+            return False, f"Salary slip exists but has invalid status: {status_map.get(cint(docstatus), 'Unknown')}"
+        
+        return True, None
 
 
 def upsert_monthly_detail(history: Any, month_data: Dict[str, Any]) -> bool:
@@ -258,7 +259,8 @@ def upsert_monthly_detail(history: Any, month_data: Dict[str, Any]) -> bool:
         bulan = 1  # Default to January if invalid
 
     if salary_slip:
-        is_valid, reason = is_salary_slip_valid(salary_slip)
+        # Pass in_transaction_context=True since this is typically called within a savepoint
+        is_valid, reason = is_salary_slip_valid(salary_slip, in_transaction_context=True)
         if not is_valid:
             logger = frappe.logger("payroll_indonesia")
             logger.warning(
@@ -311,12 +313,32 @@ def upsert_monthly_detail(history: Any, month_data: Dict[str, Any]) -> bool:
             except Exception:
                 target.set("error_state", json.dumps(error_state))
     
+    # Get DocType metadata to check field defaults
+    doctype_meta = None
+    try:
+        doctype_meta = frappe.get_meta("Annual Payroll History Child")
+    except Exception:
+        # If we can't get meta, we'll just use values as is
+        pass
+    
     for field in numeric_fields:
         if field in month_data:
             value = month_data.get(field)
-            # Ensure value is not None
-            if value is None:
+            
+            # Only process fields that are present in month_data
+            # If value is None, check if we should use the DocType default
+            if value is None and doctype_meta:
+                # Try to get the default from DocType definition
+                field_def = doctype_meta.get_field(field)
+                if field_def and field_def.default is not None:
+                    value = field_def.default
+                else:
+                    # If no default in DocType, use 0 as last resort
+                    value = 0
+            elif value is None:
+                # If we couldn't get meta, default to 0 for None values
                 value = 0
+                
             target.set(field, flt(value))
 
     return True
@@ -606,7 +628,8 @@ def sync_annual_payroll_history_for_bulan(
         for row in monthly_results:
             salary_slip = row.get("salary_slip", "")
             if salary_slip:
-                is_valid, reason = is_salary_slip_valid(salary_slip)
+                # Pass in_transaction_context=False since we're not in a savepoint yet
+                is_valid, reason = is_salary_slip_valid(salary_slip, in_transaction_context=False)
                 if not is_valid:
                     frappe.logger("payroll_indonesia").warning(
                         "Annual Payroll History: Skipping invalid slip: %s. Reason: %s",
@@ -709,18 +732,42 @@ def sync_annual_payroll_history_for_bulan(
 
         # Initialize numeric fields for new documents
         if is_new_doc:
-            for field in [
-                "bruto_total",
-                "netto_total",
-                "pengurang_netto_total",  # Added this field from DocType
-                "biaya_jabatan_total",    # Added this field from DocType
-                "ptkp_annual",
-                "pkp_annual",
-                "pph21_annual",
-                "koreksi_pph21",
-            ]:
-                if history.get(field) is None:
-                    history.set(field, 0)
+            # Get DocType metadata to check field defaults
+            try:
+                doctype_meta = frappe.get_meta("Annual Payroll History")
+                for field in [
+                    "bruto_total",
+                    "netto_total",
+                    "pengurang_netto_total",
+                    "biaya_jabatan_total",
+                    "ptkp_annual",
+                    "pkp_annual",
+                    "pph21_annual",
+                    "koreksi_pph21",
+                ]:
+                    # Only set default if field is None (not already set)
+                    if history.get(field) is None:
+                        # Try to get default from DocType
+                        field_def = doctype_meta.get_field(field)
+                        if field_def and field_def.default is not None:
+                            history.set(field, field_def.default)
+                        else:
+                            # Fall back to 0 if no DocType default
+                            history.set(field, 0)
+            except Exception:
+                # If we can't get meta, fall back to simple initialization
+                for field in [
+                    "bruto_total",
+                    "netto_total",
+                    "pengurang_netto_total",
+                    "biaya_jabatan_total",
+                    "ptkp_annual",
+                    "pkp_annual",
+                    "pph21_annual",
+                    "koreksi_pph21",
+                ]:
+                    if history.get(field) is None:
+                        history.set(field, 0)
 
         # Calculate totals from monthly details if summary is not provided
         if not summary and monthly_results:
@@ -829,6 +876,33 @@ def recalculate_summary_from_monthly_details(history: Any) -> None:
         history.koreksi_pph21 = history.pph21_annual - pph21_total
 
 
+def normalize_month(bulan: Any) -> int:
+    """
+    Normalize month value to ensure it's within valid range 1-12.
+    
+    Args:
+        bulan: Month value to normalize
+        
+    Returns:
+        Normalized month as integer (1-12)
+    """
+    if bulan is None:
+        from datetime import datetime
+        return datetime.now().month
+        
+    try:
+        month_int = cint(bulan)
+        if month_int < 1:
+            return 1
+        elif month_int > 12:
+            return 12
+        return month_int
+    except (ValueError, TypeError):
+        # Default to current month if invalid
+        from datetime import datetime
+        return datetime.now().month
+
+
 def sync_salary_slip_to_annual(doc: Any, method: Optional[str] = None) -> None:
     """
     Synchronize Salary Slip to Annual Payroll History.
@@ -893,21 +967,29 @@ def sync_salary_slip_to_annual(doc: Any, method: Optional[str] = None) -> None:
         if method != "on_submit" and getattr(doc, "docstatus", 0) != 1:
             return
 
-        # Determine month
+        # Determine month with stricter validation
         bulan = None
         if hasattr(doc, "start_date") and doc.start_date:
-            bulan = getdate(doc.start_date).month
-        elif hasattr(doc, "bulan") and doc.bulan:
-            bulan = cint(doc.bulan)
+            try:
+                bulan = getdate(doc.start_date).month
+            except Exception:
+                bulan = None
+                
+        if bulan is None and hasattr(doc, "bulan") and doc.bulan:
+            try:
+                bulan = cint(doc.bulan)
+            except Exception:
+                bulan = None
 
+        # Use normalize_month to ensure valid range
+        bulan = normalize_month(bulan)
+        
         if not bulan and not warning_shown:
             logger.warning(
                 "Cannot determine month for Salary Slip %s, using current month",
                 getattr(doc, "name", "unknown")
             )
             warning_shown = True
-            from datetime import datetime
-            bulan = datetime.now().month
 
         # Determine fiscal year
         fiscal_year = getattr(doc, "fiscal_year", None)
@@ -985,4 +1067,3 @@ def sync_salary_slip_to_annual(doc: Any, method: Optional[str] = None) -> None:
         logger.error("Error in sync_salary_slip_to_annual: %s", str(e))
         # Re-raise the exception to ensure proper error handling
         raise
-    
