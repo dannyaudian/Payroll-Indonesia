@@ -791,6 +791,7 @@ def sync_annual_payroll_history_for_bulan(
 
             history.flags.ignore_links = True
             history.flags.ignore_permissions = True
+            history.flags.ignore_validate_update_after_submit = True  # sync may recalc totals on submitted docs
             history.save()
             
             # Auto-submit the document if still in Draft status
