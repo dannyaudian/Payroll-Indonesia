@@ -1055,7 +1055,14 @@ def sync_salary_slip_to_annual(doc: Any, method: Optional[str] = None) -> None:
 
         # Prepare summary for December or if requested
         summary = None
-        if getattr(doc, "tax_type", "") == "DECEMBER" and pph21_info:
+        tax_type = getattr(doc, "tax_type", "") or pph21_info.get("_tax_type")
+        if not tax_type and hasattr(doc, "start_date") and doc.start_date:
+            try:
+                if getdate(doc.start_date).month == 12:
+                    tax_type = "DECEMBER"
+            except Exception:
+                pass
+        if tax_type == "DECEMBER" and pph21_info:
             summary = {
                 "bruto_total": pph21_info.get("bruto_total", 0),
                 "netto_total": pph21_info.get("netto_total", 0),
