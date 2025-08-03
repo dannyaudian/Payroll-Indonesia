@@ -69,3 +69,61 @@ class AnnualPayrollHistory(Document):
             "koreksi_pph21": self.koreksi_pph21,
             "ptkp_annual": self.ptkp_annual,
         })
+
+    def on_cancel(self):
+        """Cancel linked Salary Slips when this document is cancelled."""
+        logger = frappe.logger("payroll_indonesia")
+
+        if getattr(self, "skip_salary_slip_cancellation", False):
+            logger.info(
+                f"Skipping salary slip cancellation for {self.name} due to flag"
+            )
+            return
+
+        slips = [
+            row.salary_slip
+            for row in (self.monthly_details or [])
+            if getattr(row, "salary_slip", None)
+        ]
+
+        if not slips:
+            logger.info(f"No salary slips found for {self.name}")
+            return
+
+        slip_docs = []
+        for slip_name in slips:
+            try:
+                doc = frappe.get_doc("Salary Slip", slip_name)
+                slip_docs.append(doc)
+                logger.info(f"Queued Salary Slip {slip_name} for cancellation")
+            except Exception as e:
+                logger.error(f"Unable to retrieve Salary Slip {slip_name}: {e}")
+
+        slip_docs.sort(key=lambda d: getattr(d, "posting_date", None))
+
+        cancelled, failed = [], []
+        for slip in slip_docs:
+            try:
+                logger.info(f"Cancelling Salary Slip {slip.name}")
+                slip.cancel()
+                frappe.db.commit()
+                cancelled.append(slip.name)
+                logger.info(f"Cancelled Salary Slip {slip.name}")
+            except Exception as e:
+                frappe.db.rollback()
+                failed.append(slip.name)
+                logger.error(f"Failed to cancel Salary Slip {slip.name}: {e}")
+
+        summary = []
+        if cancelled:
+            summary.append(f"Berhasil dibatalkan: {', '.join(cancelled)}")
+        if failed:
+            summary.append(f"Gagal dibatalkan: {', '.join(failed)}")
+
+        message = (
+            "<br>".join(summary)
+            if summary
+            else "Tidak ada salary slip yang dibatalkan."
+        )
+        frappe.msgprint(message, title="Ringkasan Pembatalan Salary Slip")
+        logger.info(f"Cancellation summary for {self.name}: {message}")
