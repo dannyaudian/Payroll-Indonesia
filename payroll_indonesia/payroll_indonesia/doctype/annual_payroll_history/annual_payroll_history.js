@@ -5,7 +5,12 @@ frappe.ui.form.on('Annual Payroll History', {
     before_cancel: function(frm) {
         return new Promise((resolve, reject) => {
             frappe.confirm(
-                __('Are you sure you want to cancel this document?'),
+                __(
+                    'Urutan pembatalan:<br>' +
+                    '1. Batalkan semua Salary Slip terkait.<br>' +
+                    '2. Batalkan dokumen Annual Payroll History ini.<br><br>' +
+                    'Lanjutkan pembatalan?'
+                ),
                 () => resolve(),
                 () => reject()
             );
