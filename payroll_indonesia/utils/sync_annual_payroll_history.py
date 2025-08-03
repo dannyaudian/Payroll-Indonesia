@@ -36,6 +36,11 @@ def get_or_create_annual_payroll_history(employee_id, fiscal_year, create_if_mis
     history.employee = employee_id
     history.fiscal_year = fiscal_year
 
+    # Ambil informasi tambahan dari dokumen Employee
+    employee_doc = frappe.get_doc("Employee", employee_id)
+    history.company = employee_doc.company
+    history.employee_name = getattr(employee_doc, "employee_name", None)
+
     # Gunakan utilitas penamaan Frappe untuk membuat nama unik berdasarkan pola yang diinginkan
     # Depend pada konfigurasi DocType atau pola yang diberikan agar menghasilkan identifier valid
     history.name = make_autoname(f"{employee_id}-{fiscal_year}")
