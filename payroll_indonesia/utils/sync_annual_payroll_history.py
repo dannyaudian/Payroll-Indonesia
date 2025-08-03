@@ -1,22 +1,96 @@
 import frappe
 import re
 import json
+import traceback
+from typing import Dict, List, Optional, Tuple, Union, Any
+import logging
+
 try:
     from frappe.utils import cint, flt, getdate
 except Exception:  # pragma: no cover - fallback for test stubs without cint/flt
-    def cint(value):
+    def cint(value: Any) -> int:
+        """Convert value to integer safely."""
         try:
             return int(value)
         except Exception:
             return 0
 
-    def flt(value):
+    def flt(value: Any) -> float:
+        """Convert value to float safely."""
         try:
             return float(value)
         except Exception:
             return 0.0
 
-def get_or_create_annual_payroll_history(employee_id, fiscal_year, create_if_missing=True):
+
+def sanitize_savepoint_name(name: str) -> str:
+    """
+    Sanitize savepoint name to contain only safe characters and limit its length.
+    
+    Args:
+        name: Original savepoint name
+        
+    Returns:
+        Sanitized savepoint name
+    """
+    # Replace unsafe characters with underscores
+    safe_name = re.sub(r'[^a-zA-Z0-9_]', '_', str(name))
+    # Limit length to 63 characters (common DB savepoint name limit)
+    return safe_name[:63]
+
+
+def truncate_doc_name(name: str, max_length: int = 140) -> str:
+    """
+    Truncate document name to ensure it doesn't exceed maximum length.
+    
+    Args:
+        name: Original document name
+        max_length: Maximum allowed length (default 140)
+        
+    Returns:
+        Truncated name
+    """
+    if not name:
+        return name
+    
+    if len(name) <= max_length:
+        return name
+    
+    # If name exceeds limit, truncate preserving important parts
+    parts = name.split('-')
+    if len(parts) >= 2:
+        # For format like "EMPLOYEE-YEAR", ensure we keep both parts
+        employee_id = parts[0]
+        fiscal_year = parts[-1]
+        
+        # Calculate how much to truncate employee_id
+        available_length = max_length - len(fiscal_year) - 1  # -1 for hyphen
+        if available_length > 10:
+            return f"{employee_id[:available_length]}-{fiscal_year}"
+        else:
+            # If too short, just truncate the whole string
+            return name[:max_length]
+    else:
+        # Simple truncation for other formats
+        return name[:max_length]
+
+
+def get_or_create_annual_payroll_history(
+    employee_id: str, 
+    fiscal_year: str, 
+    create_if_missing: bool = True
+) -> Optional[Any]:
+    """
+    Get or create Annual Payroll History document.
+    
+    Args:
+        employee_id: Employee ID
+        fiscal_year: Fiscal year
+        create_if_missing: Whether to create document if not found
+        
+    Returns:
+        Annual Payroll History document or None
+    """
     doc_name = frappe.db.get_value(
         "Annual Payroll History",
         {"employee": employee_id, "fiscal_year": fiscal_year},
@@ -56,7 +130,10 @@ def get_or_create_annual_payroll_history(employee_id, fiscal_year, create_if_mis
     history.company = company
     history.employee_name = getattr(employee_doc, "employee_name", None) or employee_id
 
-    history.name = f"{employee_id}-{fiscal_year}"
+    # Validate and truncate document name
+    history.name = truncate_doc_name(f"{employee_id}-{fiscal_year}")
+    
+    # Initialize numeric fields with default values
     for field in [
         "bruto_total",
         "netto_total",
@@ -69,16 +146,46 @@ def get_or_create_annual_payroll_history(employee_id, fiscal_year, create_if_mis
 
     return history
 
-def update_annual_payroll_summary(history, summary):
+
+def update_annual_payroll_summary(history: Any, summary: Dict[str, Any]) -> None:
+    """
+    Update Annual Payroll History summary fields.
+    
+    Args:
+        history: Annual Payroll History document
+        summary: Dictionary of summary values
+    """
     if not summary:
         return
+        
     for k, v in summary.items():
+        # Ensure numeric fields are not None
+        if v is None and k in [
+            "bruto_total",
+            "netto_total",
+            "ptkp_annual",
+            "pkp_annual",
+            "pph21_annual",
+            "koreksi_pph21",
+        ]:
+            v = 0
+            
         if hasattr(history, k):
             setattr(history, k, v)
         else:
             history.set(k, v)
 
-def is_salary_slip_valid(salary_slip_name):
+
+def is_salary_slip_valid(salary_slip_name: str) -> Tuple[bool, Optional[str]]:
+    """
+    Check if a salary slip is valid for inclusion in Annual Payroll History.
+    
+    Args:
+        salary_slip_name: Name of the salary slip
+        
+    Returns:
+        Tuple of (is_valid, reason_if_invalid)
+    """
     if not salary_slip_name:
         return False, "Salary slip name is empty"
     
@@ -105,30 +212,55 @@ def is_salary_slip_valid(salary_slip_name):
     
     return True, None
 
-def upsert_monthly_detail(history, month_data):
+
+def upsert_monthly_detail(history: Any, month_data: Dict[str, Any]) -> bool:
+    """
+    Update or insert monthly detail in Annual Payroll History.
+    
+    Args:
+        history: Annual Payroll History document
+        month_data: Monthly data to insert or update
+        
+    Returns:
+        True if detail was updated, False otherwise
+    """
     bulan = month_data.get("bulan")
     salary_slip = month_data.get("salary_slip")
 
     if bulan is None:
-        frappe.logger().warning("Skipping monthly detail without required 'bulan'")
+        logger = frappe.logger("payroll_indonesia")
+        logger.warning("Skipping monthly detail without required 'bulan'")
         return False
 
-    bulan = cint(bulan)
+    # Normalize month to integer within valid range
+    try:
+        bulan = cint(bulan)
+        if bulan < 1:
+            bulan = 1
+        elif bulan > 12:
+            bulan = 12
+    except (ValueError, TypeError):
+        bulan = 1  # Default to January if invalid
 
     if salary_slip:
         is_valid, reason = is_salary_slip_valid(salary_slip)
         if not is_valid:
-            frappe.logger().warning(
-                f"Skipping invalid Salary Slip in Annual Payroll History sync: {salary_slip}. Reason: {reason}"
+            logger = frappe.logger("payroll_indonesia")
+            logger.warning(
+                "Skipping invalid Salary Slip in Annual Payroll History sync: "
+                f"{salary_slip}. Reason: {reason}"
             )
             return False
 
+    # Improved duplicate detection logic - require both month and slip to match
     found = None
     for detail in history.get("monthly_details", []):
+        # If salary slip is provided, match by salary slip first
         if salary_slip and detail.salary_slip == salary_slip:
             found = detail
             break
-        if detail.bulan == bulan:
+        # If no match by salary slip but month matches, use it only if no slip is set
+        if not found and detail.bulan == bulan and not salary_slip:
             found = detail
             break
 
@@ -150,23 +282,64 @@ def upsert_monthly_detail(history, month_data):
     target.set("bulan", bulan)
     if salary_slip:
         target.set("salary_slip", salary_slip)
+        
+    # Serialize error_state to JSON consistently
     if month_data.get("error_state") is not None:
-        target.set("error_state", month_data.get("error_state"))
-
+        error_state = month_data.get("error_state")
+        if not isinstance(error_state, str):
+            target.set("error_state", json.dumps(error_state))
+        else:
+            # Check if it's already JSON string
+            try:
+                json.loads(error_state)
+                target.set("error_state", error_state)
+            except Exception:
+                target.set("error_state", json.dumps(error_state))
+    
     for field in numeric_fields:
         if field in month_data:
-            target.set(field, flt(month_data.get(field)))
+            value = month_data.get(field)
+            # Ensure value is not None
+            if value is None:
+                value = 0
+            target.set(field, flt(value))
 
     return True
 
-def remove_monthly_detail_by_salary_slip(history, salary_slip, error_state=None):
+
+def remove_monthly_detail_by_salary_slip(
+    history: Any, 
+    salary_slip: str, 
+    error_state: Optional[Dict[str, Any]] = None
+) -> int:
+    """
+    Remove monthly detail entries by salary slip from Annual Payroll History.
+    
+    Args:
+        history: Annual Payroll History document
+        salary_slip: Salary slip to remove
+        error_state: Optional error state to set
+        
+    Returns:
+        Number of entries removed
+    """
     if not salary_slip:
         return 0
 
+    # Set error state if provided (now consistently serialized to JSON)
     if error_state is not None:
         for detail in history.get("monthly_details", []):
             if detail.salary_slip == salary_slip:
-                detail.error_state = json.dumps(error_state)
+                # Ensure error_state is properly serialized
+                if not isinstance(error_state, str):
+                    detail.error_state = json.dumps(error_state)
+                else:
+                    # Check if it's already JSON string
+                    try:
+                        json.loads(error_state)
+                        detail.error_state = error_state
+                    except Exception:
+                        detail.error_state = json.dumps(error_state)
                 break
         return 0
 
@@ -180,17 +353,33 @@ def remove_monthly_detail_by_salary_slip(history, salary_slip, error_state=None)
 
     return len(to_remove)
 
+
 def sync_annual_payroll_history(
-    employee,
-    fiscal_year,
-    monthly_results=None,
-    summary=None,
-    cancelled_salary_slip=None,
-    error_state=None,
-):
+    employee: Union[str, Dict[str, Any], Any],
+    fiscal_year: str,
+    monthly_results: Optional[List[Dict[str, Any]]] = None,
+    summary: Optional[Dict[str, Any]] = None,
+    cancelled_salary_slip: Optional[str] = None,
+    error_state: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """
+    Synchronize Annual Payroll History for an employee.
+    
+    Args:
+        employee: Employee ID, dict or object
+        fiscal_year: Fiscal year
+        monthly_results: List of monthly results to sync
+        summary: Summary values to update
+        cancelled_salary_slip: Salary slip to mark as cancelled
+        error_state: Error state to set
+        
+    Returns:
+        Name of the updated document or None
+    """
     monthly_results = monthly_results or []
     last_doc = None
 
+    # Validate employee parameter
     employee_info = {"name": None, "company": None, "employee_name": None}
     if isinstance(employee, str):
         employee_info["name"] = employee
@@ -208,6 +397,11 @@ def sync_annual_payroll_history(
     if not employee_id:
         frappe.throw("Employee must have an ID", title="Validation Error")
 
+    # Validate fiscal year
+    if not fiscal_year or not isinstance(fiscal_year, str):
+        frappe.throw("Fiscal year must be a valid string", title="Validation Error")
+
+    # Get additional employee data if needed
     if not employee_info.get("company") or not employee_info.get("employee_name"):
         try:
             if hasattr(frappe, "db") and hasattr(frappe.db, "get_value"):
@@ -223,6 +417,7 @@ def sync_annual_payroll_history(
         except Exception:
             pass
 
+    # Get company if not found
     if not employee_info.get("company"):
         company = None
         if getattr(frappe, "defaults", None):
@@ -240,9 +435,11 @@ def sync_annual_payroll_history(
         employee_info["company"] = company
 
     logger = frappe.logger("payroll_indonesia")
+    
+    # Process each monthly result
     for idx, row in enumerate(monthly_results):
         bulan = row.get("bulan")
-        logger.debug(f"sync_annual_payroll_history processing month {bulan}: {row}")
+        logger.debug("sync_annual_payroll_history processing month %s: %s", bulan, row)
         is_last = idx == len(monthly_results) - 1
         last_doc = sync_annual_payroll_history_for_bulan(
             employee=employee_info,
@@ -254,32 +451,61 @@ def sync_annual_payroll_history(
             error_state=error_state if is_last else None,
         )
 
+    # Apply summary and cancelled_salary_slip if needed
     if not monthly_results or cancelled_salary_slip:
         last_doc = sync_annual_payroll_history_for_bulan(
             employee=employee_info,
             fiscal_year=fiscal_year,
             bulan=None,
             monthly_results=None,
-            summary=summary if not monthly_results else None,
+            # Always apply summary when there are cancelled slips
+            summary=summary,
             cancelled_salary_slip=cancelled_salary_slip,
             error_state=error_state if not monthly_results else None,
         )
 
     return last_doc
 
+
 def sync_annual_payroll_history_legacy(
-    employee,
-    fiscal_year,
-    bulan,
-    monthly_results=None,
-    summary=None,
-    cancelled_salary_slip=None,
-    error_state=None,
-):
+    employee: Union[str, Dict[str, Any], Any],
+    fiscal_year: str,
+    bulan: Optional[int] = None,
+    monthly_results: Optional[List[Dict[str, Any]]] = None,
+    summary: Optional[Dict[str, Any]] = None,
+    cancelled_salary_slip: Optional[str] = None,
+    error_state: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """
+    Legacy function to synchronize Annual Payroll History.
+    
+    Args:
+        employee: Employee ID, dict or object
+        fiscal_year: Fiscal year
+        bulan: Month number (1-12)
+        monthly_results: List of monthly results to sync
+        summary: Summary values to update
+        cancelled_salary_slip: Salary slip to mark as cancelled
+        error_state: Error state to set
+        
+    Returns:
+        Name of the updated document or None
+    """
+    # Normalize month parameter
+    if bulan is not None:
+        try:
+            bulan = cint(bulan)
+            if bulan < 1:
+                bulan = 1
+            elif bulan > 12:
+                bulan = 12
+        except (ValueError, TypeError):
+            bulan = None
+    
     if monthly_results:
         enriched = []
         for row in monthly_results:
-            if "bulan" not in row:
+            if "bulan" not in row and bulan is not None:
                 row = dict(row)
                 row["bulan"] = bulan
             enriched.append(row)
@@ -304,15 +530,32 @@ def sync_annual_payroll_history_legacy(
         error_state=error_state,
     )
 
+
 def sync_annual_payroll_history_for_bulan(
-    employee,
-    fiscal_year,
-    bulan,
-    monthly_results=None,
-    summary=None,
-    cancelled_salary_slip=None,
-    error_state=None,
-):
+    employee: Union[str, Dict[str, Any], Any],
+    fiscal_year: str,
+    bulan: Optional[int] = None,
+    monthly_results: Optional[List[Dict[str, Any]]] = None,
+    summary: Optional[Dict[str, Any]] = None,
+    cancelled_salary_slip: Optional[str] = None,
+    error_state: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """
+    Synchronize Annual Payroll History for a specific month.
+    
+    Args:
+        employee: Employee ID, dict or object
+        fiscal_year: Fiscal year
+        bulan: Month number (1-12)
+        monthly_results: List of monthly results to sync
+        summary: Summary values to update
+        cancelled_salary_slip: Salary slip to mark as cancelled
+        error_state: Error state to set
+        
+    Returns:
+        Name of the updated document or None
+    """
+    # Validate employee parameter
     employee_id = None
     if isinstance(employee, str) and employee:
         employee_id = employee
@@ -324,17 +567,25 @@ def sync_annual_payroll_history_for_bulan(
     if not employee_id:
         frappe.throw("Employee harus punya field 'name'!", title="Validation Error")
     
+    # Validate fiscal year
     if not fiscal_year or not isinstance(fiscal_year, str):
         frappe.throw("Fiscal year harus berupa string valid", title="Validation Error")
         
+    # Normalize month parameter
     if bulan is not None:
         try:
             bulan = cint(bulan)
-            if bulan < 0 or bulan > 12:
-                frappe.throw(f"Bulan '{bulan}' harus 0-12", title="Validation Error")
+            if bulan < 1:
+                bulan = 1
+            elif bulan > 12:
+                bulan = 12
         except (ValueError, TypeError):
-            frappe.throw(f"Bulan '{bulan}' harus berupa integer", title="Validation Error")
+            frappe.logger("payroll_indonesia").warning(
+                "Bulan '%s' tidak valid, dinormalisasi ke bulan 1", bulan
+            )
+            bulan = 1
 
+    # Validate salary slips in monthly results
     if monthly_results:
         valid_results = []
         for row in monthly_results:
@@ -342,27 +593,37 @@ def sync_annual_payroll_history_for_bulan(
             if salary_slip:
                 is_valid, reason = is_salary_slip_valid(salary_slip)
                 if not is_valid:
-                    frappe.logger().warning(
-                        f"Annual Payroll History: Skipping invalid slip: {salary_slip}. Reason: {reason}"
+                    frappe.logger("payroll_indonesia").warning(
+                        "Annual Payroll History: Skipping invalid slip: %s. Reason: %s",
+                        salary_slip, reason
                     )
                     continue
             valid_results.append(row)
             
         if not valid_results:
-            frappe.logger().info("No valid salary slips found for Annual Payroll History sync")
+            frappe.logger("payroll_indonesia").info(
+                "No valid salary slips found for Annual Payroll History sync"
+            )
             return None
         monthly_results = valid_results
 
+    # Validate cancelled salary slip
     if cancelled_salary_slip:
         if not frappe.db.exists("Salary Slip", cancelled_salary_slip):
-            frappe.logger().warning(
-                f"Cancelled Salary Slip '{cancelled_salary_slip}' not found in database, skipping removal"
+            frappe.logger("payroll_indonesia").warning(
+                "Cancelled Salary Slip '%s' not found in database, skipping removal",
+                cancelled_salary_slip
             )
             cancelled_salary_slip = None
             
     only_cancel = cancelled_salary_slip and not monthly_results and not summary
 
-    savepoint_name = f"annual_history_sync_{employee_id}_{fiscal_year}_{bulan}"
+    # Create sanitized savepoint name
+    savepoint_base = f"annual_history_sync_{employee_id}_{fiscal_year}"
+    if bulan is not None:
+        savepoint_base = f"{savepoint_base}_{bulan}"
+    savepoint_name = sanitize_savepoint_name(savepoint_base)
+    
     frappe.db.savepoint(savepoint_name)
 
     try:
@@ -371,9 +632,10 @@ def sync_annual_payroll_history_for_bulan(
         )
 
         if not history:
-            frappe.logger().info(
-                f"No Annual Payroll History found for employee {employee_id}, "
-                f"fiscal year {fiscal_year} and not creating new record"
+            frappe.logger("payroll_indonesia").info(
+                "No Annual Payroll History found for employee %s, "
+                "fiscal year %s and not creating new record",
+                employee_id, fiscal_year
             )
             return None
 
@@ -381,36 +643,56 @@ def sync_annual_payroll_history_for_bulan(
         rows_updated = 0
         rows_deleted = 0
 
+        # Remove cancelled salary slip entries
         if cancelled_salary_slip:
             rows_deleted = remove_monthly_detail_by_salary_slip(
                 history, cancelled_salary_slip, error_state=error_state
             )
             if rows_deleted:
-                frappe.logger().info(
-                    f"Removed {rows_deleted} entries for cancelled Salary Slip {cancelled_salary_slip}"
+                frappe.logger("payroll_indonesia").info(
+                    "Removed %d entries for cancelled Salary Slip %s",
+                    rows_deleted, cancelled_salary_slip
                 )
             else:
-                frappe.logger().info(
-                    f"No entries found to remove for cancelled Salary Slip {cancelled_salary_slip}"
+                frappe.logger("payroll_indonesia").info(
+                    "No entries found to remove for cancelled Salary Slip %s",
+                    cancelled_salary_slip
                 )
 
+        # Update monthly details
         if monthly_results:
             for row in monthly_results:
                 if upsert_monthly_detail(history, row):
                     rows_updated += 1
                     
+        # Set error state
         if error_state is not None:
-            history.set("error_state", frappe.as_json(error_state))
+            # Ensure error_state is properly serialized
+            if isinstance(error_state, str):
+                try:
+                    # Check if it's already a JSON string
+                    json.loads(error_state)
+                    history.set("error_state", error_state)
+                except Exception:
+                    history.set("error_state", json.dumps(error_state))
+            else:
+                history.set("error_state", json.dumps(error_state))
 
+        # Apply summary even with cancelled slip and no updates
+        if summary:
+            update_annual_payroll_summary(history, summary)
+            # Force save when summary is provided
+            rows_updated = 1
+
+        # Skip save if no changes
         if rows_updated == 0 and rows_deleted == 0 and error_state is None and not summary:
-            frappe.logger().info(
-                f"No rows updated, deleted, or summary provided in Annual Payroll History for {employee_id}, skipping save"
+            frappe.logger("payroll_indonesia").info(
+                "No rows updated, deleted, or summary provided in Annual Payroll History for %s, skipping save",
+                employee_id
             )
             return None
 
-        if summary:
-            update_annual_payroll_summary(history, summary)
-
+        # Initialize numeric fields for new documents
         if is_new_doc:
             for field in [
                 "bruto_total",
@@ -424,11 +706,11 @@ def sync_annual_payroll_history_for_bulan(
                     history.set(field, 0)
 
         try:
-            frappe.logger().debug(
-                f"[{frappe.session.user}] Saving Annual Payroll History '{history.name}' "
-                f"for employee '{employee_id}', fiscal year {fiscal_year}, bulan {bulan} "
-                f"with {rows_updated} rows updated and {rows_deleted} rows deleted "
-                f"at {frappe.utils.now()}"
+            frappe.logger("payroll_indonesia").debug(
+                "[%s] Saving Annual Payroll History '%s' for employee '%s', "
+                "fiscal year %s, bulan %s with %d rows updated and %d rows deleted at %s",
+                frappe.session.user, history.name, employee_id, fiscal_year, bulan,
+                rows_updated, rows_deleted, frappe.utils.now()
             )
 
             history.flags.ignore_links = True
@@ -440,9 +722,9 @@ def sync_annual_payroll_history_for_bulan(
         except frappe.LinkValidationError as e:
             frappe.db.rollback(save_point=savepoint_name)
             
-            frappe.logger().warning(
-                f"Link validation error when saving Annual Payroll History for {employee_id}. "
-                f"Error: {str(e)}"
+            frappe.logger("payroll_indonesia").warning(
+                "Link validation error when saving Annual Payroll History for %s. Error: %s",
+                employee_id, str(e)
             )
             frappe.throw(
                 f"Gagal menyimpan Annual Payroll History: Referensi link tidak valid. "
@@ -453,8 +735,9 @@ def sync_annual_payroll_history_for_bulan(
         except Exception as e:
             frappe.db.rollback(save_point=savepoint_name)
             
+            error_trace = traceback.format_exc()
             frappe.log_error(
-                message=f"Failed to save Annual Payroll History: {str(e)}",
+                message=f"Failed to save Annual Payroll History: {str(e)}\n{error_trace}",
                 title="Annual Payroll History Save Error"
             )
             
@@ -466,60 +749,118 @@ def sync_annual_payroll_history_for_bulan(
     except Exception as e:
         frappe.db.rollback(save_point=savepoint_name)
         
+        error_trace = traceback.format_exc()
         frappe.log_error(
-            message=f"Error in sync_annual_payroll_history: {str(e)}",
+            message=f"Error in sync_annual_payroll_history: {str(e)}\n{error_trace}",
             title="Annual Payroll History Sync Error"
         )
+        # Re-raise exception after logging
         frappe.throw(f"Gagal memproses Annual Payroll History: {str(e)}")
 
-def sync_salary_slip_to_annual(doc, method=None):
+
+def sync_salary_slip_to_annual(doc: Any, method: Optional[str] = None) -> None:
+    """
+    Synchronize Salary Slip to Annual Payroll History.
+    
+    Args:
+        doc: Salary Slip document
+        method: Hook method name
+    """
+    logger = frappe.logger("payroll_indonesia")
+    warning_shown = False
+    
     try:
+        # Handle cancellation
         if method == "on_cancel" or getattr(doc, "docstatus", 0) == 2:
             fiscal_year = getattr(doc, "fiscal_year", None)
             if not fiscal_year and hasattr(doc, "start_date") and doc.start_date:
                 fiscal_year = str(getdate(doc.start_date).year)
 
+            if not fiscal_year and not warning_shown:
+                logger.warning(
+                    "Cannot determine fiscal year for cancelled Salary Slip %s", 
+                    getattr(doc, "name", "unknown")
+                )
+                warning_shown = True
+                
             if fiscal_year:
+                # Apply summary even for cancelled slips
+                summary = None
+                if hasattr(doc, "pph21_info") and doc.pph21_info:
+                    try:
+                        pph21_info = json.loads(doc.pph21_info)
+                        summary = {
+                            "bruto_total": pph21_info.get("bruto_total", 0),
+                            "netto_total": pph21_info.get("netto_total", 0),
+                            "ptkp_annual": pph21_info.get("ptkp_annual", 0),
+                            "pkp_annual": pph21_info.get("pkp_annual", 0),
+                            "pph21_annual": pph21_info.get("pph21_annual", 0),
+                            "koreksi_pph21": pph21_info.get("koreksi_pph21", 0),
+                        }
+                    except Exception as e:
+                        logger.warning(
+                            "Error parsing pph21_info for cancelled slip %s: %s", 
+                            getattr(doc, "name", "unknown"), str(e)
+                        )
+                
                 sync_annual_payroll_history(
                     employee=doc.employee,
                     fiscal_year=fiscal_year,
                     monthly_results=None,
-                    summary=None,
+                    summary=summary,
                     cancelled_salary_slip=doc.name
                 )
-                frappe.logger().info(f"Removed cancelled Salary Slip {doc.name} from Annual Payroll History")
+                logger.info(
+                    "Removed cancelled Salary Slip %s from Annual Payroll History",
+                    doc.name
+                )
             return
 
+        # Skip non-submitted documents
         if method != "on_submit" and getattr(doc, "docstatus", 0) != 1:
             return
 
+        # Determine month
         bulan = None
         if hasattr(doc, "start_date") and doc.start_date:
             bulan = getdate(doc.start_date).month
         elif hasattr(doc, "bulan") and doc.bulan:
             bulan = cint(doc.bulan)
 
-        if not bulan:
-            frappe.logger().warning(f"Cannot determine month for Salary Slip {doc.name}, using current month")
+        if not bulan and not warning_shown:
+            logger.warning(
+                "Cannot determine month for Salary Slip %s, using current month",
+                getattr(doc, "name", "unknown")
+            )
+            warning_shown = True
             from datetime import datetime
             bulan = datetime.now().month
 
+        # Determine fiscal year
         fiscal_year = getattr(doc, "fiscal_year", None)
         if not fiscal_year and hasattr(doc, "start_date") and doc.start_date:
             fiscal_year = str(getdate(doc.start_date).year)
-        if not fiscal_year:
-            frappe.logger().warning(f"Cannot determine fiscal year for Salary Slip {doc.name}, using current year")
+        if not fiscal_year and not warning_shown:
+            logger.warning(
+                "Cannot determine fiscal year for Salary Slip %s, using current year",
+                getattr(doc, "name", "unknown")
+            )
+            warning_shown = True
             from datetime import datetime
             fiscal_year = str(datetime.now().year)
 
+        # Parse PPH21 info
         pph21_info = {}
         if hasattr(doc, "pph21_info") and doc.pph21_info:
             try:
-                import json
                 pph21_info = json.loads(doc.pph21_info)
             except Exception as e:
-                frappe.logger().warning(f"Error parsing pph21_info for {doc.name}: {str(e)}")
+                logger.warning(
+                    "Error parsing pph21_info for %s: %s",
+                    getattr(doc, "name", "unknown"), str(e)
+                )
 
+        # Prepare monthly data
         row = {
             "bulan": bulan,
             "bruto": getattr(doc, "gross_pay", 0),
@@ -532,6 +873,7 @@ def sync_salary_slip_to_annual(doc, method=None):
             "salary_slip": doc.name,
         }
 
+        # Prepare summary for December or if requested
         summary = None
         if getattr(doc, "tax_type", "") == "DECEMBER" and pph21_info:
             summary = {
@@ -543,6 +885,7 @@ def sync_salary_slip_to_annual(doc, method=None):
                 "koreksi_pph21": pph21_info.get("koreksi_pph21", 0),
             }
 
+        # Sync to Annual Payroll History
         sync_annual_payroll_history(
             employee=doc.employee,
             fiscal_year=fiscal_year,
@@ -550,13 +893,20 @@ def sync_salary_slip_to_annual(doc, method=None):
             summary=summary,
         )
 
-        frappe.logger().info(f"Successfully synced Salary Slip {doc.name} to Annual Payroll History")
+        logger.info(
+            "Successfully synced Salary Slip %s to Annual Payroll History",
+            getattr(doc, "name", "unknown")
+        )
 
     except Exception as e:
-        import traceback
         error_trace = traceback.format_exc()
         frappe.log_error(
-            message=f"Failed to sync Salary Slip {getattr(doc, 'name', 'unknown')} to Annual Payroll History: {str(e)}\n{error_trace}",
+            message=(
+                f"Failed to sync Salary Slip {getattr(doc, 'name', 'unknown')} "
+                f"to Annual Payroll History: {str(e)}\n{error_trace}"
+            ),
             title="Annual Payroll History Sync Error"
         )
-        frappe.logger().error(f"Error in sync_salary_slip_to_annual: {str(e)}")
+        logger.error("Error in sync_salary_slip_to_annual: %s", str(e))
+        # Re-raise the exception to ensure proper error handling
+        raise
