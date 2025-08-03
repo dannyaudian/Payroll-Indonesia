@@ -654,7 +654,14 @@ class CustomSalarySlip(SalarySlip):
             info = json.loads(getattr(self, "pph21_info", "{}") or "{}")
         except Exception:
             info = {}
-        mode = "december" if getattr(self, "tax_type", "") == "DECEMBER" else "monthly"
+
+        tax_type = getattr(self, "tax_type", None) or info.get("_tax_type")
+        if not tax_type:
+            bulan = self._get_bulan_number(start_date=getattr(self, "start_date", None))
+            if bulan == 12:
+                tax_type = "DECEMBER"
+        mode = "december" if tax_type == "DECEMBER" else "monthly"
+
         self.sync_to_annual_payroll_history(info, mode=mode)
         if getattr(self, "_annual_history_synced", False):
             frappe.logger().info(
@@ -682,12 +689,25 @@ class CustomSalarySlip(SalarySlip):
                 )
                 return
 
+            try:
+                info = json.loads(getattr(self, "pph21_info", "{}") or "{}")
+            except Exception:
+                info = {}
+
+            tax_type = getattr(self, "tax_type", None) or info.get("_tax_type")
+            if not tax_type:
+                bulan = self._get_bulan_number(start_date=getattr(self, "start_date", None))
+                if bulan == 12:
+                    tax_type = "DECEMBER"
+            mode = "december" if tax_type == "DECEMBER" else "monthly"
+
             sync_annual_payroll_history(
                 employee=self.employee,
                 fiscal_year=fiscal_year,
                 monthly_results=None,
                 summary=None,
                 cancelled_salary_slip=self.name,
+                mode=mode,
             )
             frappe.logger().info(
                 f"[SYNC] Salary Slip {self.name} removed from Annual Payroll History for {self.employee}"
