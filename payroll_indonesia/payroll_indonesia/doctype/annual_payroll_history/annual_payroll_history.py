@@ -1,3 +1,4 @@
+import json
 import re
 
 import frappe
@@ -105,16 +106,37 @@ class AnnualPayrollHistory(Document):
         december_slips, other_slips = [], []
         for doc in slip_docs:
             posting_date = getattr(doc, "posting_date", None)
-            month = getdate(posting_date).month if posting_date else None
+            start_date = getattr(doc, "start_date", None)
+            # Determine month using posting_date, fallback to start_date
+            month_source = posting_date or start_date
+            month = getdate(month_source).month if month_source else None
+
             tax_type = getattr(doc, "tax_type", None)
+            if not tax_type:
+                info_json = getattr(doc, "pph21_info", None)
+                if info_json:
+                    try:
+                        info = json.loads(info_json)
+                        tax_type = info.get("_tax_type")
+                    except Exception as e:
+                        logger.error(f"Error parsing pph21_info for {doc.name}: {e}")
+
             if tax_type == "DECEMBER" or month == 12:
                 december_slips.append(doc)
             else:
                 other_slips.append(doc)
 
         # Sort processing order: December first, then others from latest to oldest
-        december_slips.sort(key=lambda d: getattr(d, "posting_date", None), reverse=True)
-        other_slips.sort(key=lambda d: getattr(d, "posting_date", None), reverse=True)
+        december_slips.sort(
+            key=lambda d: getattr(d, "posting_date", None)
+            or getattr(d, "start_date", None),
+            reverse=True,
+        )
+        other_slips.sort(
+            key=lambda d: getattr(d, "posting_date", None)
+            or getattr(d, "start_date", None),
+            reverse=True,
+        )
         slip_docs = december_slips + other_slips
 
         cancelled, failed = [], []
