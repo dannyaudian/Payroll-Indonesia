@@ -58,8 +58,7 @@
       "fieldname": "ptkp_annual",
       "fieldtype": "Currency",
       "label": "PTKP Annual",
-      "reqd": 1,
-      "default": "0"
+      "default": "0",
       "reqd": 0,
       "read_only": 1
     },
