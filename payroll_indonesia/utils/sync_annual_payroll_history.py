@@ -48,10 +48,21 @@ def get_or_create_annual_payroll_history(employee_id, fiscal_year, create_if_mis
     except Exception:
         employee_doc = None
 
-    default_company = (
-        frappe.defaults.get_user_default("Company") if getattr(frappe, "defaults", None) else None
-    )
-    history.company = getattr(employee_doc, "company", None) or default_company
+    company = getattr(employee_doc, "company", None)
+    if not company and getattr(frappe, "defaults", None):
+        try:
+            company = frappe.defaults.get_global_default("company")
+        except Exception:
+            company = None
+    if not company and hasattr(frappe, "get_all"):
+        try:
+            first_company = frappe.get_all("Company", fields=["name"], limit=1)
+            if first_company:
+                company = first_company[0].get("name")
+        except Exception:
+            company = None
+
+    history.company = company
     history.employee_name = getattr(employee_doc, "employee_name", None) or employee_id
 
     # Set explicit name dan inisialisasi nilai parent
@@ -290,6 +301,22 @@ def sync_annual_payroll_history(
                     employee_info.setdefault("employee_name", extra.get("employee_name"))
         except Exception:
             pass
+
+    if not employee_info.get("company"):
+        company = None
+        if getattr(frappe, "defaults", None):
+            try:
+                company = frappe.defaults.get_global_default("company")
+            except Exception:
+                company = None
+        if not company and hasattr(frappe, "get_all"):
+            try:
+                first_company = frappe.get_all("Company", fields=["name"], limit=1)
+                if first_company:
+                    company = first_company[0].get("name")
+            except Exception:
+                company = None
+        employee_info["company"] = company
 
     logger = frappe.logger("payroll_indonesia")
     # Proses setiap hasil bulanan secara terpisah agar fungsi lama dapat
