@@ -628,6 +628,10 @@ class CustomSalarySlip(SalarySlip):
             info = {}
         mode = "december" if getattr(self, "tax_type", "") == "DECEMBER" else "monthly"
         self.sync_to_annual_payroll_history(info, mode=mode)
+        if getattr(self, "_annual_history_synced", False):
+            frappe.logger().info(
+                f"[SYNC] Salary Slip {self.name} synced to Annual Payroll History for {self.employee}"
+            )
 
     def on_cancel(self):
         """When slip is cancelled, remove related row from Annual Payroll History."""
@@ -654,6 +658,9 @@ class CustomSalarySlip(SalarySlip):
                 monthly_results=None,
                 summary=None,
                 cancelled_salary_slip=self.name,
+            )
+            frappe.logger().info(
+                f"[SYNC] Salary Slip {self.name} removed from Annual Payroll History for {self.employee}"
             )
         except frappe.ValidationError as ve:
             # Pass through validation errors
