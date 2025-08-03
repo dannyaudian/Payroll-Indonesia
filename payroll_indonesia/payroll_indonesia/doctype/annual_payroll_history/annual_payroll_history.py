@@ -1,5 +1,7 @@
+import re
+
 import frappe
-from frappe.utils import flt
+from frappe.utils import flt, getdate
 from frappe.model.document import Document
 
 class AnnualPayrollHistory(Document):
@@ -99,11 +101,27 @@ class AnnualPayrollHistory(Document):
             except Exception as e:
                 logger.error(f"Unable to retrieve Salary Slip {slip_name}: {e}")
 
-        slip_docs.sort(key=lambda d: getattr(d, "posting_date", None))
+        # Separate December slips and others
+        december_slips, other_slips = [], []
+        for doc in slip_docs:
+            posting_date = getattr(doc, "posting_date", None)
+            month = getdate(posting_date).month if posting_date else None
+            tax_type = getattr(doc, "tax_type", None)
+            if tax_type == "DECEMBER" or month == 12:
+                december_slips.append(doc)
+            else:
+                other_slips.append(doc)
+
+        # Sort processing order: December first, then others from latest to oldest
+        december_slips.sort(key=lambda d: getattr(d, "posting_date", None), reverse=True)
+        other_slips.sort(key=lambda d: getattr(d, "posting_date", None), reverse=True)
+        slip_docs = december_slips + other_slips
 
         cancelled, failed = [], []
         for slip in slip_docs:
+            savepoint = re.sub(r"\W+", "_", f"cancel_{slip.name}")[:63]
             try:
+                frappe.db.savepoint(savepoint)
                 logger.info(f"Cancelling Salary Slip {slip.name}")
                 slip.flags.from_annual_payroll_cancel = True
                 slip.cancel()
@@ -111,15 +129,15 @@ class AnnualPayrollHistory(Document):
                 cancelled.append(slip.name)
                 logger.info(f"Cancelled Salary Slip {slip.name}")
             except Exception as e:
-                frappe.db.rollback()
+                frappe.db.rollback(save_point=savepoint)
                 failed.append(slip.name)
                 logger.error(f"Failed to cancel Salary Slip {slip.name}: {e}")
 
         summary = []
         if cancelled:
-            summary.append(f"Berhasil dibatalkan: {', '.join(cancelled)}")
+            summary.append(f"Berhasil dibatalkan: {len(cancelled)} slip")
         if failed:
-            summary.append(f"Gagal dibatalkan: {', '.join(failed)}")
+            summary.append(f"Gagal dibatalkan: {len(failed)} slip")
 
         message = (
             "<br>".join(summary)
