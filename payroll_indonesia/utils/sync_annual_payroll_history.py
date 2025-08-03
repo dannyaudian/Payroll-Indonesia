@@ -792,6 +792,28 @@ def sync_annual_payroll_history_for_bulan(
             history.flags.ignore_permissions = True
             history.save()
             
+            # Auto-submit the document if still in Draft status
+            if history.docstatus == 0:
+                try:
+                    history.flags.ignore_links = True
+                    history.flags.ignore_permissions = True
+                    history.submit()
+                    frappe.logger("payroll_indonesia").info(
+                        "Auto-submitted Annual Payroll History '%s' for employee '%s', fiscal year %s",
+                        history.name, employee_id, fiscal_year
+                    )
+                except Exception as submit_error:
+                    # Log error but don't throw - we already saved the document successfully
+                    error_trace = traceback.format_exc()
+                    frappe.log_error(
+                        message=f"Failed to auto-submit Annual Payroll History '{history.name}': {str(submit_error)}\n{error_trace}",
+                        title="Annual Payroll History Auto-Submit Error"
+                    )
+                    frappe.logger("payroll_indonesia").warning(
+                        "Failed to auto-submit Annual Payroll History '%s': %s",
+                        history.name, str(submit_error)
+                    )
+            
             return history.name
             
         except frappe.LinkValidationError as e:
@@ -984,23 +1006,22 @@ def sync_salary_slip_to_annual(doc: Any, method: Optional[str] = None) -> None:
         # Use normalize_month to ensure valid range
         bulan = normalize_month(bulan)
         
-        if not bulan and not warning_shown:
+        # Warning for source data is logged before normalization if needed
+        if not hasattr(doc, "start_date") and not hasattr(doc, "bulan"):
             logger.warning(
-                "Cannot determine month for Salary Slip %s, using current month",
+                "Missing month data for Salary Slip %s, using current month as fallback",
                 getattr(doc, "name", "unknown")
             )
-            warning_shown = True
 
         # Determine fiscal year
         fiscal_year = getattr(doc, "fiscal_year", None)
         if not fiscal_year and hasattr(doc, "start_date") and doc.start_date:
             fiscal_year = str(getdate(doc.start_date).year)
-        if not fiscal_year and not warning_shown:
+        if not fiscal_year:
             logger.warning(
                 "Cannot determine fiscal year for Salary Slip %s, using current year",
                 getattr(doc, "name", "unknown")
             )
-            warning_shown = True
             from datetime import datetime
             fiscal_year = str(datetime.now().year)
 
@@ -1057,11 +1078,9 @@ def sync_salary_slip_to_annual(doc: Any, method: Optional[str] = None) -> None:
 
     except Exception as e:
         error_trace = traceback.format_exc()
+        # Gabungkan f-string menjadi satu pesan yang utuh
         frappe.log_error(
-            message=(
-                f"Failed to sync Salary Slip {getattr(doc, 'name', 'unknown')} "
-                f"to Annual Payroll History: {str(e)}\n{error_trace}"
-            ),
+            message=f"Failed to sync Salary Slip {getattr(doc, 'name', 'unknown')} to Annual Payroll History: {str(e)}\n{error_trace}",
             title="Annual Payroll History Sync Error"
         )
         logger.error("Error in sync_salary_slip_to_annual: %s", str(e))
