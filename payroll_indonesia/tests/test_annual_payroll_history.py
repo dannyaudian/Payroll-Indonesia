@@ -1,5 +1,6 @@
 import types
 import sys
+import types
 
 
 def test_get_or_create_creates(monkeypatch):
@@ -20,10 +21,19 @@ def test_get_or_create_creates(monkeypatch):
         fake_make_autoname,
     )
 
+    employee = types.SimpleNamespace(company="Test Co", employee_name="John Doe")
+    monkeypatch.setattr(
+        frappe,
+        "get_doc",
+        lambda dt, name: employee if dt == "Employee" else {},
+    )
+
     doc = get_or_create_annual_payroll_history(employee_id="EMP001", fiscal_year="2024")
     assert doc.name == "AUTO-EMP001-2024"
     assert captured["key"] == "EMP001-2024"
     assert doc.fiscal_year == "2024"
+    assert doc.company == "Test Co"
+    assert doc.employee_name == "John Doe"
 
 
 def test_get_or_create_returns_existing(monkeypatch):

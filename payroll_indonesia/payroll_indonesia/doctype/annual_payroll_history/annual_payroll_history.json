@@ -19,6 +19,13 @@
       "reqd": 1
     },
     {
+      "fieldname": "company",
+      "fieldtype": "Link",
+      "label": "Company",
+      "options": "Company",
+      "reqd": 1
+    },
+    {
       "fieldname": "employee",
       "fieldtype": "Link",
       "label": "Employee",
