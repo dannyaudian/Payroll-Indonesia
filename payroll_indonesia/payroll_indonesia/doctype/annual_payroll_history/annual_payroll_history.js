@@ -1,6 +1,15 @@
 frappe.ui.form.on('Annual Payroll History', {
     refresh: function(frm) {
         calculate_totals(frm);
+    },
+    before_cancel: function(frm) {
+        return new Promise((resolve, reject) => {
+            frappe.confirm(
+                __('Are you sure you want to cancel this document?'),
+                () => resolve(),
+                () => reject()
+            );
+        });
     }
 });
 
