@@ -41,6 +41,7 @@ def sanitize_savepoint_name(name: str) -> str:
 def truncate_doc_name(name: str, max_length: int = 140) -> str:
     """
     Truncate document name to ensure it doesn't exceed maximum length.
+    Preserves employee ID and fiscal year format by using right split.
     
     Args:
         name: Original document name
@@ -55,12 +56,12 @@ def truncate_doc_name(name: str, max_length: int = 140) -> str:
     if len(name) <= max_length:
         return name
     
-    # If name exceeds limit, truncate preserving important parts
-    parts = name.split('-')
-    if len(parts) >= 2:
-        # For format like "EMPLOYEE-YEAR", ensure we keep both parts
+    # Use rsplit to split from right side, preserving all hyphens in employee ID
+    parts = name.rsplit('-', 1)
+    if len(parts) == 2:
+        # For format like "EMPLOYEE-ID-WITH-HYPHENS-YEAR"
         employee_id = parts[0]
-        fiscal_year = parts[-1]
+        fiscal_year = parts[1]
         
         # Calculate how much to truncate employee_id
         available_length = max_length - len(fiscal_year) - 1  # -1 for hyphen
