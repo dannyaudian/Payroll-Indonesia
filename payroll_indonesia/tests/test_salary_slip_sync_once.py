@@ -37,7 +37,6 @@ def test_salary_slip_validate_submit_sync_once(monkeypatch):
     sys.modules["frappe.utils.safe_exec"] = safe_exec_mod
 
     salary_slip_mod = importlib.import_module("payroll_indonesia.override.salary_slip")
-    sync_mod = importlib.import_module("payroll_indonesia.utils.sync_annual_payroll_history")
     CustomSalarySlip = salary_slip_mod.CustomSalarySlip
 
     calls = []
@@ -46,7 +45,7 @@ def test_salary_slip_validate_submit_sync_once(monkeypatch):
         calls.extend(kwargs.get("monthly_results", []))
         return "APH-001"
 
-    monkeypatch.setattr(sync_mod, "sync_annual_payroll_history", fake_sync)
+    monkeypatch.setattr(salary_slip_mod, "sync_annual_payroll_history", fake_sync)
     monkeypatch.setattr(CustomSalarySlip, "update_pph21_row", lambda self, amt: None, raising=False)
 
     def fake_calc(self):
@@ -108,7 +107,6 @@ def test_salary_slip_on_submit_populates_monthly_detail(monkeypatch):
     sys.modules["frappe.utils.safe_exec"] = safe_exec_mod
 
     salary_slip_mod = importlib.import_module("payroll_indonesia.override.salary_slip")
-    sync_mod = importlib.import_module("payroll_indonesia.utils.sync_annual_payroll_history")
     CustomSalarySlip = salary_slip_mod.CustomSalarySlip
 
     captured = {}
@@ -117,7 +115,7 @@ def test_salary_slip_on_submit_populates_monthly_detail(monkeypatch):
         captured.update(kwargs)
         return "APH-002"
 
-    monkeypatch.setattr(sync_mod, "sync_annual_payroll_history", fake_sync)
+    monkeypatch.setattr(salary_slip_mod, "sync_annual_payroll_history", fake_sync)
     monkeypatch.setattr(CustomSalarySlip, "update_pph21_row", lambda self, amt: None, raising=False)
 
     ss = CustomSalarySlip()

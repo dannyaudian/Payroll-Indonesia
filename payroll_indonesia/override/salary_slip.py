@@ -38,8 +38,8 @@ from frappe.utils.safe_exec import safe_eval
 # Import tax calculation functions directly (better pattern to avoid circular imports)
 from payroll_indonesia.config.pph21_ter import calculate_pph21_TER
 from payroll_indonesia.config.pph21_ter_december import calculate_pph21_december
-# Import utils module so tests can monkeypatch its sync function easily
-from payroll_indonesia.utils import sync_annual_payroll_history
+# Import sync function directly
+from payroll_indonesia.utils.sync_annual_payroll_history import sync_annual_payroll_history
 from payroll_indonesia import _patch_salary_slip_globals
 
 # Setup global logger for consistent logging
@@ -582,7 +582,7 @@ class CustomSalarySlip(SalarySlip):
 
             docname = None
             if mode == "monthly":
-                docname = sync_annual_payroll_history.sync_annual_payroll_history(
+                docname = sync_annual_payroll_history(
                     employee=self.employee,
                     fiscal_year=fiscal_year,
                     monthly_results=[monthly_result],
@@ -600,7 +600,7 @@ class CustomSalarySlip(SalarySlip):
                 # Preserve slab string separately for reporting if available
                 if isinstance(raw_rate, str) and raw_rate:
                     summary["rate_slab"] = raw_rate
-                docname = sync_annual_payroll_history.sync_annual_payroll_history(
+                docname = sync_annual_payroll_history(
                     employee=self.employee,
                     fiscal_year=fiscal_year,
                     monthly_results=[monthly_result],
@@ -652,7 +652,7 @@ class CustomSalarySlip(SalarySlip):
                 )
                 return
 
-            sync_annual_payroll_history.sync_annual_payroll_history(
+            sync_annual_payroll_history(
                 employee=self.employee,
                 fiscal_year=fiscal_year,
                 monthly_results=None,
