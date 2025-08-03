@@ -11,13 +11,13 @@ def test_sync_error_state_forces_save(monkeypatch):
     frappe = types.SimpleNamespace()
 
     class DummyLogger:
-        def info(self, msg):
+        def info(self, msg, *args):
             pass
 
-        def warning(self, msg):
+        def warning(self, msg, *args):
             pass
 
-        def debug(self, msg):
+        def debug(self, msg, *args):
             pass
 
     frappe.logger = lambda *a, **k: DummyLogger()
@@ -40,6 +40,7 @@ def test_sync_error_state_forces_save(monkeypatch):
             self.name = "APH-1"
             self.flags = types.SimpleNamespace()
             self.saved = False
+            self.docstatus = 1
 
         def is_new(self):
             return False
@@ -73,13 +74,13 @@ def test_sync_accepts_employee_string(monkeypatch):
     frappe = types.SimpleNamespace()
 
     class DummyLogger:
-        def info(self, msg):
+        def info(self, msg, *args):
             pass
 
-        def warning(self, msg):
+        def warning(self, msg, *args):
             pass
 
-        def debug(self, msg):
+        def debug(self, msg, *args):
             pass
 
     frappe.logger = lambda *a, **k: DummyLogger()
@@ -110,6 +111,7 @@ def test_sync_accepts_employee_string(monkeypatch):
             self.flags = types.SimpleNamespace()
             self.saved = False
             self.monthly_details = []
+            self.docstatus = 1
 
         def is_new(self):
             return False
@@ -148,13 +150,13 @@ def test_cancelled_slip_sets_error_state_and_preserves_row(monkeypatch):
     frappe = types.SimpleNamespace()
 
     class DummyLogger:
-        def info(self, msg):
+        def info(self, msg, *args):
             pass
 
-        def warning(self, msg):
+        def warning(self, msg, *args):
             pass
 
-        def debug(self, msg):
+        def debug(self, msg, *args):
             pass
 
     frappe.logger = lambda *a, **k: DummyLogger()
@@ -187,6 +189,7 @@ def test_cancelled_slip_sets_error_state_and_preserves_row(monkeypatch):
             self.flags = types.SimpleNamespace()
             self.saved = False
             self.monthly_details = [Detail()]
+            self.docstatus = 1
 
         def is_new(self):
             return False

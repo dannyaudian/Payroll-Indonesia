@@ -25,8 +25,10 @@ def test_upsert_monthly_detail_handles_error_state(monkeypatch):
 
     history = HistoryDoc()
 
+    import json
+
     assert upsert_monthly_detail(history, {'bulan': 1, 'error_state': 'oops'})
-    assert history.monthly_details[0].error_state == 'oops'
+    assert history.monthly_details[0].error_state == json.dumps('oops')
 
     assert upsert_monthly_detail(history, {'bulan': 1, 'error_state': 'new'})
-    assert history.monthly_details[0].error_state == 'new'
+    assert history.monthly_details[0].error_state == json.dumps('new')

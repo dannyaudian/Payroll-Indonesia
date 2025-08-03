@@ -770,8 +770,10 @@ def sync_annual_payroll_history_for_bulan(
                     if history.get(field) is None:
                         history.set(field, 0)
 
-        # Calculate totals from monthly details if summary is not provided
-        if not summary and monthly_results:
+        # Calculate totals from monthly details when no summary is provided.
+        # Also ensure totals are recalculated when a salary slip is cancelled
+        # without providing new monthly results.
+        if not summary and (monthly_results or cancelled_salary_slip):
             try:
                 # Aggregate monthly details to calculate totals
                 recalculate_summary_from_monthly_details(history)
