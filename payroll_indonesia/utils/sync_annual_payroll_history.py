@@ -256,22 +256,26 @@ def sync_annual_payroll_history(
     last_doc = None
 
     # Normalisasi data employee dan lengkapi company/employee_name jika perlu
+    # Normalisasi input employee menjadi dict dengan key
+    # {name, company, employee_name}
+    employee_info = {"name": None, "company": None, "employee_name": None}
     if isinstance(employee, str):
-        employee_info = {"name": employee}
+        employee_info["name"] = employee
     elif isinstance(employee, dict):
-        employee_info = dict(employee)
+        employee_info["name"] = employee.get("name")
+        employee_info["company"] = employee.get("company")
+        employee_info["employee_name"] = employee.get("employee_name")
     else:
-        employee_info = {
-            "name": getattr(employee, "name", None),
-            "company": getattr(employee, "company", None),
-            "employee_name": getattr(employee, "employee_name", None),
-        }
+        employee_info["name"] = getattr(employee, "name", None)
+        employee_info["company"] = getattr(employee, "company", None)
+        employee_info["employee_name"] = getattr(employee, "employee_name", None)
 
     employee_id = employee_info.get("name")
 
     if not employee_id:
         frappe.throw("Employee must have an ID", title="Validation Error")
 
+    # Lengkapi informasi company/employee_name bila belum ada
     if not employee_info.get("company") or not employee_info.get("employee_name"):
         try:
             if hasattr(frappe, "db") and hasattr(frappe.db, "get_value"):
@@ -287,10 +291,12 @@ def sync_annual_payroll_history(
         except Exception:
             pass
 
+    logger = frappe.logger("payroll_indonesia")
     # Proses setiap hasil bulanan secara terpisah agar fungsi lama dapat
     # melakukan validasi dan penyimpanan seperti sebelumnya.
     for idx, row in enumerate(monthly_results):
         bulan = row.get("bulan")
+        logger.debug(f"sync_annual_payroll_history processing month {bulan}: {row}")
         is_last = idx == len(monthly_results) - 1
         last_doc = sync_annual_payroll_history_for_bulan(
             employee=employee_info,
