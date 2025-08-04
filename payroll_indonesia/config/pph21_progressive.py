@@ -49,7 +49,6 @@ def sum_bruto_earnings(salary_slip):
     """
     Jumlahkan seluruh komponen earning yang menambah penghasilan bruto (termasuk natura taxable).
     - is_tax_applicable = 1 (atau is_income_tax_component/variable_based_on_taxable_salary = 1)
-    - do_not_include_in_total = 0
     - statistical_component = 0
     - exempted_from_income_tax = 0 (jika field ada)
     """
@@ -59,7 +58,6 @@ def sum_bruto_earnings(salary_slip):
             (row.get("is_tax_applicable", 0) == 1 or
              row.get("is_income_tax_component", 0) == 1 or
              row.get("variable_based_on_taxable_salary", 0) == 1)
-            and row.get("do_not_include_in_total", 0) == 0
             and row.get("statistical_component", 0) == 0
             and row.get("exempted_from_income_tax", 0) == 0
         ):
