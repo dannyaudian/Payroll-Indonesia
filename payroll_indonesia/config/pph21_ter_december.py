@@ -97,8 +97,8 @@ def calculate_pph21_december(
         koreksi_pph21,
     )
 
-    # December PPh21 is the positive correction amount (negative means refund, handled separately)
-    pph21_bulan_des = max(0, koreksi_pph21)
+    # December PPh21 follows koreksi directly (can be negative for tax refund)
+    pph21_bulan_des = koreksi_pph21
     
     # Get tax rates description
     rates = "/".join([f"{rate}%" for _, rate in get_tax_slabs()])
@@ -226,8 +226,8 @@ def calculate_pph21_december_from_slips(
     # Calculate correction
     koreksi_pph21 = pph21_annual - pph21_paid_jan_nov
     
-    # December PPh21
-    pph21_bulan_des = koreksi_pph21 if koreksi_pph21 > 0 else 0
+    # December PPh21 can be negative (refund) or positive
+    pph21_bulan_des = koreksi_pph21
     
     # Get tax rates description
     rates = "/".join([f"{rate}%" for _, rate in get_tax_slabs()])

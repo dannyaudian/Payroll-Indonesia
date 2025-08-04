@@ -195,10 +195,7 @@ def calculate_pph21_progressive_year(employee, salary_slips, pph21_paid_jan_nov=
     pph21_annual = calculate_pph21_progressive(pkp_annual)
     # 5. Pajak bulan Desember/final
     koreksi_pph21 = pph21_annual - pph21_paid_jan_nov
-    if koreksi_pph21 > 0:
-        pph21_bulan = koreksi_pph21
-    else:
-        pph21_bulan = 0
+    pph21_bulan = koreksi_pph21
 
     # 6. Rate info (for audit only)
     rates = "/".join([f"{rate}%" for _, rate in get_tax_slabs()])
