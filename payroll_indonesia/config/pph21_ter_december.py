@@ -282,7 +282,9 @@ def get_tax_slabs() -> List[Tuple[float, float]]:
 
 def sum_bruto_earnings(salary_slip: Dict[str, Any]) -> float:
     """
-    Sum all taxable earning components for bruto (including natura taxable).
+    Sum earning rows where `is_tax_applicable`, `is_income_tax_component`, or
+    `variable_based_on_taxable_salary` is set, ignoring `statistical_component`
+    and `exempted_from_income_tax` flags.
     """
     total = 0.0
     for row in salary_slip.get("earnings", []):
@@ -290,7 +292,6 @@ def sum_bruto_earnings(salary_slip: Dict[str, Any]) -> float:
             (row.get("is_tax_applicable", 0) == 1 or
              row.get("is_income_tax_component", 0) == 1 or
              row.get("variable_based_on_taxable_salary", 0) == 1)
-            and row.get("do_not_include_in_total", 0) == 0
             and row.get("statistical_component", 0) == 0
             and row.get("exempted_from_income_tax", 0) == 0
         ):
