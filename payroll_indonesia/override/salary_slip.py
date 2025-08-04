@@ -428,23 +428,48 @@ class CustomSalarySlip(SalarySlip):
                 raise frappe.ValidationError(f"Cannot calculate salary slip totals: {str(manual_error)}")
 
     def _manual_totals_calculation(self):
-        """
-        Manual calculation of totals as a fallback when built-in methods fail.
+        """Manual fallback for calculating salary slip totals.
+
+        Respects ``do_not_include_in_total`` and ``statistical_component`` flags so that
+        employer-only components (e.g. BPJS employer) do not affect gross or net pay.
         """
         try:
+            def row_amount(row):
+                if hasattr(row, "amount"):
+                    return getattr(row, "amount", 0)
+                if isinstance(row, dict):
+                    return row.get("amount", 0)
+                return 0
+
+            def get_flag(row, attr):
+                if hasattr(row, attr):
+                    return getattr(row, attr, 0)
+                if isinstance(row, dict):
+                    return row.get(attr, 0)
+                return 0
+
+            def include_row(row):
+                return not (
+                    get_flag(row, "do_not_include_in_total")
+                    or get_flag(row, "statistical_component")
+                )
+
+            # Calculate gross pay from earnings
+            self.gross_pay = sum(row_amount(row) for row in self.earnings if include_row(row))
+
             # Calculate total deduction
-            self.total_deduction = sum(
-                getattr(row, "amount", 0) if hasattr(row, "amount") else row.get("amount", 0)
-                for row in self.deductions
-            )
-            
+            self.total_deduction = sum(row_amount(row) for row in self.deductions if include_row(row))
+
             # Calculate net pay
             self.net_pay = (self.gross_pay or 0) - self.total_deduction
-            
+
+            if hasattr(self, "total"):
+                self.total = self.net_pay
+
             # Update other fields that might depend on these calculations
             if hasattr(self, "rounded_total"):
-                self.rounded_total = round(self.total_deduction)
-            
+                self.rounded_total = round(self.net_pay)
+
             if hasattr(self, "net_pay_in_words"):
                 # Try to use money_in_words if available
                 try:
@@ -453,50 +478,49 @@ class CustomSalarySlip(SalarySlip):
                 except ImportError:
                     # Skip if money_in_words is not available
                     pass
-                    
+
         except Exception as e:
             error_trace = traceback.format_exc()
             frappe.log_error(
                 message=f"Manual totals calculation failed for {self.name}: {str(e)}\n{error_trace}",
-                title="Payroll Indonesia Manual Calculation Error"
+                title="Payroll Indonesia Manual Calculation Error",
             )
-            # This is a critical error as it means we can't calculate the slip correctly
+            # This is a critical error as it means we cannot calculate the slip correctly
             raise frappe.ValidationError(f"Failed to calculate salary slip totals: {str(e)}")
-
     def _update_rounded_values(self):
-        """
-        Update rounded values to ensure they're synchronized with calculated values.
-        """
-        try:
-            # Update rounded_total if it exists
-            if hasattr(self, "rounded_total") and hasattr(self, "total"):
-                self.rounded_total = round(getattr(self, "total", self.net_pay))
+            """
+            Update rounded values to ensure they're synchronized with calculated values.
+            """
+            try:
+                # Update rounded_total if it exists
+                if hasattr(self, "rounded_total") and hasattr(self, "total"):
+                    self.rounded_total = round(getattr(self, "total", self.net_pay))
                 
-            # Update rounded net pay if applicable
-            if hasattr(self, "rounded_net_pay"):
-                self.rounded_net_pay = round(self.net_pay)
+                # Update rounded net pay if applicable
+                if hasattr(self, "rounded_net_pay"):
+                    self.rounded_net_pay = round(self.net_pay)
                 
-            # Update total in words if applicable
-            if hasattr(self, "total_in_words") and hasattr(self, "total"):
-                try:
-                    from frappe.utils import money_in_words
-                    currency = getattr(self, "currency", "IDR")
-                    self.total_in_words = money_in_words(getattr(self, "total", 0), currency)
-                except ImportError:
-                    pass
+                # Update total in words if applicable
+                if hasattr(self, "total_in_words") and hasattr(self, "total"):
+                    try:
+                        from frappe.utils import money_in_words
+                        currency = getattr(self, "currency", "IDR")
+                        self.total_in_words = money_in_words(getattr(self, "total", 0), currency)
+                    except ImportError:
+                        pass
                     
-            # Update net pay in words if applicable
-            if hasattr(self, "net_pay_in_words"):
-                try:
-                    from frappe.utils import money_in_words
-                    currency = getattr(self, "currency", "IDR")
-                    self.net_pay_in_words = money_in_words(self.net_pay, currency)
-                except ImportError:
-                    pass
+                # Update net pay in words if applicable
+                if hasattr(self, "net_pay_in_words"):
+                    try:
+                        from frappe.utils import money_in_words
+                        currency = getattr(self, "currency", "IDR")
+                        self.net_pay_in_words = money_in_words(self.net_pay, currency)
+                    except ImportError:
+                        pass
                     
-        except Exception as e:
-            # Rounding/words conversion errors aren't critical to slip validity
-            logger.warning(f"Failed to update rounded values for {self.name}: {str(e)}")
+            except Exception as e:
+                # Rounding/words conversion errors aren't critical to slip validity
+                logger.warning(f"Failed to update rounded values for {self.name}: {str(e)}")
 
     def validate(self):
         """Ensure PPh 21 deduction row updated before saving."""
