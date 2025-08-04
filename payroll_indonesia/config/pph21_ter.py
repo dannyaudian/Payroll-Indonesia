@@ -156,7 +156,6 @@ def sum_bruto_earnings(salary_slip: Dict[str, Any]) -> float:
       - is_tax_applicable = 1
       - OR is_income_tax_component = 1
       - OR variable_based_on_taxable_salary = 1
-      - do_not_include_in_total = 0
       - statistical_component = 0
       - exempted_from_income_tax = 0 (if field exists)
     """
@@ -167,7 +166,6 @@ def sum_bruto_earnings(salary_slip: Dict[str, Any]) -> float:
             (row.get("is_tax_applicable", 0) == 1 or
              row.get("is_income_tax_component", 0) == 1 or
              row.get("variable_based_on_taxable_salary", 0) == 1)
-            and row.get("do_not_include_in_total", 0) == 0
             and row.get("statistical_component", 0) == 0
             and row.get("exempted_from_income_tax", 0) == 0
         ):
