@@ -28,7 +28,8 @@ app_license = "MIT"
 
 # include js in doctype views
 doctype_js = {
-    "Annual Payroll History": "payroll_indonesia/payroll_indonesia/doctype/annual_payroll_history/annual_payroll_history.js"
+    "Annual Payroll History": "payroll_indonesia/payroll_indonesia/doctype/annual_payroll_history/annual_payroll_history.js",
+    "Expense Entry": "public/js/expense_entry.js",
 }
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
@@ -42,7 +43,7 @@ doctype_js = {
 
 # website user home page (by Role)
 # role_home_page = {
-#	"Role": "home_page"
+# 	"Role": "home_page"
 # }
 
 # Generators
@@ -56,8 +57,8 @@ doctype_js = {
 
 # add methods and filters to jinja environment
 # jinja = {
-#	"methods": "payroll_indonesia.utils.jinja_methods",
-#	"filters": "payroll_indonesia.utils.jinja_filters"
+# 	"methods": "payroll_indonesia.utils.jinja_methods",
+# 	"filters": "payroll_indonesia.utils.jinja_filters"
 # }
 
 # Installation
@@ -80,9 +81,7 @@ doctype_js = {
 # `after_migrate` runs later once all patches have been applied.
 # Running both hooks would call the setup twice, so we only use
 # `after_migrate`.
-after_migrate = [
-    "payroll_indonesia.setup.setup_module.after_sync"
-]
+after_migrate = ["payroll_indonesia.setup.setup_module.after_sync"]
 
 # Desk Notifications
 # ------------------
@@ -95,11 +94,11 @@ after_migrate = [
 # Permissions evaluated in scripted ways
 
 # permission_query_conditions = {
-#	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
+# 	"Event": "frappe.desk.doctype.event.event.get_permission_query_conditions",
 # }
 #
 # has_permission = {
-#	"Event": "frappe.desk.doctype.event.event.has_permission",
+# 	"Event": "frappe.desk.doctype.event.event.has_permission",
 # }
 
 # DocType Class
@@ -137,21 +136,21 @@ doc_events = {
 # ---------------
 
 # scheduler_events = {
-#	"all": [
-#		"payroll_indonesia.tasks.all"
-#	],
-#	"daily": [
-#		"payroll_indonesia.tasks.daily"
-#	],
-#	"hourly": [
-#		"payroll_indonesia.tasks.hourly"
-#	],
-#	"weekly": [
-#		"payroll_indonesia.tasks.weekly"
-#	],
-#	"monthly": [
-#		"payroll_indonesia.tasks.monthly"
-#	],
+# 	"all": [
+# 		"payroll_indonesia.tasks.all"
+# 	],
+# 	"daily": [
+# 		"payroll_indonesia.tasks.daily"
+# 	],
+# 	"hourly": [
+# 		"payroll_indonesia.tasks.hourly"
+# 	],
+# 	"weekly": [
+# 		"payroll_indonesia.tasks.weekly"
+# 	],
+# 	"monthly": [
+# 		"payroll_indonesia.tasks.monthly"
+# 	],
 # }
 
 # Testing
@@ -163,14 +162,14 @@ doc_events = {
 # ------------------------------
 #
 # override_whitelisted_methods = {
-#	"frappe.desk.doctype.event.event.get_events": "payroll_indonesia.event.get_events"
+# 	"frappe.desk.doctype.event.event.get_events": "payroll_indonesia.event.get_events"
 # }
 #
 # each overriding function accepts a `data` argument;
 # generated from the base implementation of the doctype dashboard,
 # along with any modifications made in other Frappe apps
 # override_doctype_dashboards = {
-#	"Task": "payroll_indonesia.task.get_dashboard_data"
+# 	"Task": "payroll_indonesia.task.get_dashboard_data"
 # }
 
 # exempt linked doctypes from being automatically cancelled
@@ -196,31 +195,31 @@ doc_events = {
 # --------------------
 
 # user_data_fields = [
-#	{
-#		"doctype": "{doctype_1}",
-#		"filter_by": "{filter_by}",
-#		"redact_fields": ["{field_1}", "{field_2}"],
-#		"partial": 1,
-#	},
-#	{
-#		"doctype": "{doctype_2}",
-#		"filter_by": "{filter_by}",
-#		"partial": 1,
-#	},
-#	{
-#		"doctype": "{doctype_3}",
-#		"strict": False,
-#	},
-#	{
-#		"doctype": "{doctype_4}"
-#	}
+# 	{
+# 		"doctype": "{doctype_1}",
+# 		"filter_by": "{filter_by}",
+# 		"redact_fields": ["{field_1}", "{field_2}"],
+# 		"partial": 1,
+# 	},
+# 	{
+# 		"doctype": "{doctype_2}",
+# 		"filter_by": "{filter_by}",
+# 		"partial": 1,
+# 	},
+# 	{
+# 		"doctype": "{doctype_3}",
+# 		"strict": False,
+# 	},
+# 	{
+# 		"doctype": "{doctype_4}"
+# 	}
 # ]
 
 # Authentication and authorization
 # --------------------------------
 
 # auth_hooks = [
-#	"payroll_indonesia.auth.validate"
+# 	"payroll_indonesia.auth.validate"
 # ]
 
 # Fixtures
@@ -237,17 +236,5 @@ fixtures = [
     "Workspace",
     "Annual Payroll History",
     "Annual Payroll History Child",
-    {
-        "doctype": "Report",
-        "filters": [
-            [
-                "name",
-                "in",
-                [
-                    "PPh21 Report",
-                    "BPJS Report"
-                ]
-            ]
-        ]
-    }
+    {"doctype": "Report", "filters": [["name", "in", ["PPh21 Report", "BPJS Report"]]]},
 ]
