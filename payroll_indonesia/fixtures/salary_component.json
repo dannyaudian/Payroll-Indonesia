@@ -278,7 +278,7 @@
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
     "amount_based_on_formula": 1,
-    "formula": "(base if base <= get_bpjs_cap(\"bpjs_jkk_cap\") else get_bpjs_cap(\"bpjs_jkk_cap\")) * get_bpjs_rate(\"bpjs_jkk_rate\") / 100",
+    "formula": "base * get_bpjs_rate(\"bpjs_jkk_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
   {
@@ -296,7 +296,7 @@
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
     "amount_based_on_formula": 1,
-    "formula": "(base if base <= get_bpjs_cap(\"bpjs_jkm_cap\") else get_bpjs_cap(\"bpjs_jkm_cap\")) * get_bpjs_rate(\"bpjs_jkm_rate\") / 100",
+    "formula": "base * get_bpjs_rate(\"bpjs_jkm_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
   {
@@ -332,7 +332,7 @@
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
     "amount_based_on_formula": 1,
-    "formula": "(base if base <= get_bpjs_cap(\"bpjs_jht_employee_cap\") else get_bpjs_cap(\"bpjs_jht_employee_cap\")) * get_bpjs_rate(\"bpjs_jht_employee_rate\") / 100",
+    "formula": "base * get_bpjs_rate(\"bpjs_jht_employee_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
   {
@@ -350,7 +350,7 @@
     "round_to_the_nearest_integer": 1,
     "disabled": 0,
     "amount_based_on_formula": 1,
-    "formula": "(base if base <= get_bpjs_cap(\"bpjs_pension_employee_cap\") else get_bpjs_cap(\"bpjs_pension_employee_cap\")) * get_bpjs_rate(\"bpjs_pension_employee_rate\") / 100",
+    "formula": "base * get_bpjs_rate(\"bpjs_pension_employee_rate\") / 100",
     "modified": "2024-01-01 00:00:00"
   },
   {
